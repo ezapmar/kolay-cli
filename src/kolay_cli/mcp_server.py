@@ -42,6 +42,7 @@ mcp = FastMCP(
     instructions=(
         "Kolay IK HR platform tools. "
         "Use person_list to find employee IDs before calling other person tools. "
+        "For bulk updates, use the `bulk_update_assistant` prompt which enforces human-in-the-loop confirmation. "
         "Dates are YYYY-MM-DD, datetimes are YYYY-MM-DD HH:MM:SS. "
         "All write operations (create/update/delete/terminate) are real and irreversible."
     ),
@@ -149,6 +150,7 @@ def person_update(
     custom_fields: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Update an employee's profile. Only supplied fields are changed.
+    For single-field updates. For bulk operations, use update_employee_data.
 
     Args:
         person_id: Employee UUID.
@@ -202,6 +204,36 @@ def person_rehire(person_id: str, start_date: str) -> dict[str, Any]:
         start_date: New employment start date (YYYY-MM-DD).
     """
     return person_svc.rehire_person(person_id, start_date=start_date)
+
+
+@mcp.tool
+@require_auth
+def update_employee_data(
+    person_id: str,
+    update_fields: dict[str, str],
+) -> dict[str, Any]:
+    """Update arbitrary fields on an employee's profile using raw API field names.
+
+    Unlike person_update (which has typed named params), this tool accepts any
+    field name the Kolay IK API supports. Only the supplied fields are changed.
+    For programmatic/bulk use. For simple named-field updates, prefer person_update.
+    Primarily designed for bulk orchestration but also useful for advanced
+    single-record updates.
+
+    Args:
+        person_id: Employee UUID (get from person_list).
+        update_fields: Dict of raw API field names to new values, e.g.
+            {"firstName": "Ahmet", "department": "Engineering", "title": "Lead"}.
+            Common writable fields: firstName, lastName, workEmail,
+            mobilePhone, department, title, location.
+
+    Returns:
+        dict with 'status': 'updated' and list of updated field names.
+    """
+    if not update_fields:
+        return {"error": True, "message": "No fields provided to update."}
+    return person_svc.update_person_fields(person_id, update_fields)
+
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -649,7 +681,11 @@ def approval_list() -> list[dict[str, Any]]:
 
 @mcp.prompt()
 def employee_snapshot(person_query: str) -> str:
-    """Generate a comprehensive HR snapshot and leave balance report for an employee."""
+    """Generate a comprehensive HR snapshot and leave balance report for an employee.
+
+    Args:
+        person_query: Employee name or search term (e.g. "Ahmet", "Tunca Üçer").
+    """
     return f"""Act as an HR Manager.
 Use the `person_list` tool to find the exact ID for the employee matching "{person_query}".
 Then, use `person_view` and `person_leave_status` to gather their data.
@@ -670,10 +706,15 @@ Draft a professional email to their department manager suggesting they encourage
 
 
 @mcp.prompt()
-def onboarding_plan(person_id: str) -> str:
-    """Draft an onboarding kit including welcome emails and schedules for a new hire."""
+def onboarding_plan(person_query: str) -> str:
+    """Draft an onboarding kit including welcome emails and schedules for a new hire.
+
+    Args:
+        person_query: Employee name or search term (e.g. "Ahmet", "Tunca Üçer").
+    """
     return f"""Act as an Onboarding Specialist.
-Use the `person_view` tool to retrieve the exact Name, Department, and Title for the new hire with ID `{person_id}`.
+First, use the `person_list` tool with search="{person_query}" to find the employee. If multiple results are returned, pick the closest match by name.
+Then use `person_view` with their ID to retrieve the exact Name, Department, and Title for the new hire.
 Based on their profile and role, output 3 things:
 1) A warm, energetic welcome email draft to be sent to the whole company.
 2) A precise guessed IT Setup and Hardware checklist tailored to their specific Title and Department.
@@ -681,15 +722,60 @@ Based on their profile and role, output 3 things:
 
 
 @mcp.prompt()
-def offboarding_plan(person_id: str) -> str:
-    """Draft an offboarding action plan with payout calculations and exit questions."""
+def offboarding_plan(person_query: str) -> str:
+    """Draft an offboarding action plan with payout calculations and exit questions.
+
+    Args:
+        person_query: Employee name or search term (e.g. "Ahmet", "Tunca Üçer").
+    """
     return f"""Act as an HR Operations Specialist.
-Use the `person_view` and `person_leave_status` tools to retrieve the full profile and leave balances for the departing employee with ID `{person_id}`.
+First, use the `person_list` tool with search="{person_query}" to find the employee. If multiple results are returned, pick the closest match by name.
+Then use `person_view` and `person_leave_status` with their ID to retrieve the full profile and leave balances for the departing employee.
 Review their 'unused' Annual Leave balance specifically.
 Output an Offboarding Action Plan including:
 1) The exact number of unused Annual Leave days that remain to be paid out.
 2) A role-specific knowledge handover checklist based on their exact Title.
 3) 5 strategic Exit Interview questions tailored specifically to their Department so they feel heard."""
+
+
+@mcp.prompt()
+def bulk_update_assistant(target_field: str, old_value: str, new_value: str) -> str:
+    """Guides a safe, human-in-the-loop bulk data cleanup across all active employees.
+
+    Args:
+        target_field: API field name to update (e.g. "department", "title", "location").
+        old_value: Current value to match against (case-insensitive, partial match allowed).
+        new_value: Replacement value to write for every matched employee.
+    """
+    return f"""Act as an HR Data Specialist performing a controlled bulk data cleanup.
+Follow these steps EXACTLY in order — do not skip or reorder them.
+
+**Step 1 — Discovery:**
+Call `person_list` with limit=200 and status='active' to retrieve all active employees.
+If totalCount exceeds 200, paginate until you have fetched every record.
+
+**Step 2 — Analysis:**
+Scan every employee. Identify those whose `{target_field}` field matches or contains "{old_value}" (case-insensitive).
+Build an internal list of matches.
+
+**Step 3 — ⚠️ MANDATORY CONFIRMATION — DO NOT SKIP:**
+STOP. Do NOT call any update tools yet.
+Present this Markdown table to the user:
+
+| # | Full Name | Current `{target_field}` | Will change to |
+|---|-----------|--------------------------|----------------|
+(one row per matched employee)
+
+Then ask EXACTLY this question:
+"Do you confirm updating `{target_field}` for these **N** employees from \\"{old_value}\\" → \\"{new_value}\\"? (Yes / No)"
+
+**Step 4 — Execute (only on explicit "Yes"):**
+• If the user responds with "Yes": loop through each matched employee and call `update_employee_data` with their ID and {{"{target_field}": "{new_value}"}}.
+  Confirm each update as it completes (e.g. "✅ Updated Ahmet Yılmaz").
+• If the user responds with anything other than "Yes": abort immediately and state "Operation cancelled. No changes were made."
+
+**Step 5 — Final Summary:**
+Present a concise summary: total scanned, total updated (or 0 if cancelled), any errors."""
 
 
 # ════════════════════════════════════════════════════════════════════════════

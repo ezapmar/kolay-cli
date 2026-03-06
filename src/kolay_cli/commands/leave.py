@@ -8,7 +8,7 @@ from datetime import datetime
 from ..api import KolayClient, safe_id
 from ..services import leave as svc
 from ..ui import (
-    console, short_id, display_status, print_success, print_empty, kv_table,
+    console, short_id, display_status, print_error, print_success, print_empty, kv_table,
     pick_person, pick_leave, api_call, no_command_help, PRIMARY, SUCCESS,
     filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg,
@@ -101,6 +101,10 @@ def view_leave(leave_id: str | None = typer.Argument(None, help="ID or row numbe
     with api_call("Fetching leave details..."):
         data = svc.view_leave(leave_id)
 
+    if is_json_mode():
+        json_output(data)
+        return
+
     p = data.get("person", {})
     ltype = data.get("leaveType", {})
     console.print(f"\n[bold {PRIMARY}]🏖️ Leave Record[/bold {PRIMARY}] [bold white]{p.get('name', 'Unknown')}[/bold white] — {ltype.get('name', 'Leave')}")
@@ -132,7 +136,6 @@ def create_leave(
 
     if not leave_type_id:
         if not types:
-            from ..ui import print_error
             print_error("This employee has no leave types assigned.")
             return
         console.print(f"\n  [bold white]Available Leave Types:[/bold white]")
@@ -141,9 +144,11 @@ def create_leave(
             console.print(f"  [{PRIMARY}]{i}[/{PRIMARY}]: {l_obj.get('name')}  [grey62]({t.get('unused', 0)} days left)[/grey62]")
         try:
             idx = int(typer.prompt("\n  Pick a leave type (#)", default="1")) - 1
-            leave_type_id = str(types[idx].get("leaveTypeId", ""))
+            selected = types[idx]
+            leave_type_id = str(selected.get("leaveTypeId", ""))
+            sel_name = selected.get("leaveType", {}).get("name", "Unknown")
+            console.print(f"  [{PRIMARY}]→ Selected: {sel_name}[/{PRIMARY}]\n")
         except (ValueError, IndexError):
-            from ..ui import print_error
             print_error("Invalid selection.")
             return
 

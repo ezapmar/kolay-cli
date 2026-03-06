@@ -14,6 +14,7 @@ from .constants import (
     PRIMARY,
     _PICKER_QUIPS, _LEAVE_PICKER_QUIPS, _TRX_PICKER_QUIPS, _EVENT_PICKER_QUIPS,
     _TIMELOG_PICKER_QUIPS, _TRAINING_PICKER_QUIPS, _PERSON_TRAINING_PICKER_QUIPS,
+    _FILE_PICKER_QUIPS,
 )
 from .formatters import console, short_id, display_status, fmt_num
 
@@ -416,3 +417,44 @@ def pick_person_training(client: KolayClient | None = None, person_id: str | Non
         return f"Selected [bold]{tname}[/bold] assignment"
 
     return _base_pick(client, _PERSON_TRAINING_PICKER_QUIPS, "Assignment", fetch, make_table, confirm)
+
+
+def pick_person_file(client: KolayClient | None = None, person_id: str | None = None) -> str:
+    """Interactive person file/folder picker."""
+    from ..api.client import KolayClient as _Client
+    from ..api.errors import APIError
+
+    if client is None:
+        try:
+            client = _Client()
+        except APIError:
+            return _typer.prompt("  Item ID")
+
+    if not person_id:
+        person_id = pick_person(client)
+
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        resp = c.get(f"v2/person/list-files/{person_id}")
+        data = resp.get("data", [])
+        return data if isinstance(data, list) else data.get("items", [])
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Name", "bold white", {"min_width": 22}),
+            ("Folder", "grey85", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, f in enumerate(items, 1):
+            name = f.get("name") or "—"
+            folder = f.get("folderName") or "—"
+            tbl.add_row(str(i), name, folder, short_id(str(f.get("id", ""))))
+        return tbl
+
+    def confirm(f: dict[str, Any]) -> str:
+        return f"Selected item [bold]{f.get('name', 'file')}[/bold]"
+
+    search_keys = [
+        lambda f: str(f.get("name") or ""),
+        lambda f: str(f.get("folderName") or ""),
+    ]
+    return _base_pick(client, _FILE_PICKER_QUIPS, "File or Folder", fetch, make_table, confirm, search_keys)

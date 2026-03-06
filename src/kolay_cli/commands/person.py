@@ -12,8 +12,8 @@ from ..services import person as svc
 from ..ui import (
     console, short_id, display_status, fmt_val, fmt_num, label,
     print_error, print_success, print_fetching, print_empty, kv_table,
-    pick_person, pick_training, pick_person_training,
-    api_call, no_command_help, PRIMARY,
+    pick_person, pick_training, pick_person_training, pick_person_file,
+    api_call, no_command_help, PRIMARY, filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
 )
 
@@ -30,6 +30,7 @@ def list_people(
     page: int = typer.Option(1, help="Page number"),
     status: str = typer.Option("active", help="Filter by status: active, inactive"),
     search: str | None = typer.Option(None, "--search", "-s", help="Search by name or email"),
+    filter: str | None = typer.Option(None, "--filter", "-f", help="Filter locally by name or email"),
     limit: int = typer.Option(20, help="Number of records to show")
 ) -> None:
     """List employees from the company roster.
@@ -49,9 +50,20 @@ def list_people(
         print_empty(f"{status} employees", hint="Try --status inactive to find terminated employees.")
         return
 
+    items = filter_items(
+        items, filter,
+        [
+            lambda p: f"{p.get('firstName', '')} {p.get('lastName', '')}",
+            lambda p: p.get("workEmail") or p.get("email") or "",
+        ],
+        label="employees",
+    )
+
     title = f"👥 {status.title()} Employees"
     if search:
         title += f" matching '{search}'"
+    if filter:
+        title += f" filtered by '{filter}'"
     
     console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
     
@@ -67,7 +79,7 @@ def list_people(
         email = person.get("workEmail") or person.get("email") or "—"
         phone = person.get("mobilePhone") or "—"
         table.add_row(
-            str(i + (page - 1) * limit),
+            str(i),
             name, email, phone,
             short_id(str(person.get("id", "")))
         )
@@ -176,7 +188,7 @@ def view_leave_status(
             fmt_num(item.get("unused", 0))
         )
 
-    console.print("\n[bold {PRIMARY}]🏖️ Leave Balances[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]🏖️ Leave Balances[/bold {PRIMARY}]\n")
     console.print(table)
     console.print()
 
@@ -213,6 +225,16 @@ def terminate_person(
         for code, desc in svc.REASON_CODES.items():
             console.print(f"  [cyan]{code}[/cyan] : {desc}")
         reason = typer.prompt("\n  Enter reason code", type=str)
+
+    if not is_yes_mode():
+        # Fetch the name for a friendlier confirmation prompt
+        try:
+            person_data = svc.view_person(person_id)
+            emp_name = f"{person_data.get('firstName', '')} {person_data.get('lastName', '')}".strip()
+        except Exception:
+            emp_name = ""
+        label = emp_name or short_id(person_id)
+        typer.confirm(f"  Terminate {label}?", abort=True)
 
     with api_call("Processing termination..."):
         result = svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason)
@@ -308,7 +330,7 @@ def create_person(
     employment_start: str | None = typer.Option(None, "--start-date", help="Employment start date (YYYY-MM-DD)"),
 ) -> None:
     """Create a new employee record. Prompts for missing required fields."""
-    console.print("\n[bold {PRIMARY}]👤 Create Employee[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]👤 Create Employee[/bold {PRIMARY}]\n")
     if not first_name:
         first_name = typer.prompt("  First name")
     if not last_name:
@@ -349,7 +371,7 @@ def bulk_view_people(
             print_empty("employees", hint="Check the IDs and try again.")
             return
 
-        console.print("\n[bold {PRIMARY}]👥 Bulk Employees View[/bold {PRIMARY}]\n")
+        console.print(f"\n[bold {PRIMARY}]👥 Bulk Employees View[/bold {PRIMARY}]\n")
         table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
         table.add_column("Name", style="bold white", min_width=22)
         table.add_column("Email", style="grey85")
@@ -388,7 +410,7 @@ def show_available_fields() -> None:
         req = "[red]Yes[/red]" if field.get("required") else "[grey62]No[/grey62]"
         table.add_row(str(i), token, field_label, field.get("type", "—"), req)
 
-    console.print("\n[bold {PRIMARY}]📋 Available Custom Fields[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]📋 Available Custom Fields[/bold {PRIMARY}]\n")
     console.print(table)
     console.print()
 
@@ -444,8 +466,7 @@ def list_person_files(person_id: str | None = typer.Argument(None, help="ID of t
 def delete_person_file(file_id: str | None = typer.Argument(None, help="ID of the file to delete")) -> None:
     """Delete a document from an employee profile."""
     if not file_id:
-        console.print("[grey62]  Tip: run 'kolay person list-files' to find file IDs.[/grey62]")
-        file_id = typer.prompt("  File ID")
+        file_id = pick_person_file()
     
     if not is_yes_mode():
         typer.confirm(f"  Delete file {file_id}?", abort=True)
@@ -459,8 +480,7 @@ def delete_person_file(file_id: str | None = typer.Argument(None, help="ID of th
 def delete_person_folder(folder_id: str | None = typer.Argument(None, help="ID of the folder to delete")) -> None:
     """Delete a folder and all documents inside it from an employee profile."""
     if not folder_id:
-        console.print("[grey62]  Tip: run 'kolay person list-files' to find folder IDs.[/grey62]")
-        folder_id = typer.prompt("  Folder ID")
+        folder_id = pick_person_file()
     
     if not is_yes_mode():
         typer.confirm(f"  Delete folder {folder_id}? All contents will be lost.", abort=True)

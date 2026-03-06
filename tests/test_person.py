@@ -206,3 +206,35 @@ def test_person_delete_training(mock_client):
     result = runner.invoke(app, ["person", "delete-training", "ptid1"], input="y\n")
     assert result.exit_code == 0
     assert "deleted" in result.output.lower()
+
+
+def test_update_person_fields(mock_client):
+    """Flexible dict-based update sends the correct PUT payload and returns metadata."""
+    mock_client.put.return_value = {}
+    from kolay_cli.services.person import update_person_fields
+
+    result = update_person_fields("someid", {"firstName": "Updated", "department": "Engineering"})
+
+    assert result["status"] == "updated"
+    assert "firstName" in result["updated_fields"]
+    assert "department" in result["updated_fields"]
+
+    call_args = mock_client.put.call_args
+    assert call_args[0][0] == "v2/person/update"
+    payload = call_args[1]["data"]["person"]
+    assert payload["firstName"] == "Updated"
+    assert payload["department"] == "Engineering"
+
+
+def test_update_person_fields_empty(mock_client):
+    """Empty fields dict is handled safely by the MCP tool layer (no API call)."""
+    from kolay_cli.mcp_server import update_employee_data
+    from unittest.mock import patch, MagicMock
+
+    with patch("kolay_cli.security.resolve_token", return_value="fake-token"), \
+         patch("kolay_cli.security.validate_token", return_value=MagicMock(valid=True, __bool__=lambda s: True)):
+        result = update_employee_data(person_id="someid", update_fields={})
+
+    assert result.get("error") is True
+    assert "No fields" in result.get("message", "")
+

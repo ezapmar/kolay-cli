@@ -102,6 +102,7 @@ def view_transaction(transaction_id: str | None = typer.Argument(None, help="ID 
 
     Pass the UUID or row number from ``kolay transaction list`` (e.g. 1, 3).
     """
+    require_arg(transaction_id, "transaction-id")
     if not transaction_id:
         transaction_id = pick_transaction()
     transaction_id = _resolve_transaction_id(transaction_id)

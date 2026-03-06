@@ -148,3 +148,10 @@ _PERSON_TRAINING_PICKER_QUIPS = [
     "📋 No ID? Pick a training assignment from the list:",
     "🔍 Let me look up the training assignments for you:",
 ]
+
+_FILE_PICKER_QUIPS = [
+    "📁 Which file or folder? Here's what's attached to this employee:",
+    "🗂️  No ID? Pick a file from the list below:",
+    "🔍 Let me pull up the employee's documents for you:",
+    "📎 Here are the attached files — take your pick:",
+]

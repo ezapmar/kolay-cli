@@ -8,7 +8,7 @@ from ..api import KolayClient, safe_id
 from ..services import training as svc
 from ..ui import (
     console, short_id, print_success, print_empty, kv_table, pick_training,
-    api_call, no_command_help, PRIMARY,
+    api_call, no_command_help, PRIMARY, filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
 )
 
@@ -23,6 +23,7 @@ def _hint(ctx: typer.Context) -> None:
 @app.command(name="list")
 def list_trainings(
     search: str | None = typer.Option(None, "--search", "-s", help="Search by training name"),
+    filter: str | None = typer.Option(None, "--filter", "-f", help="Filter locally by training name"),
     page: int = typer.Option(1, help="Page number"),
     limit: int = typer.Option(20, help="Number of records to return"),
 ) -> None:
@@ -40,7 +41,19 @@ def list_trainings(
         print_empty("trainings")
         return
 
-    console.print(f"\n[bold {PRIMARY}]🎓 Training Catalogue[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
+    items = filter_items(
+        items, filter,
+        [lambda tr: str(tr.get("name", ""))],
+        label="trainings",
+    )
+
+    title = "🎓 Training Catalogue"
+    if search:
+        title += f" matching '{search}'"
+    if filter:
+        title += f" filtered by '{filter}'"
+
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", justify="right", width=4)
     table.add_column("Training Name", style="bold white", min_width=24)
@@ -49,7 +62,7 @@ def list_trainings(
 
     for i, tr in enumerate(items, 1):
         dur = tr.get("duration") or tr.get("durationDays") or "—"
-        table.add_row(str(i + (page - 1) * limit), str(tr.get("name", "—")), str(dur), short_id(str(tr.get("id", ""))))
+        table.add_row(str(i), str(tr.get("name", "—")), str(dur), short_id(str(tr.get("id", ""))))
 
     console.print(table)
     console.print()
@@ -60,9 +73,7 @@ def _resolve_training_id(value: str, *, limit: int = 50) -> str:
     if not value.isdigit():
         return value
     result = svc.list_trainings(limit=limit)
-    items = result["items"]
-    if not items:
-        items = svc.list_trainings(limit=limit).get("items", [])
+    items = result.get("items", [])
     return resolve_row(value, items, label="training")
 
 

@@ -96,6 +96,18 @@ def update_person(
     return {"status": "updated", "person_id": person_id}
 
 
+def update_person_fields(person_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    """Flexible variant that accepts raw API field names directly.
+
+    Unlike ``update_person()``, the caller provides the exact API keys
+    (e.g. ``{"firstName": "Ahmet", "department": "Engineering"}``).
+    Designed for programmatic / bulk-update orchestration.
+    """
+    payload: dict[str, Any] = {"id": safe_id(person_id), **fields}
+    KolayClient().put("v2/person/update", data={"person": payload})
+    return {"status": "updated", "person_id": person_id, "updated_fields": list(fields.keys())}
+
+
 def terminate_person(
     person_id: str,
     *,

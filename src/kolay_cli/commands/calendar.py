@@ -9,7 +9,7 @@ from ..api import KolayClient, safe_id
 from ..services import calendar as svc
 from ..ui import (
     console, short_id, fmt_val, print_success, print_empty,
-    pick_event, api_call, no_command_help, PRIMARY,
+    pick_event, api_call, no_command_help, PRIMARY, filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg,
 )
 
@@ -46,6 +46,7 @@ def _duration(start: str, end: str) -> str:
 @app.command(name="list")
 def list_events(
     search: str | None = typer.Option(None, "--search", "-s", help="Search by title keyword"),
+    filter: str | None = typer.Option(None, "--filter", "-f", help="Filter locally by title"),
     start: str | None = typer.Option(None, "--start", help="Filter start date (YYYY-MM-DD). Defaults to today."),
     end: str | None = typer.Option(None, "--end", help="Filter end date (YYYY-MM-DD). Defaults to +30 days."),
     page: int = typer.Option(1, "--page", help="Page number"),
@@ -65,11 +66,23 @@ def list_events(
         print_empty("events", hint="Try --start 2000-01-01 to see past events.")
         return
 
+    items = filter_items(
+        items, filter,
+        [lambda ev: str(ev.get("title", ""))],
+        label="events",
+    )
+
     now = datetime.now()
     label_start = start or now.strftime("%Y-%m-%d")
     label_end = end or (now + timedelta(days=30)).strftime("%Y-%m-%d")
 
-    console.print(f"\n[bold {PRIMARY}]📅 Calendar Events[/bold {PRIMARY}] [grey62]({label_start} → {label_end})[/grey62]\n")
+    title = "📅 Calendar Events"
+    if search:
+        title += f" matching '{search}'"
+    if filter:
+        title += f" filtered by '{filter}'"
+
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({label_start} → {label_end})[/grey62]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", width=4, justify="right")
     table.add_column("Title", style="bold white", min_width=24)
@@ -80,7 +93,7 @@ def list_events(
     for i, event in enumerate(items, 1):
         ev_start, ev_end = event.get("start", ""), event.get("end", "")
         table.add_row(
-            str(i + (page - 1) * limit), str(event.get("title", "—")),
+            str(i), str(event.get("title", "—")),
             _fmt_datetime(ev_start), _duration(ev_start, ev_end),
             short_id(str(event.get("id", "")))
         )
