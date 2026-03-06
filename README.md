@@ -390,7 +390,19 @@ The token is resolved once from env → keychain → config file and cached in-p
 | Calendar | `calendar_list`, `calendar_view`, `calendar_create`, `calendar_update`, `calendar_delete` |
 | Organisation | `unit_tree`, `approval_list` |
 
+### Available Prompts (4)
+
+The server also exposes **Advanced MCP Prompts** that instruct the LLM (like Claude) on how to seamlessly orchestrate the tools above:
+
+| Prompt | Description |
+|---|---|
+| `employee_snapshot` | Generates a clean Markdown HR snapshot (ID card, tenure, unused leave) for a searched employee. |
+| `burnout_analyzer` | Analyzes all employees in a department, highlights those with >20 days unused annual leave, and drafts an email. |
+| `onboarding_plan` | Drafts a welcome email, guesses IT setup checklists, and schedules a first-week key-role meeting for new hires. |
+| `offboarding_plan` | Creates a handover checklist, calculates exact leave payout, and crafts 5 strategic exit interview questions. |
+
 ### Architecture
+
 
 Both the CLI and MCP server share a common `services/` layer — zero logic duplication:
 

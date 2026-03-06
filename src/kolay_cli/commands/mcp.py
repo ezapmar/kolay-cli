@@ -99,3 +99,44 @@ def list_tools() -> None:
     console.print(f"\n[bold {_PRIMARY}]🔧 Kolay IK MCP Tools[/bold {_PRIMARY}] [grey62]({len(tools)} registered)[/grey62]\n")
     console.print(table)
     console.print()
+
+
+@app.command(name="install")
+def install() -> None:
+    """Install the Kolay IK MCP server into supported LLM Desktop clients.
+    
+    Currently supports:
+      - Claude Desktop (macOS/Windows)
+      - Cursor IDE (project-specific)
+      - Windsurf
+    """
+    import sys
+    import json
+    from ..services.mcp_registry import install_mcp_server
+    
+    # We use sys.executable to ensure we call the same python environment
+    cmd = sys.executable
+    args = ["-m", "kolay_cli.mcp_server"]
+    
+    console.print(f"\n[bold {_PRIMARY}]🚀 Installing Kolay MCP Server[/bold {_PRIMARY}]")
+    
+    results = install_mcp_server("kolay-ik", cmd, args)
+    
+    success_count = 0
+    for client_name, success, msg in results:
+        if success:
+            console.print(f"  [green]✔[/green] [bold]{client_name}[/bold]: Successfully configured.")
+            console.print(f"      [grey62]→ {msg}[/grey62]")
+            success_count += 1
+        else:
+            if "Unsupported platform" in msg or "not determinable" in msg:
+                console.print(f"  [grey50]○[/grey50] [bold grey62]{client_name}[/bold grey62]: Skipped ({msg})")
+            else:
+                console.print(f"  [red]✖[/red] [bold]{client_name}[/bold]: Failed to configure.")
+                console.print(f"      [red]→ {msg}[/red]")
+                
+    if success_count > 0:
+        console.print("\n[green]✅ Installation complete![/green] Please restart your client(s) to apply changes.\n")
+    else:
+        console.print(f"\n[yellow]⚠️  No active clients were automatically configured.[/yellow]")
+        console.print(f"   You can manually add the server using:\n   [bold]Command:[/bold] {cmd}\n   [bold]Args:[/bold] {json.dumps(args)}\n")

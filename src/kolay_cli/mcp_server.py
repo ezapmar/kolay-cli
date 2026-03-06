@@ -16,7 +16,12 @@ Or via the CLI:
 """
 from __future__ import annotations
 
+import os
 from typing import Any
+
+# Disable fastmcp's stdout logs and banner out-of-the-box
+os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
+os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
 from fastmcp import FastMCP
 
@@ -636,6 +641,55 @@ def approval_list() -> list[dict[str, Any]]:
         List of approval process dicts with 'name', 'type', 'steps'.
     """
     return approval_svc.list_approval_processes()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PROMPTS
+# ════════════════════════════════════════════════════════════════════════════
+
+@mcp.prompt()
+def employee_snapshot(person_query: str) -> str:
+    """Generate a comprehensive HR snapshot and leave balance report for an employee."""
+    return f"""Act as an HR Manager.
+Use the `person_list` tool to find the exact ID for the employee matching "{person_query}".
+Then, use `person_view` and `person_leave_status` to gather their data.
+Output a clean Markdown report with:
+1) ID Card (Name, Department, Title)
+2) Tenure (calculated precisely from employmentStartDate)
+3) A list of leaves where 'unused' > 0 (specifically highlighting Annual Leave)."""
+
+
+@mcp.prompt()
+def burnout_analyzer(department_name: str) -> str:
+    """Analyze a department for burnout risk based on unused annual leave."""
+    return f"""Act as an Employee Engagement Specialist.
+Use the `person_list` tool (with an empty search or a specific one) to find all employees working in the `{department_name}` department.
+Use the `person_leave_status` tool for each of these employees to check their Annual Leave balances (where `primary` is true).
+Output a report highlighting employees with severe burnout risk (unused Annual Leave > 20 days).
+Draft a professional email to their department manager suggesting they encourage these specific employees to take time off."""
+
+
+@mcp.prompt()
+def onboarding_plan(person_id: str) -> str:
+    """Draft an onboarding kit including welcome emails and schedules for a new hire."""
+    return f"""Act as an Onboarding Specialist.
+Use the `person_view` tool to retrieve the exact Name, Department, and Title for the new hire with ID `{person_id}`.
+Based on their profile and role, output 3 things:
+1) A warm, energetic welcome email draft to be sent to the whole company.
+2) A precise guessed IT Setup and Hardware checklist tailored to their specific Title and Department.
+3) A first-week 30-minute introductory meeting schedule draft mapping out key department roles they should meet."""
+
+
+@mcp.prompt()
+def offboarding_plan(person_id: str) -> str:
+    """Draft an offboarding action plan with payout calculations and exit questions."""
+    return f"""Act as an HR Operations Specialist.
+Use the `person_view` and `person_leave_status` tools to retrieve the full profile and leave balances for the departing employee with ID `{person_id}`.
+Review their 'unused' Annual Leave balance specifically.
+Output an Offboarding Action Plan including:
+1) The exact number of unused Annual Leave days that remain to be paid out.
+2) A role-specific knowledge handover checklist based on their exact Title.
+3) 5 strategic Exit Interview questions tailored specifically to their Department so they feel heard."""
 
 
 # ════════════════════════════════════════════════════════════════════════════
