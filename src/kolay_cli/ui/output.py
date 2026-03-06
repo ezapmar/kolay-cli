@@ -1,0 +1,149 @@
+"""
+Structured output utilities for agent-native CLI consumption.
+
+When ``--json`` is active (or ``KOLAY_OUTPUT=json`` env var is set),
+all data goes to **stdout** as valid JSON and all diagnostics go to
+**stderr**.  Human-facing Rich rendering is skipped entirely.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from contextvars import ContextVar
+from typing import Any
+
+# Matches any Rich markup tag, e.g. [bold], [/bold], [#376BFB]
+_RICH_TAG = re.compile(r"\[/?[^\]]+\]")
+
+
+def strip_markup(text: str) -> str:
+    """Strip Rich markup tags from a string for plain-text / JSON output."""
+    return _RICH_TAG.sub("", text)
+
+
+# ── Output mode state ──────────────────────────────────────────────────────────
+# ContextVar gives each execution context (thread, async task) its own value,
+# preventing state leakage between test runs and concurrent invocations.
+_json_mode: ContextVar[bool] = ContextVar("_json_mode", default=False)
+_yes_mode: ContextVar[bool] = ContextVar("_yes_mode", default=False)
+
+
+def set_json_mode(enabled: bool) -> None:
+    _json_mode.set(enabled)
+
+
+def set_yes_mode(enabled: bool) -> None:
+    _yes_mode.set(enabled)
+
+
+def is_json_mode() -> bool:
+    """Return True if JSON output is active (``--json`` flag or ``KOLAY_OUTPUT=json``)."""
+    return _json_mode.get() or os.environ.get("KOLAY_OUTPUT", "").lower() == "json"
+
+
+def is_yes_mode() -> bool:
+    """Return True if confirmation bypass is active (``--yes`` flag)."""
+    return _yes_mode.get()
+
+
+def resolve_row(value: str, items: list, *, id_key: str = "id", label: str = "item") -> str:
+    """Resolve a 1-based row number to the item's ID.
+
+    If *value* is a positive integer, it's treated as the row number from the
+    preceding ``list`` command.  Any other string is passed through unchanged
+    so UUIDs continue to work.
+
+    Args:
+        value: User-supplied ID or row number string.
+        items: The pre-fetched list of items from the API.
+        id_key: The key that holds the item ID (default: ``"id"``).
+        label: Entity name for error messages (e.g. ``"leave record"``).
+
+    Raises:
+        typer.Exit(2): If the row number is less than 1.
+        typer.Exit(3): If the row number exceeds the list length.
+    """
+    if not value.isdigit():
+        return value
+    import typer as _typer
+    idx = int(value)
+    if idx < 1:
+        from rich.console import Console as _Console
+        _Console().print(f"[red]Row numbers start at 1.[/red]")
+        raise _typer.Exit(2)
+    if idx > len(items):
+        from rich.console import Console as _Console
+        _Console().print(
+            f"[red]No {label} at row {idx}.[/red] "
+            f"[grey62]List shows {len(items)} records.[/grey62]"
+        )
+        raise _typer.Exit(3)
+    return str(items[idx - 1].get(id_key) or "")
+
+
+def require_arg(value: Any, name: str) -> None:
+    """In JSON mode, fail fast if a required argument is missing.
+
+    Normally the CLI would launch an interactive picker. Agents can't interact,
+    so we emit a structured error and exit 2 (bad input) instead of blocking.
+
+    Usage::
+
+        require_arg(person_id, "person-id")
+        if not person_id:
+            person_id = pick_person()
+
+    Args:
+        value: The argument value (None triggers the error).
+        name: The flag/argument name to include in the error message.
+    """
+    if value is None and is_json_mode():
+        import typer
+        json_error(
+            f"Missing required argument: --{name}",
+            hint=f"Pass --{name} <value> when using --json.",
+            exit_code=2,
+        )
+        raise typer.Exit(2)
+
+
+def json_output(data: Any, *, stderr_msg: str | None = None) -> None:
+    """Write a JSON payload to **stdout** and an optional message to stderr.
+
+    Args:
+        data: Any JSON-serialisable value (dict, list, str, int ...).
+        stderr_msg: Optional one-liner printed to stderr for human observers.
+    """
+    if stderr_msg:
+        print(stderr_msg, file=sys.stderr)
+
+    # Use print() rather than sys.stdout.write() so that Typer/Click
+    # test runners can capture the output via their I/O wrappers.
+    print(json.dumps(data, ensure_ascii=False, default=str))
+
+
+def json_error(
+    message: str,
+    *,
+    status: int | None = None,
+    hint: str | None = None,
+    exit_code: int = 1,
+) -> None:
+    """Write a structured JSON error to **stdout**.
+
+    Args:
+        message: Human-readable error description.
+        status: HTTP status code (if from an API error).
+        hint: Recovery hint.
+        exit_code: The process exit code.
+    """
+    payload: dict[str, Any] = {"error": True, "message": message}
+    if status is not None:
+        payload["status"] = status
+    if hint is not None:
+        payload["hint"] = strip_markup(hint)
+    payload["exit_code"] = exit_code
+
+    print(json.dumps(payload, ensure_ascii=False, default=str))

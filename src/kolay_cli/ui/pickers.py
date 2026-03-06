@@ -1,0 +1,418 @@
+"""
+Interactive pickers for kolay-cli.
+
+Each picker fetches a list, renders a table, and returns the selected ID.
+Users never need to copy-paste UUIDs manually.
+"""
+from __future__ import annotations
+import random
+from typing import Any, Callable, TYPE_CHECKING
+import typer as _typer
+from rich.table import Table
+
+from .constants import (
+    PRIMARY,
+    _PICKER_QUIPS, _LEAVE_PICKER_QUIPS, _TRX_PICKER_QUIPS, _EVENT_PICKER_QUIPS,
+    _TIMELOG_PICKER_QUIPS, _TRAINING_PICKER_QUIPS, _PERSON_TRAINING_PICKER_QUIPS,
+)
+from .formatters import console, short_id, display_status, fmt_num
+
+if TYPE_CHECKING:
+    from ..api.client import KolayClient
+
+
+def _base_pick(
+    client: KolayClient | None,
+    quips: list[str],
+    prompt: str,
+    fetch_fn: Callable[[KolayClient], list[dict[str, Any]]],
+    table_factory: Callable[[list[dict[str, Any]]], Table],
+    confirm_fn: Callable[[dict[str, Any]], str],
+    search_keys: list[Callable[[dict[str, Any]], str]] | None = None,
+) -> str:
+    """Core logic shared by every interactive picker.
+
+    Fetches data, optionally filters by a user-supplied search term,
+    renders a table, prompts the user to pick by row number or raw ID,
+    then returns the selected record's ID string.
+
+    Args:
+        client: An existing KolayClient, or None to create one lazily.
+        quips: Rotating witty header messages.
+        prompt: Display label for the record type (e.g. "Colleague").
+        fetch_fn: Callable that fetches a list from the API.
+        table_factory: Callable that builds a Rich table from the list.
+        confirm_fn: Callable that builds a confirmation string for the choice.
+        search_keys: Optional list of lambdas to extract searchable text from
+            each item. When provided, a "Filter:" prompt is shown after
+            fetching so the user can narrow the list before selecting.
+
+    Returns:
+        The selected ID as a string.
+    """
+    from ..api.client import KolayClient
+    from ..api.errors import APIError
+    from .search import filter_items
+
+    if client is None:
+        try:
+            client = KolayClient()
+        except APIError as exc:
+            print_error_inline(str(exc))
+            return _typer.prompt(f"  Paste {prompt} ID manually")
+
+    console.print(f"\n[grey62]{random.choice(quips)}[/grey62]\n")  # nosec B311 — cosmetic UI quip, not crypto
+
+    try:
+        with console.status(f"[{PRIMARY}]Fetching...[/{PRIMARY}]", spinner="dots"):
+            items = fetch_fn(client)
+    except APIError as exc:
+        console.print(f"[grey62]  Couldn't fetch the list: {exc}[/grey62]")
+        return _typer.prompt(f"  Paste {prompt} ID manually")
+
+    if not items:
+        console.print(f"[grey62]  No {prompt.lower()} records found.[/grey62]")
+        return _typer.prompt(f"  Paste {prompt} ID manually")
+
+    # ── Optional inline filter ────────────────────────────────────────────────
+    if search_keys:
+        query = _typer.prompt(
+            f"  Filter {prompt.lower()}s (leave blank for all)",
+            default="",
+        )
+        if query.strip():
+            items = filter_items(items, query, search_keys, label=f"{prompt.lower()}s")
+
+    console.print(table_factory(items))
+    console.print()
+
+    raw = _typer.prompt(f"  Pick a {prompt.lower()} (# or ID)")
+
+    try:
+        idx = int(raw.strip()) - 1
+        if 0 <= idx < len(items):
+            chosen = items[idx]
+            console.print(f"  [{PRIMARY}]→ {confirm_fn(chosen)}[/{PRIMARY}]\n")
+            return str(chosen.get("id", ""))
+        # out of range — treat as raw ID
+        return raw.strip()
+    except ValueError:
+        return raw.strip()
+
+
+def print_error_inline(msg: str) -> None:
+    """Lightweight inline error for use inside pickers."""
+    from .constants import ERROR
+    console.print(f"[{ERROR}]  ✘ {msg}[/{ERROR}]")
+
+
+def _make_table(*columns: tuple[str, str, dict[str, Any] | None]) -> Table:
+    """Create a consistently styled picker table.
+
+    Args:
+        *columns: tuples of (header_name, style, extra_kwargs)
+    """
+    tbl = Table(
+        header_style=f"bold {PRIMARY}",
+        border_style=PRIMARY,
+        box=None,
+        show_edge=False,
+    )
+    tbl.add_column("#", style="grey62", width=4, justify="right")
+    for name, style, extra in columns:
+        tbl.add_column(name, style=style, **(extra or {}))
+    return tbl
+
+
+# ── Individual Pickers ────────────────────────────────────────────────────────
+
+def pick_person(client: KolayClient | None = None) -> str:
+    """Interactive employee picker."""
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        resp = c.post("v2/person/list", data={"page": 1, "limit": 30, "status": "active"})
+        data = resp.get("data", {})
+        return data.get("items", data) if isinstance(data, dict) else data
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Name", "bold white", {"min_width": 20}),
+            ("Email", "grey85", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, p in enumerate(items, 1):
+            name = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() or "—"
+            email = p.get("workEmail") or p.get("email") or "—"
+            tbl.add_row(str(i), name, email, short_id(str(p.get("id", ""))))
+        return tbl
+
+    def confirm(p: dict[str, Any]) -> str:
+        return f"Selected [bold]{p.get('firstName', '')} {p.get('lastName', '')}[/bold]"
+
+    search_keys = [
+        lambda p: f"{p.get('firstName', '')} {p.get('lastName', '')}",
+        lambda p: p.get("workEmail") or p.get("email") or "",
+    ]
+    return _base_pick(client, _PICKER_QUIPS, "Colleague", fetch, make_table, confirm, search_keys)
+
+
+def pick_leave(client: KolayClient | None = None) -> str:
+    """Interactive leave record picker."""
+    from datetime import datetime
+
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        now = datetime.now()
+        params = {
+            "startDate": f"{now.year - 1}-01-01 00:00:00",
+            "endDate": f"{now.year}-12-31 23:59:59",
+            "limit": 15,
+        }
+        items: list[dict[str, Any]] = []
+        for status in ("approved", "waiting"):
+            try:
+                resp = c.get("v2/leave/list", params={**params, "status": status})
+                data = resp.get("data", [])
+                items.extend(data if isinstance(data, list) else data.get("items", []))
+            except (APIError, OSError):
+                pass  # nosec B110 — picker silences individual status-page errors gracefully
+        return items
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Employee", "bold white", {"min_width": 18}),
+            ("Type", "grey85", {}),
+            ("Start", "grey62", {}),
+            ("Status", "grey62", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, lv in enumerate(items, 1):
+            p = lv.get("person", {})
+            pname = p.get("name", "—") if isinstance(p, dict) else "—"
+            ltype = lv.get("leaveType", {})
+            tname = ltype.get("name", "—") if isinstance(ltype, dict) else str(ltype)
+            tbl.add_row(
+                str(i), pname, tname,
+                (lv.get("startDate") or "—")[:10],
+                display_status(str(lv.get("status", ""))),
+                short_id(str(lv.get("id", ""))),
+            )
+        return tbl
+
+    def confirm(lv: dict[str, Any]) -> str:
+        p = lv.get("person", {})
+        pname = p.get("name", "leave record") if isinstance(p, dict) else "leave record"
+        return f"Opened [bold]{pname}[/bold]'s leave record"
+
+    search_keys = [
+        lambda lv: (lv.get("person") or {}).get("name") or "",
+        lambda lv: (lv.get("leaveType") or {}).get("name") or "",
+    ]
+    return _base_pick(client, _LEAVE_PICKER_QUIPS, "Leave", fetch, make_table, confirm, search_keys)
+
+
+def pick_transaction(client: KolayClient | None = None) -> str:
+    """Interactive transaction picker."""
+    from datetime import datetime
+
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        now = datetime.now()
+        items: list[dict[str, Any]] = []
+        for status in ("waiting", "approved"):
+            try:
+                resp = c.post("v2/transaction/list", data={
+                    "startDate": f"{now.year - 1}-01-01 00:00:00",
+                    "endDate": f"{now.year}-12-31 23:59:59",
+                    "limit": 15, "status": status,
+                })
+                data = resp.get("data", {})
+                batch = data.get("items", data) if isinstance(data, dict) else data
+                if isinstance(batch, list):
+                    items.extend(batch)
+            except (APIError, OSError):
+                pass  # nosec B110 — picker silences individual status-page errors gracefully
+        return items
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Employee", "bold white", {"min_width": 18}),
+            ("Type", "grey85", {}),
+            ("Amount", "bold white", {"justify": "right"}),
+            ("Status", "grey62", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, trx in enumerate(items, 1):
+            p = trx.get("person", {})
+            pname = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else "—"
+            amt = trx.get("amount") or trx.get("totalAmount") or "—"
+            curr = trx.get("currency", "")
+            amt_str = f"{fmt_num(amt)} {curr}".strip() if amt != "—" else "—"
+            tbl.add_row(
+                str(i), pname, str(trx.get("type", "—")), amt_str,
+                display_status(str(trx.get("status", ""))),
+                short_id(str(trx.get("id", ""))),
+            )
+        return tbl
+
+    def confirm(trx: dict[str, Any]) -> str:
+        return f"Selected [bold]{trx.get('type', 'transaction')}[/bold] record"
+
+    search_keys = [
+        lambda t: f"{(t.get('person') or {}).get('firstName', '')} {(t.get('person') or {}).get('lastName', '')}",
+        lambda t: str(t.get("type") or ""),
+    ]
+    return _base_pick(client, _TRX_PICKER_QUIPS, "Transaction", fetch, make_table, confirm, search_keys)
+
+
+def pick_event(client: KolayClient | None = None) -> str:
+    """Interactive calendar event picker."""
+    from datetime import datetime, timedelta
+
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        now = datetime.now()
+        resp = c.get("v2/event/list", params={
+            "start": (now - timedelta(days=90)).strftime("%Y-%m-%d 00:00:00"),
+            "end": (now + timedelta(days=365)).strftime("%Y-%m-%d 23:59:59"),
+            "limit": 20, "page": 1,
+        })
+        data = resp.get("data", {})
+        return data.get("items", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Title", "bold white", {"min_width": 24}),
+            ("Start", "grey85", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, ev in enumerate(items, 1):
+            tbl.add_row(
+                str(i), str(ev.get("title", "—")),
+                (ev.get("start") or "—")[:16],
+                short_id(str(ev.get("id", ""))),
+            )
+        return tbl
+
+    def confirm(ev: dict[str, Any]) -> str:
+        return f"Selected [bold]{ev.get('title', 'event')}[/bold]"
+
+    search_keys = [
+        lambda ev: str(ev.get("title") or ""),
+    ]
+    return _base_pick(client, _EVENT_PICKER_QUIPS, "Event", fetch, make_table, confirm, search_keys)
+
+
+def pick_timelog(client: KolayClient | None = None) -> str:
+    """Interactive timelog picker."""
+    from datetime import datetime
+
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        now = datetime.now()
+        resp = c.post("v2/timelog/list", data={
+            "page": 1, "limit": 20,
+            "startDate": f"{now.year - 1}-01-01 00:00:00",
+            "endDate": f"{now.year}-12-31 23:59:59",
+            "sortType": "startDate", "sortOrder": "desc",
+        })
+        data = resp.get("data", {})
+        return data.get("items", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Employee", "bold white", {"min_width": 18}),
+            ("Type", "grey85", {}),
+            ("Start", "grey62", {}),
+            ("Status", "grey62", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, tl in enumerate(items, 1):
+            p = tl.get("person", {})
+            pname = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else "—"
+            tbl.add_row(
+                str(i), pname, str(tl.get("type", "—")),
+                (tl.get("startDate") or "—")[:16],
+                display_status(str(tl.get("status", ""))),
+                short_id(str(tl.get("id", ""))),
+            )
+        return tbl
+
+    def confirm(tl: dict[str, Any]) -> str:
+        p = tl.get("person", {})
+        pname = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else ""
+        label_str = f"{pname}'s {tl.get('type', 'timelog')}" if pname else str(tl.get("type", "timelog"))
+        return f"Selected [bold]{label_str}[/bold]"
+
+    search_keys = [
+        lambda tl: f"{(tl.get('person') or {}).get('firstName', '')} {(tl.get('person') or {}).get('lastName', '')}",
+        lambda tl: str(tl.get("type") or ""),
+    ]
+    return _base_pick(client, _TIMELOG_PICKER_QUIPS, "Timelog", fetch, make_table, confirm, search_keys)
+
+
+def pick_training(client: KolayClient | None = None) -> str:
+    """Interactive training catalogue picker."""
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        resp = c.get("v2/training/list", params={"page": 1, "limit": 30})
+        data = resp.get("data", {})
+        return data.get("items", data) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Training Name", "bold white", {"min_width": 24}),
+            ("Duration", "grey85", {"justify": "right"}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, tr in enumerate(items, 1):
+            dur = tr.get("duration") or tr.get("durationDays") or "—"
+            tbl.add_row(str(i), str(tr.get("name", "—")), str(dur), short_id(str(tr.get("id", ""))))
+        return tbl
+
+    def confirm(tr: dict[str, Any]) -> str:
+        return f"Selected [bold]{tr.get('name', 'training')}[/bold]"
+
+    search_keys = [
+        lambda tr: str(tr.get("name") or ""),
+    ]
+    return _base_pick(client, _TRAINING_PICKER_QUIPS, "Training", fetch, make_table, confirm, search_keys)
+
+
+def pick_person_training(client: KolayClient | None = None, person_id: str | None = None) -> str:
+    """Interactive person-training assignment picker."""
+    from ..api.client import KolayClient as _Client
+    from ..api.errors import APIError
+
+    if client is None:
+        try:
+            client = _Client()
+        except APIError:
+            return _typer.prompt("  Training assignment ID")
+
+    if not person_id:
+        person_id = pick_person(client)
+
+    def fetch(c: KolayClient) -> list[dict[str, Any]]:
+        resp = c.get(f"v2/person/list-trainings/{person_id}")
+        data = resp.get("data", [])
+        return data if isinstance(data, list) else data.get("items", [])
+
+    def make_table(items: list[dict[str, Any]]) -> Table:
+        tbl = _make_table(
+            ("Training", "bold white", {"min_width": 22}),
+            ("Status", "grey62", {}),
+            ("Start", "grey62", {}),
+            ("Short ID", "grey62", {"no_wrap": True}),
+        )
+        for i, pt in enumerate(items, 1):
+            t = pt.get("training", {})
+            tname = t.get("name", "—") if isinstance(t, dict) else str(t)
+            tbl.add_row(
+                str(i), tname,
+                display_status(str(pt.get("status", ""))),
+                (pt.get("startDate") or "—")[:10],
+                short_id(str(pt.get("id", ""))),
+            )
+        return tbl
+
+    def confirm(pt: dict[str, Any]) -> str:
+        t = pt.get("training", {})
+        tname = t.get("name", "assignment") if isinstance(t, dict) else "assignment"
+        return f"Selected [bold]{tname}[/bold] assignment"
+
+    return _base_pick(client, _PERSON_TRAINING_PICKER_QUIPS, "Assignment", fetch, make_table, confirm)
