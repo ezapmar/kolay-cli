@@ -16,7 +16,8 @@ from . import __version__
 # Lazy command group imports — speeds up startup for all non-invoked groups
 from .commands import (
     auth, person, leave, transaction, calendar,
-    timelog, training, unit, expense, approval, schema
+    timelog, training, unit, expense, approval, schema,
+    doctor, setup,
 )
 from .commands import config as config_cmd  # avoid shadowing built-in
 from .commands import mcp as mcp_cmd
@@ -56,6 +57,8 @@ app.add_typer(expense.app,      name="expense",     rich_help_panel="Finance")
 app.add_typer(approval.app,     name="approval",    rich_help_panel="Workflows")
 app.add_typer(calendar.app,     name="calendar",    rich_help_panel="Workflows")
 app.add_typer(unit.app,         name="unit",        rich_help_panel="Organisation")
+app.add_typer(setup.app,        name="setup",       rich_help_panel="Getting Started")
+app.add_typer(doctor.app,       name="doctor",      rich_help_panel="Getting Started")
 app.add_typer(mcp_cmd.app,      name="mcp",         rich_help_panel="Agent / Dev")
 app.add_typer(schema.app,       name="schema",      rich_help_panel="Agent / Dev", hidden=True)
 

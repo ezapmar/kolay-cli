@@ -30,23 +30,19 @@ Manage employees, leaves, timelogs, transactions, calendar events, and more — 
 pipx install kolay-cli
 ```
 
-Or with pip:
-
-```bash
-pip install kolay-cli
-```
-
-With MCP/AI integration support:
-
-```bash
-pip install 'kolay-cli[mcp]'
-```
-
-> **Recommended**: Use `pipx` to install CLI tools in isolated environments.
+> **Note**: If `kolay: command not found`, run `pipx ensurepath` and restart your terminal.
 
 ---
 
 ## Getting Started
+
+Run the setup wizard — it handles authentication, shell completion, and verification in one go:
+
+```bash
+kolay setup
+```
+
+Or do it step by step:
 
 ### 1. Authenticate
 
@@ -54,13 +50,12 @@ pip install 'kolay-cli[mcp]'
 kolay auth login
 ```
 
-You will be prompted for your Kolay API token. It is stored at `~/.config/kolay/config.json` with `0600` permissions.
+You will be prompted for your Kolay API token. It is stored **securely in the OS Keychain** (macOS Keychain, Windows Credential Manager, or Linux Secret Service) — never in a plaintext file.
 
-### 2. Verify your session
+### 2. Verify your installation
 
 ```bash
-kolay auth status
-kolay auth me
+kolay doctor
 ```
 
 ### 3. Explore
@@ -79,16 +74,17 @@ kolay --help       # grouped command reference
 
 | Command | Description |
 |---|---|
-| `kolay auth login` | Save and verify your API token |
-| `kolay auth status` | Show login status and user name |
+| `kolay auth login` | Save and verify your API token (stored in OS Keychain) |
+| `kolay auth logout` | Remove your token from the OS Keychain and config file |
+| `kolay auth status` | Show login status, token source, and user profile |
 | `kolay auth me` | Show your full profile |
 
 ### Configuration
 
 | Command | Description |
 |---|---|
-| `kolay config show` | Display active config (source: env / file) |
-| `kolay config set <key> <value>` | Write a config key to the config file |
+| `kolay config show` | Display active config (source: env / keychain / file) |
+| `kolay config set <key> <value>` | Write a config key (tokens go to the keychain) |
 | `kolay config validate` | Ping the API to verify your token is valid |
 
 **Valid keys:** `api_token`, `base_url`
@@ -192,6 +188,13 @@ kolay --help       # grouped command reference
 | `kolay unit tree` | Show the full organisational tree |
 | `kolay unit create-item` | Add an item to a unit |
 
+### Getting Started
+
+| Command | Description |
+|---|---|
+| `kolay setup` | Guided first-run wizard (auth + completion + health check) |
+| `kolay doctor` | Post-install health check (PATH, keychain, token, API, completion) |
+
 ### MCP Server (AI/LLM Integration)
 
 | Command | Description |
@@ -199,8 +202,6 @@ kolay --help       # grouped command reference
 | `kolay mcp serve` | Start the MCP server (STDIO, for Claude Desktop / Cursor / Gemini CLI) |
 | `kolay mcp serve --transport http` | Start as an HTTP endpoint for network access |
 | `kolay mcp tools` | List all 31 registered MCP tools |
-
-> Requires `pip install 'kolay-cli[mcp]'`
 
 ---
 
@@ -214,17 +215,26 @@ kolay timelog delete      # pick from recent timelogs
 kolay training update     # pick from the catalogue
 ```
 
+You can also select by row number from any list:
+
+```bash
+kolay person list         # shows numbered rows
+kolay leave view 3        # select row 3 from the last list
+```
+
 ---
 
 ## Error Handling
 
 Errors are never raw tracebacks. Every failure renders a branded panel:
 
-- **401 Unauthorized** — witty analogy + exact fix (`kolay auth login`)
+- **401 Unauthorized** — contextual message + exact fix (`kolay auth login`)
 - **403 Forbidden** — friendly "wrong floor" message + admin contact hint
 - **429 Too Many Requests** — "slow down" message with retry guidance
 - **500 Server Error** — "the server sneezed" with retry suggestion
 - **Other errors** — plain panel with message and recovery hint
+
+**First-run detection**: if the CLI has never been configured, any command will show `Run kolay setup` instead of the generic "no token" error.
 
 Bare command groups (`kolay auth`, `kolay person`, etc.) show a hint and automatically display help after a 3-second countdown — instead of the generic "Missing command" error.
 
@@ -234,25 +244,61 @@ Bare command groups (`kolay auth`, `kolay person`, etc.) show a hint and automat
 
 ### API Token
 
-Interactive login (stores token in `~/.config/kolay/config.json`):
+The token resolution order is:
+
+1. `KOLAY_API_TOKEN` environment variable ← CI / Docker
+2. **OS Keychain** (macOS Keychain, Windows Credential Manager, Linux Secret Service) ← interactive users
+3. Config file `~/.config/kolay/config.yaml` ← legacy / fallback
+
+#### Interactive login (recommended)
+
 ```bash
 kolay auth login
 ```
 
-Via environment variable (takes precedence over the config file):
+Stores the token in the **OS Keychain** — no plaintext file involved.
+
+#### Environment variable (CI / Docker)
+
 ```bash
 export KOLAY_API_TOKEN=your_token_here
 ```
 
-Via config command:
+Takes highest priority. Ideal for GitHub Actions, GitLab CI, and Docker deployments.
+
+#### Logout
+
 ```bash
-kolay config set api_token your_token_here
-kolay config validate
+kolay auth logout
+```
+
+Removes the token from both the OS Keychain and any config file.
+
+#### Check token status
+
+```bash
+kolay auth status    # human-readable: name, source, validity
+kolay --json auth status  # machine-readable JSON
+```
+
+### Linux (headless / CI)
+
+On Linux without a desktop keyring (e.g., servers or Docker containers), use the environment variable:
+
+```bash
+export KOLAY_API_TOKEN=your_token_here
+```
+
+For Linux desktop users who want keyring storage:
+
+```bash
+pip install 'kolay-cli[linux]'   # installs keyrings.alt as a file-backed fallback
 ```
 
 ### Base URL
 
 Default: `https://api.kolayik.com`. Override:
+
 ```bash
 export KOLAY_BASE_URL=https://custom.domain.com
 # or
@@ -264,10 +310,11 @@ kolay config set base_url https://custom.domain.com
 ### Config File Location
 
 ```
-~/.config/kolay/config.json
+~/.config/kolay/config.yaml   (preferred)
+~/.config/kolay/config.json   (legacy)
 ```
 
-File permissions: `0600` (owner read/write only).
+File permissions: `0600` (owner read/write only). Tokens are auto-migrated from config files to the OS Keychain on first use.
 
 ### Debug Logging
 
@@ -275,7 +322,7 @@ File permissions: `0600` (owner read/write only).
 kolay --debug person list
 ```
 
-Writes full HTTP request/response cycles to `~/.config/kolay/debug.log`. Hidden from normal output.
+Writes full HTTP request/response cycles to `~/.config/kolay/debug.log`. The `Authorization` header is always redacted (`Bearer [REDACTED]`) — the raw token is never written to disk.
 
 ---
 
@@ -286,9 +333,6 @@ Kolay CLI includes a built-in [Model Context Protocol](https://modelcontextproto
 ### Quick Start
 
 ```bash
-# Install with MCP support
-pip install 'kolay-cli[mcp]'
-
 # List available tools
 kolay mcp tools
 
@@ -319,9 +363,22 @@ Expose as a network endpoint for multi-client or remote access:
 kolay mcp serve --transport http --port 8000
 ```
 
-### Available Tools (31)
+### Authentication in MCP
 
-The MCP server exposes tools across all Kolay IK domains:
+All 31 MCP tools are protected by a `@require_auth` decorator. If the token is missing or expired, the tool returns a structured error dict to the LLM client instead of crashing:
+
+```json
+{
+  "error": true,
+  "code": 401,
+  "message": "No API token configured.",
+  "hint": "Run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable."
+}
+```
+
+The token is resolved once from env → keychain → config file and cached in-process — no keychain round-trip on every tool call.
+
+### Available Tools (31)
 
 | Domain | Tools |
 |---|---|
@@ -364,15 +421,55 @@ After installation, restart your shell or run `source ~/.zshrc`.
 
 ## Security
 
-- **HTTPS enforced** — HTTP base URLs are rejected at startup to prevent Bearer token leakage over plaintext
-- **Token storage** — config file created atomically with `0o600` permissions; no race window
-- **No token echo** — login prompt uses `hide_input=True`; token is never printed
-- **Input sanitization** — all user-supplied IDs validated against `[a-zA-Z0-9_-]` before URL interpolation; path traversal (`../../`) blocked
-- **Endpoint sanitization** — API client rejects endpoints containing `..`, absolute paths, or embedded `://` schemes
-- **Request timeouts** — all HTTP calls have a 30-second timeout
-- **Error sanitization** — no raw HTTP response bodies or stack traces shown to the user
-- **Dependency pinning** — `setuptools>=78.1.1` to avoid known CVEs in older build toolchains
-- **Bandit clean** — `bandit -r src/` reports 0 High, 0 Medium, 0 Low issues
+| Area | Implementation |
+|---|---|
+| **Token storage** | OS Keychain (macOS Keychain / Windows Credential Vault / Linux Secret Service) via `keyring` — no plaintext |
+| **Token priority** | env var → keychain → config file; auto-migrates legacy config-file tokens to keychain |
+| **JWT validation** | Expiry (`exp`) checked locally with 5-second clock-skew leeway; JWKS/IdP placeholder in `security.py` |
+| **MCP auth** | All 31 tools wrapped with `@require_auth`; returns structured 401 dict instead of crashing |
+| **Debug log safety** | `Authorization: Bearer [REDACTED]` — raw token never written to `debug.log` |
+| **Repr safety** | `KolayClient.__repr__` never exposes the bearer token — safe in tracebacks and crash reports |
+| **HTTPS enforced** | HTTP base URLs rejected at startup to prevent token leakage |
+| **Input sanitization** | User-supplied IDs validated against `[a-zA-Z0-9_-]`; path traversal (`../../`) and embedded `://` blocked |
+| **Atomic file writes** | Config files written via `O_WRONLY | O_CREAT | O_TRUNC` with `0o600` — no race window |
+| **No token echo** | Login prompt uses `hide_input=True`; token never printed to terminal |
+| **Request timeouts** | All HTTP calls capped at 30 seconds |
+| **Retry safety** | Exponential backoff only on transient errors (429, 5xx); never retries auth failures |
+
+### Token Resolution for CI/CD
+
+```yaml
+# GitHub Actions example
+- name: Run Kolay CLI
+  env:
+    KOLAY_API_TOKEN: ${{ secrets.KOLAY_API_TOKEN }}
+  run: kolay --json person list
+```
+
+No keyring needed in CI — `KOLAY_API_TOKEN` takes priority over all other sources.
+
+---
+
+## Agent Usage
+
+Use `--json` for structured output and `--yes` to bypass confirmations:
+
+```bash
+kolay --json person list --limit 10
+kolay --json calendar list --start 2025-03-01 --end 2025-03-31
+kolay --yes training delete <id>
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Server / general error |
+| `2` | Bad input / syntax error |
+| `3` | Resource not found |
+| `4` | Auth / permission error |
+| `5` | Conflict |
 
 ---
 
@@ -388,10 +485,10 @@ kolay --version
 ### Run tests
 
 ```bash
-uv run pytest tests/ -v
+uv run --extra test pytest tests/ -v
 ```
 
-204 tests covering API client, all command modules, services layer, UI helpers, witty error rendering, and the `no_command_help` countdown.
+267 tests covering API client, security (keyring, JWT, require_auth, token cache), all command modules, services layer, UI helpers, witty error rendering, header redaction, repr safety, and UX improvements.
 
 ### Security audit
 

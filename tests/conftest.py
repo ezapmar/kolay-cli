@@ -25,6 +25,27 @@ def fast_sleep(monkeypatch):
     monkeypatch.setattr(fmt_mod.time, "sleep", lambda _s: None)
 
 
+@pytest.fixture(autouse=True)
+def reset_output_modes():
+    """Reset json_mode and yes_mode between tests to prevent leaking."""
+    from kolay_cli.ui.output import set_json_mode, set_yes_mode
+    set_json_mode(False)
+    set_yes_mode(False)
+    yield
+    set_json_mode(False)
+    set_yes_mode(False)
+
+
+@pytest.fixture(autouse=True)
+def reset_token_cache():
+    """Reset the in-process token cache between tests to prevent state leaking."""
+    import kolay_cli.security as sec
+    sec._token_cache = sec._SENTINEL
+    yield
+    sec._token_cache = sec._SENTINEL
+
+
+
 @pytest.fixture
 def runner():
     """Typer CLI test runner (no colour → simple string assertions)."""

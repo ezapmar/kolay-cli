@@ -10,6 +10,9 @@ try:
 except ImportError:
     _HAS_YAML = False
 
+# Token resolution is delegated to security.py which holds the keyring logic.
+# We import lazily to avoid circular imports at module load time.
+
 CONFIG_DIR = Path.home() / ".config" / "kolay"
 CONFIG_FILE_JSON = CONFIG_DIR / "config.json"
 CONFIG_FILE_YAML = CONFIG_DIR / "config.yaml"
@@ -53,6 +56,10 @@ class Config:
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value with environment variable precedence.
 
+        For ``api_token`` specifically, the full resolution chain (env →
+        keyring → config file) is handled by :func:`get_api_token` below.
+        All other keys use env → config file.
+
         Args:
             key: The configuration key (e.g., 'api_token').
             default: Value to return if key is not found anywhere.
@@ -70,14 +77,27 @@ class Config:
     def set(self, key: str, value: Any) -> None:
         """Set a configuration value and persist to disk.
 
-        Saves as YAML when PyYAML is available, otherwise falls back to JSON.
-        Ensures the config directory exists and file permissions are restricted (0o600).
+        For ``api_token``: saves to the OS keychain via :mod:`security`
+        (the plaintext copy is removed from the config file).  Falls back to
+        the config file when keyring is unavailable.
+
+        For all other keys: saves to YAML / JSON config file as before.
 
         Args:
             key: The configuration key.
             value: The value to set.
         """
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+        if key == "api_token":
+            # Prefer keyring; fall back to file only when keyring unavailable
+            from .security import store_token
+            if store_token(str(value)):
+                # Keyring accepted it — no need to write to file
+                # (store_token already stripped it from the config file)
+                return
+            # Keyring unavailable — fall through to file storage below
+
         self._data[key] = value
 
         if _HAS_YAML:
@@ -93,8 +113,9 @@ class Config:
 
     @property
     def api_token(self) -> str | None:
-        """The API token from environment or config file."""
-        return self.get("api_token")
+        """The API token — resolved via env → keyring → config file."""
+        from .security import resolve_token
+        return resolve_token()
 
     @property
     def base_url(self) -> str:
@@ -112,8 +133,9 @@ _config_instance = Config()
 
 
 def get_api_token() -> str | None:
-    """Shortcut to get the API token."""
-    return _config_instance.api_token
+    """Resolve the API token via env → keyring → config file."""
+    from .security import resolve_token
+    return resolve_token()
 
 
 def get_base_url() -> str:

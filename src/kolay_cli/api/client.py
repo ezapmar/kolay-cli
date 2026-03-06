@@ -15,6 +15,25 @@ _SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 # Debug logger — only active when KolayClient.debug = True
 _log = logging.getLogger("kolay.api")
 
+# Regex that matches 'Bearer <token>' in any header value
+_BEARER_RE = re.compile(r"(Bearer\s+)\S+", re.IGNORECASE)
+
+
+def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
+    """Return a copy of *headers* with the Authorization value redacted.
+
+    Replaces ``Bearer <token>`` with ``Bearer [REDACTED]`` so debug logs
+    can capture request metadata without ever writing the live token to disk.
+
+    IMPORTANT: always use this function before logging anything that might
+    contain HTTP headers — never log ``self.session.headers`` directly.
+    """
+    redacted = dict(headers)
+    for k, v in redacted.items():
+        if k.lower() == "authorization":
+            redacted[k] = _BEARER_RE.sub(r"\1[REDACTED]", v)
+    return redacted
+
 
 def safe_id(value: str, label: str = "ID") -> str:
     """Validate a user-supplied ID before URL interpolation.
@@ -57,10 +76,18 @@ class KolayClient:
         Raises:
             APIError: If no token is found or the base URL is not HTTPS.
         """
-        self.token = token or config.get_api_token()
+        self._token = token or config.get_api_token()
         self.base_url = (base_url or config.get_base_url()).rstrip("/")
 
-        if not self.token:
+        if not self._token:
+            # Detect first-run (no config file at all) for a friendlier onboarding hint
+            from ..security import is_first_run
+            if is_first_run():
+                raise APIError(
+                    "Kolay CLI is not set up yet.",
+                    status_code=401,
+                    hint="Run [bold]kolay setup[/bold] to authenticate and configure the CLI in one step.",
+                )
             raise APIError(
                 "No API token found.",
                 status_code=401,
@@ -85,11 +112,18 @@ class KolayClient:
         self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
         self.session.headers.update({
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {self._token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "Accept-Language": "en",
         })
+
+    def __repr__(self) -> str:
+        """Safe repr — never exposes the bearer token."""
+        return f"KolayClient(base_url={self.base_url!r})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
 
     # ── Public HTTP methods ───────────────────────────────────────────────────
 
@@ -117,6 +151,9 @@ class KolayClient:
         Rejects path-traversal endpoints, maps HTTP errors to friendly
         APIError messages, and logs full request/response cycles when
         ``KolayClient.debug`` is True.
+
+        Authorization headers are always redacted before logging — the raw
+        token is never written to the debug log file.
         """
         if ".." in endpoint or endpoint.startswith("/") or "://" in endpoint:
             raise APIError("Invalid API endpoint.")
@@ -124,8 +161,12 @@ class KolayClient:
         url = f"{self.base_url}/{endpoint}"
 
         if self.debug:
-            _log.debug("→ %s %s  params/body=%s", method, url,
-                       kwargs.get("params") or kwargs.get("json"))
+            safe_hdrs = _redact_headers(dict(self.session.headers))
+            _log.debug(
+                "→ %s %s  headers=%s  params/body=%s",
+                method, url, safe_hdrs,
+                kwargs.get("params") or kwargs.get("json"),
+            )
 
         try:
             response = self.session.request(method, url, timeout=30, **kwargs)

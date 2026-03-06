@@ -20,6 +20,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from .security import require_auth
 from .services import person as person_svc
 from .services import leave as leave_svc
 from .services import timelog as timelog_svc
@@ -47,6 +48,7 @@ mcp = FastMCP(
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def person_list(
     status: str = "active",
     search: str | None = None,
@@ -68,6 +70,7 @@ def person_list(
 
 
 @mcp.tool
+@require_auth
 def person_view(person_id: str) -> dict[str, Any]:
     """View the full profile of a specific employee.
 
@@ -81,6 +84,7 @@ def person_view(person_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def person_summary(person_id: str) -> dict[str, Any]:
     """View a condensed summary of an employee (name, contact, custom fields).
 
@@ -91,6 +95,7 @@ def person_summary(person_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def person_leave_status(person_id: str) -> list[dict[str, Any]]:
     """View current leave balances for an employee (used, upcoming, remaining).
 
@@ -101,6 +106,7 @@ def person_leave_status(person_id: str) -> list[dict[str, Any]]:
 
 
 @mcp.tool
+@require_auth
 def person_create(
     first_name: str,
     last_name: str,
@@ -128,6 +134,7 @@ def person_create(
 
 
 @mcp.tool
+@require_auth
 def person_update(
     person_id: str,
     first_name: str | None = None,
@@ -156,6 +163,7 @@ def person_update(
 
 
 @mcp.tool
+@require_auth
 def person_terminate(
     person_id: str,
     termination_date: str,
@@ -180,6 +188,7 @@ def person_terminate(
 
 
 @mcp.tool
+@require_auth
 def person_rehire(person_id: str, start_date: str) -> dict[str, Any]:
     """Rehire a previously terminated employee.
 
@@ -195,6 +204,7 @@ def person_rehire(person_id: str, start_date: str) -> dict[str, Any]:
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def leave_list(
     status: str = "approved",
     start: str | None = None,
@@ -218,6 +228,7 @@ def leave_list(
 
 
 @mcp.tool
+@require_auth
 def leave_view(leave_id: str) -> dict[str, Any]:
     """View full details of a leave record including workflow status.
 
@@ -228,6 +239,7 @@ def leave_view(leave_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def leave_create(
     person_id: str,
     leave_type_id: str,
@@ -258,6 +270,7 @@ def leave_create(
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def timelog_list(
     start: str | None = None,
     end: str | None = None,
@@ -288,6 +301,7 @@ def timelog_list(
 
 
 @mcp.tool
+@require_auth
 def timelog_view(timelog_id: str) -> dict[str, Any]:
     """View details and approval workflow for a specific timelog entry.
 
@@ -298,6 +312,7 @@ def timelog_view(timelog_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def timelog_create(
     person_id: str,
     start: str,
@@ -324,6 +339,7 @@ def timelog_create(
 
 
 @mcp.tool
+@require_auth
 def timelog_delete(timelog_id: str) -> dict[str, Any]:
     """Permanently delete a timelog record. Irreversible.
 
@@ -338,6 +354,7 @@ def timelog_delete(timelog_id: str) -> dict[str, Any]:
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def training_list(
     search: str | None = None,
     page: int = 1,
@@ -357,6 +374,7 @@ def training_list(
 
 
 @mcp.tool
+@require_auth
 def training_view(training_id: str) -> dict[str, Any]:
     """View full details of a specific training in the catalogue.
 
@@ -367,6 +385,7 @@ def training_view(training_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def training_create(name: str, description: str = "", duration: str = "") -> dict[str, Any]:
     """Add a new training to the company catalogue.
 
@@ -382,6 +401,7 @@ def training_create(name: str, description: str = "", duration: str = "") -> dic
 
 
 @mcp.tool
+@require_auth
 def training_delete(training_id: str) -> dict[str, Any]:
     """Remove a training from the catalogue. Irreversible.
 
@@ -392,6 +412,7 @@ def training_delete(training_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def person_assign_training(
     person_id: str,
     training_id: str,
@@ -419,6 +440,7 @@ def person_assign_training(
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def transaction_list(
     person_id: str | None = None,
     type: str | None = None,
@@ -446,6 +468,7 @@ def transaction_list(
 
 
 @mcp.tool
+@require_auth
 def transaction_view(transaction_id: str) -> dict[str, Any]:
     """View full details of a specific transaction.
 
@@ -456,6 +479,7 @@ def transaction_view(transaction_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def transaction_create(
     person_id: str,
     type: str,
@@ -485,6 +509,7 @@ def transaction_create(
 
 
 @mcp.tool
+@require_auth
 def transaction_delete(transaction_id: str) -> dict[str, Any]:
     """Permanently delete a transaction record. Irreversible.
 
@@ -499,6 +524,7 @@ def transaction_delete(transaction_id: str) -> dict[str, Any]:
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def calendar_list(
     start: str | None = None,
     end: str | None = None,
@@ -522,6 +548,7 @@ def calendar_list(
 
 
 @mcp.tool
+@require_auth
 def calendar_view(event_id: str) -> dict[str, Any]:
     """View full details of a specific calendar event.
 
@@ -532,6 +559,7 @@ def calendar_view(event_id: str) -> dict[str, Any]:
 
 
 @mcp.tool
+@require_auth
 def calendar_create(
     title: str,
     start: str,
@@ -553,6 +581,7 @@ def calendar_create(
 
 
 @mcp.tool
+@require_auth
 def calendar_update(
     event_id: str,
     title: str | None = None,
@@ -573,6 +602,7 @@ def calendar_update(
 
 
 @mcp.tool
+@require_auth
 def calendar_delete(event_id: str) -> dict[str, Any]:
     """Permanently delete a calendar event. Irreversible.
 
@@ -587,6 +617,7 @@ def calendar_delete(event_id: str) -> dict[str, Any]:
 # ════════════════════════════════════════════════════════════════════════════
 
 @mcp.tool
+@require_auth
 def unit_tree() -> list[dict[str, Any]]:
     """Return the full organisational unit tree (departments, locations, teams, etc.).
 
@@ -597,6 +628,7 @@ def unit_tree() -> list[dict[str, Any]]:
 
 
 @mcp.tool
+@require_auth
 def approval_list() -> list[dict[str, Any]]:
     """List all approval workflows configured for the company.
 
@@ -612,12 +644,33 @@ def approval_list() -> list[dict[str, Any]]:
 
 if __name__ == "__main__":
     import argparse
+    import sys
+
     parser = argparse.ArgumentParser(description="Kolay IK MCP server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
+
     if args.transport == "http":
+        print(f"\n🔌 Kolay IK MCP server  http://{args.host}:{args.port}/mcp\n")
         mcp.run(transport="http", host=args.host, port=args.port)
+    elif sys.stdin.isatty():
+        # User ran `kolay-mcp` directly in a terminal — give them guidance
+        print(
+            "\n"
+            "  Kolay IK MCP Server\n"
+            "\n"
+            "  This binary is for AI clients (Claude, Cursor, Gemini CLI).\n"
+            "  You probably want the CLI instead:  kolay --help\n"
+            "\n"
+            "  To start manually:\n"
+            "    kolay mcp serve                        # STDIO (local)\n"
+            "    kolay mcp serve --transport http       # HTTP (network)\n"
+            "\n"
+            "  To configure Claude Desktop, add to config:\n"
+            '    { "mcpServers": { "kolay-ik": { "command": "kolay-mcp" } } }\n'
+        )
     else:
         mcp.run()
+

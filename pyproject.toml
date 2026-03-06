@@ -17,6 +17,8 @@ dependencies = [
     "rich>=13.4.2",
     "PyYAML>=6.0",
     "fastmcp>=3.1.0",
+    "keyring>=25.0",
+    "pyjwt>=2.8.0",
 ]
 license = "MIT"
 keywords = ["kolay", "hr", "cli", "kolayik", "human-resources"]
@@ -25,7 +27,6 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -48,8 +49,8 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [project.optional-dependencies]
-mcp = ["fastmcp>=2.0"]
 test = ["pytest>=7.0", "pytest-mock>=3.10"]
+linux = ["keyrings.alt>=5.0"]  # file-backed fallback for headless Linux / CI
 dev = [
     "ruff>=0.1.0",
     "mypy>=1.6.0",
