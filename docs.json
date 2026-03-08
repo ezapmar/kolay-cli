@@ -1,5 +1,6 @@
 {
-    "name": "Kolay CLI",
+    "name": "Benim CLI Projem",
+    "theme": "mint",
     "logo": {
         "dark": "/logo-dark.svg",
         "light": "/logo-light.svg"
