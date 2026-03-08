@@ -180,7 +180,9 @@ def doctor(ctx: typer.Context) -> None:
     results: list[dict[str, str]] = []
     has_fail = False
 
-    console.print(f"\n[bold {_PRIMARY}]🩺 Kolay CLI Health Check[/bold {_PRIMARY}]\n")
+    from ..ui.constants import KOLAY_LOGO
+    console.print(KOLAY_LOGO)
+    console.print(f"[bold {_PRIMARY}]🩺 Kolay CLI Health Check[/bold {_PRIMARY}]\n")
 
     for name, fn in checks:
         icon, message = fn()

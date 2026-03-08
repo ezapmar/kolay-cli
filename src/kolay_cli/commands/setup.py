@@ -28,6 +28,8 @@ def setup(ctx: typer.Context) -> None:
         raise typer.Exit(2)
 
 
+    from ..ui.constants import KOLAY_LOGO
+    console.print(KOLAY_LOGO)
     console.print(
         Panel(
             f"[bold {_PRIMARY}]Welcome to Kolay CLI[/bold {_PRIMARY}]\n\n"

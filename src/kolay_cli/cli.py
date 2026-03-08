@@ -14,22 +14,8 @@ from .commands import (
 from .commands import config as config_cmd  # avoid shadowing built-in
 from .commands import mcp as mcp_cmd
 
-_LOGO = """
-[bold #376BFB]     ##################[/bold #376BFB]
-[bold #376BFB]    ###            ###[/bold #376BFB]
-[bold #376BFB]   ####   ####     %%%           %%%[/bold #376BFB]
-[bold #376BFB]  ####   ####      %%%           %%%[/bold #376BFB]
-[bold #376BFB] ####   ####       %%%           %%%[/bold #376BFB]
-[bold #376BFB]####   ####        %%%   %%%%  %%%%%%%%%  %%%  %%%%%%%%%%%  %%%     %%%% [/bold #376BFB]
-[bold #376BFB]####   ###         %%%  %%%%  %%%%%   %%%%   %%%  %%%%%   %%%%%  %%%%    %%% [/bold #376BFB]
-[bold #376BFB]####  #####        %%%%%%%    %%%       %%%  %%%  %%%       %%%   %%%%  %%%% [/bold #376BFB]
-[bold #376BFB] #### ########     %%%%%%%    %%%       %%%  %%%  %%%       %%%    %%%%%%%% [/bold #376BFB]
-[bold #376BFB]  ####  #### ####  %%% %%%%   %%%%     %%%%  %%%  %%%%     %%%%     %%%%%% [/bold #376BFB]
-[bold #376BFB]   ####   #### ####  %%%   %%%%  %%%%%%%%%%%   %%%   %%%%%%%%%%%%      %%%% [/bold #376BFB]
-[bold #376BFB]     ### ####  ####  %%%     %%%    %%%%%      %%%      %%%%  %%%      %%%% [/bold #376BFB]
-[bold #376BFB]      #####   ###                                           %%%%% [/bold #376BFB]
-[bold #376BFB]       ##################                                  %%%%% [/bold #376BFB]
-"""
+from .ui.constants import KOLAY_LOGO
+_LOGO = KOLAY_LOGO
 
 app = typer.Typer(
     no_args_is_help=False,   # we handle the no-args case ourselves to show the logo
