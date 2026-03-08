@@ -14,16 +14,14 @@ jobs:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: kolay-setup-linux
             asset_name: kolay-setup-linux
           - os: macos-latest
-            artifact_name: kolay-setup-macos
             asset_name: kolay-setup-macos
           - os: windows-latest
-            artifact_name: kolay-setup-windows.exe
             asset_name: kolay-setup-windows.exe
 
     steps:
@@ -34,30 +32,28 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install uv
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
       - name: Install dependencies
         run: |
-          uv pip install --system .
-          uv pip install --system pyinstaller
+          pip install --upgrade pip
+          pip install .
+          pip install pyinstaller
 
       - name: Build with PyInstaller
         run: python build.py
 
-      - name: Rename executable
+      - name: Rename executable (unix)
+        if: runner.os != 'Windows'
+        run: mv dist/kolay-setup dist/${{ matrix.asset_name }}
+
+      - name: Rename executable (windows)
+        if: runner.os == 'Windows'
+        run: mv dist/kolay-setup.exe dist/${{ matrix.asset_name }}
         shell: bash
-        run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            mv dist/kolay-setup.exe dist/${{ matrix.asset_name }}
-          else
-            mv dist/kolay-setup dist/${{ matrix.asset_name }}
-          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
+          name: ${{ matrix.asset_name }}
           path: dist/${{ matrix.asset_name }}
 
   release:
