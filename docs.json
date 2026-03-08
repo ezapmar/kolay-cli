@@ -1,0 +1,20 @@
+{
+    "name": "Kolay CLI",
+    "logo": {
+        "dark": "/logo-dark.svg",
+        "light": "/logo-light.svg"
+    },
+    "colors": {
+        "primary": "#0F172A",
+        "light": "#3B82F6",
+        "dark": "#1D4ED8"
+    },
+    "navigation": [
+        {
+            "group": "Başlangıç",
+            "pages": [
+                "introduction"
+            ]
+        }
+    ]
+}
