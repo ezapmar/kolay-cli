@@ -1,14 +1,8 @@
-"""
-ui/messages.py — Witty, empathetic error messages for the Kolay IK CLI.
-
-Keep the funny strings here so engineers can tweak the vibe without
-touching any logic. Each scenario returns a (headline, body, hint) tuple.
-"""
+"""Witty error messages for Kolay IK CLI."""
 from __future__ import annotations
 import random
 
-# ── 401 Unauthorised ──────────────────────────────────────────────────────────
-# Vibe: "I have no idea who you are, but you seem nice."
+
 
 _401_SCENARIOS = [
     (
@@ -31,8 +25,7 @@ _401_SCENARIOS = [
     ),
 ]
 
-# ── 403 Forbidden ─────────────────────────────────────────────────────────────
-# Vibe: "You're logged in, but you're not *that* important."
+
 
 _403_SCENARIOS = [
     (
@@ -55,7 +48,7 @@ _403_SCENARIOS = [
     ),
 ]
 
-# ── 429 Rate Limited ──────────────────────────────────────────────────────────
+
 _429_SCENARIOS = [
     (
         "☕  Whoa, slow down there",
@@ -65,7 +58,7 @@ _429_SCENARIOS = [
     ),
 ]
 
-# ── 500 Server Error ─────────────────────────────────────────────────────────
+
 _500_SCENARIOS = [
     (
         "💥  The server sneezed",
@@ -75,7 +68,7 @@ _500_SCENARIOS = [
     ),
 ]
 
-# ── Dispatch ──────────────────────────────────────────────────────────────────
+
 
 _SCENARIO_MAP: dict[int, list[tuple[str, str, str]]] = {
     401: _401_SCENARIOS,
@@ -88,10 +81,7 @@ _SCENARIO_MAP: dict[int, list[tuple[str, str, str]]] = {
 
 
 def get_scenario(status_code: int) -> tuple[str, str, str] | None:
-    """Return a random (headline, body, hint) for the given HTTP status code.
-
-    Returns None if no witty scenario is defined for that code.
-    """
+    """Return random witty scenario for status code."""
     pool = _SCENARIO_MAP.get(status_code)
     if not pool:
         return None

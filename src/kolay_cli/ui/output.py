@@ -1,10 +1,4 @@
-"""
-Structured output utilities for agent-native CLI consumption.
-
-When ``--json`` is active (or ``KOLAY_OUTPUT=json`` env var is set),
-all data goes to **stdout** as valid JSON and all diagnostics go to
-**stderr**.  Human-facing Rich rendering is skipped entirely.
-"""
+"""Output utilities for JSON and machine-readable data."""
 from __future__ import annotations
 
 import json
@@ -23,9 +17,7 @@ def strip_markup(text: str) -> str:
     return _RICH_TAG.sub("", text)
 
 
-# ── Output mode state ──────────────────────────────────────────────────────────
-# ContextVar gives each execution context (thread, async task) its own value,
-# preventing state leakage between test runs and concurrent invocations.
+
 _json_mode: ContextVar[bool] = ContextVar("_json_mode", default=False)
 _yes_mode: ContextVar[bool] = ContextVar("_yes_mode", default=False)
 
@@ -39,7 +31,7 @@ def set_yes_mode(enabled: bool) -> None:
 
 
 def is_json_mode() -> bool:
-    """Return True if JSON output is active (``--json`` flag or ``KOLAY_OUTPUT=json``)."""
+    """Return True if JSON output is active."""
     return _json_mode.get() or os.environ.get("KOLAY_OUTPUT", "").lower() == "json"
 
 
@@ -49,22 +41,7 @@ def is_yes_mode() -> bool:
 
 
 def resolve_row(value: str, items: list, *, id_key: str = "id", label: str = "item") -> str:
-    """Resolve a 1-based row number to the item's ID.
-
-    If *value* is a positive integer, it's treated as the row number from the
-    preceding ``list`` command.  Any other string is passed through unchanged
-    so UUIDs continue to work.
-
-    Args:
-        value: User-supplied ID or row number string.
-        items: The pre-fetched list of items from the API.
-        id_key: The key that holds the item ID (default: ``"id"``).
-        label: Entity name for error messages (e.g. ``"leave record"``).
-
-    Raises:
-        typer.Exit(2): If the row number is less than 1.
-        typer.Exit(3): If the row number exceeds the list length.
-    """
+    """Resolve a 1-based row number to the item's ID."""
     if not value.isdigit():
         return value
     import typer as _typer
@@ -84,21 +61,7 @@ def resolve_row(value: str, items: list, *, id_key: str = "id", label: str = "it
 
 
 def require_arg(value: Any, name: str) -> None:
-    """In JSON mode, fail fast if a required argument is missing.
-
-    Normally the CLI would launch an interactive picker. Agents can't interact,
-    so we emit a structured error and exit 2 (bad input) instead of blocking.
-
-    Usage::
-
-        require_arg(person_id, "person-id")
-        if not person_id:
-            person_id = pick_person()
-
-    Args:
-        value: The argument value (None triggers the error).
-        name: The flag/argument name to include in the error message.
-    """
+    """Fail fast if a required argument is missing in JSON mode."""
     if value is None and is_json_mode():
         import typer
         json_error(
@@ -110,12 +73,7 @@ def require_arg(value: Any, name: str) -> None:
 
 
 def json_output(data: Any, *, stderr_msg: str | None = None) -> None:
-    """Write a JSON payload to **stdout** and an optional message to stderr.
-
-    Args:
-        data: Any JSON-serialisable value (dict, list, str, int ...).
-        stderr_msg: Optional one-liner printed to stderr for human observers.
-    """
+    """Write a JSON payload to stdout."""
     if stderr_msg:
         print(stderr_msg, file=sys.stderr)
 
@@ -131,14 +89,7 @@ def json_error(
     hint: str | None = None,
     exit_code: int = 1,
 ) -> None:
-    """Write a structured JSON error to **stdout**.
-
-    Args:
-        message: Human-readable error description.
-        status: HTTP status code (if from an API error).
-        hint: Recovery hint.
-        exit_code: The process exit code.
-    """
+    """Write a structured JSON error to stdout."""
     payload: dict[str, Any] = {"error": True, "message": message}
     if status is not None:
         payload["status"] = status

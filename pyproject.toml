@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kolay-cli"
-version = "0.9.4"
+version = "0.1.0-alpha"
 description = "Command-line interface for Kolay IK (https://apidocs.kolayik.com)"
 authors = [
     {name = "Tunc Aucer"}
@@ -23,7 +23,7 @@ dependencies = [
 license = "MIT"
 keywords = ["kolay", "hr", "cli", "kolayik", "human-resources"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
@@ -49,8 +49,9 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0", "pytest-mock>=3.10"]
+test = ["pytest>=7.0", "pytest-mock>=3.10", "pytest-cov>=4.0"]
 linux = ["keyrings.alt>=5.0"]  # file-backed fallback for headless Linux / CI
+installer = ["pyinstaller>=6.0"]
 dev = [
     "ruff>=0.1.0",
     "mypy>=1.6.0",

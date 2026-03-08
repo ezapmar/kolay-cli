@@ -9,25 +9,16 @@ from requests.adapters import HTTPAdapter
 from .. import config
 from .errors import APIError, HTTP_ERRORS
 
-# IDs from Kolay API are 32-char hex strings. Accept hex + basic alphanum.
+# IDs are 32-char hex. Accept hex + basic alphanum.
 _SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
-
-# Debug logger — only active when KolayClient.debug = True
 _log = logging.getLogger("kolay.api")
-
-# Regex that matches 'Bearer <token>' in any header value
 _BEARER_RE = re.compile(r"(Bearer\s+)\S+", re.IGNORECASE)
 
 
+
+
 def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
-    """Return a copy of *headers* with the Authorization value redacted.
-
-    Replaces ``Bearer <token>`` with ``Bearer [REDACTED]`` so debug logs
-    can capture request metadata without ever writing the live token to disk.
-
-    IMPORTANT: always use this function before logging anything that might
-    contain HTTP headers — never log ``self.session.headers`` directly.
-    """
+    """Redact authorization headers for safe logging."""
     redacted = dict(headers)
     for k, v in redacted.items():
         if k.lower() == "authorization":
@@ -36,18 +27,7 @@ def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
 
 
 def safe_id(value: str, label: str = "ID") -> str:
-    """Validate a user-supplied ID before URL interpolation.
-
-    Args:
-        value: The raw ID from user input.
-        label: Human-readable name used in error messages.
-
-    Returns:
-        The stripped, validated ID string.
-
-    Raises:
-        APIError: If the value is empty or contains illegal characters.
-    """
+    """Validate a user-supplied ID before URL interpolation."""
     if not value or not value.strip():
         raise APIError(f"{label} cannot be empty.")
     value = value.strip()
@@ -57,25 +37,13 @@ def safe_id(value: str, label: str = "ID") -> str:
 
 
 class KolayClient:
-    """Singleton-style HTTP client for the Kolay IK API.
-
-    Handles authentication, automatic retries with exponential backoff,
-    centralized error mapping, and optional debug logging.
-    """
+    """HTTP client for Kolay IK API."""
 
     # Class-level debug flag — set by the --debug CLI option at startup
     debug: bool = False
 
     def __init__(self, token: str | None = None, base_url: str | None = None) -> None:
-        """Initialize the API client.
-
-        Args:
-            token: Override for the API token (default: from config/env).
-            base_url: Override for the base URL (default: from config).
-
-        Raises:
-            APIError: If no token is found or the base URL is not HTTPS.
-        """
+        """Initialize the API client."""
         self._token = token or config.get_api_token()
         self.base_url = (base_url or config.get_base_url()).rstrip("/")
 
@@ -125,8 +93,6 @@ class KolayClient:
     def __str__(self) -> str:
         return self.__repr__()
 
-    # ── Public HTTP methods ───────────────────────────────────────────────────
-
     def get(self, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Send a GET request."""
         return self._request("GET", endpoint, params=params)
@@ -143,18 +109,10 @@ class KolayClient:
         """Send a DELETE request."""
         return self._request("DELETE", endpoint, params=params)
 
-    # ── Internal ──────────────────────────────────────────────────────────────
+
 
     def _request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
-        """Execute an API request with error handling and optional debug logging.
-
-        Rejects path-traversal endpoints, maps HTTP errors to friendly
-        APIError messages, and logs full request/response cycles when
-        ``KolayClient.debug`` is True.
-
-        Authorization headers are always redacted before logging — the raw
-        token is never written to the debug log file.
-        """
+        """Execute an API request with error handling and optional debug logging."""
         if ".." in endpoint or endpoint.startswith("/") or "://" in endpoint:
             raise APIError("Invalid API endpoint.")
 

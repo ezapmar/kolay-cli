@@ -59,3 +59,25 @@ def test_bare_command_group_shows_hint_then_help(group, mock_client):
 def test_unknown_command_exits_nonzero():
     result = runner.invoke(app, ["doesnotexist"])
     assert result.exit_code != 0
+
+
+# ── Alpha release warnings ────────────────────────────────────────────────────
+
+def test_help_shows_alpha_release_label():
+    """Root --help must show the ALPHA RELEASE label."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "ALPHA" in result.output
+
+
+def test_help_shows_unofficial_disclaimer():
+    """Root --help must warn the user this is unofficial / experimental."""
+    result = runner.invoke(app, ["--help"])
+    assert "unofficial" in result.output.lower() or "experimental" in result.output.lower()
+
+
+def test_version_flag_shows_alpha_tag():
+    """--version must include the 'alpha' string so users know the maturity level."""
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert "alpha" in result.output.lower()

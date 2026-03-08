@@ -1,9 +1,4 @@
-"""
-Interactive pickers for kolay-cli.
-
-Each picker fetches a list, renders a table, and returns the selected ID.
-Users never need to copy-paste UUIDs manually.
-"""
+"""Interactive pickers for kolay-cli."""
 from __future__ import annotations
 import random
 from typing import Any, Callable, TYPE_CHECKING
@@ -31,25 +26,8 @@ def _base_pick(
     confirm_fn: Callable[[dict[str, Any]], str],
     search_keys: list[Callable[[dict[str, Any]], str]] | None = None,
 ) -> str:
-    """Core logic shared by every interactive picker.
-
-    Fetches data, optionally filters by a user-supplied search term,
-    renders a table, prompts the user to pick by row number or raw ID,
-    then returns the selected record's ID string.
-
-    Args:
-        client: An existing KolayClient, or None to create one lazily.
-        quips: Rotating witty header messages.
-        prompt: Display label for the record type (e.g. "Colleague").
-        fetch_fn: Callable that fetches a list from the API.
-        table_factory: Callable that builds a Rich table from the list.
-        confirm_fn: Callable that builds a confirmation string for the choice.
-        search_keys: Optional list of lambdas to extract searchable text from
-            each item. When provided, a "Filter:" prompt is shown after
-            fetching so the user can narrow the list before selecting.
-
-    Returns:
-        The selected ID as a string.
+    """Core logic for interactive pickers.
+    Fetches data, filters by search term, renders table, and prompts for selection.
     """
     from ..api.client import KolayClient
     from ..api.errors import APIError
@@ -75,7 +53,6 @@ def _base_pick(
         console.print(f"[grey62]  No {prompt.lower()} records found.[/grey62]")
         return _typer.prompt(f"  Paste {prompt} ID manually")
 
-    # ── Optional inline filter ────────────────────────────────────────────────
     if search_keys:
         query = _typer.prompt(
             f"  Filter {prompt.lower()}s (leave blank for all)",
@@ -108,11 +85,7 @@ def print_error_inline(msg: str) -> None:
 
 
 def _make_table(*columns: tuple[str, str, dict[str, Any] | None]) -> Table:
-    """Create a consistently styled picker table.
-
-    Args:
-        *columns: tuples of (header_name, style, extra_kwargs)
-    """
+    """Create a consistently styled picker table."""
     tbl = Table(
         header_style=f"bold {PRIMARY}",
         border_style=PRIMARY,
@@ -125,7 +98,7 @@ def _make_table(*columns: tuple[str, str, dict[str, Any] | None]) -> Table:
     return tbl
 
 
-# ── Individual Pickers ────────────────────────────────────────────────────────
+
 
 def pick_person(client: KolayClient | None = None) -> str:
     """Interactive employee picker."""

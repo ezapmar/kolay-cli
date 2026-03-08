@@ -1,13 +1,4 @@
-"""
-UI formatters for kolay-cli.
-
-Provides a consistent, premium visual layer using Kolay brand colours:
-  • ``spinner``   — context manager that shows a live dots spinner
-  • ``api_call``  — spinner + automatic APIError → rich Panel (DRY wrapper)
-  • ``print_error`` — rich error panel with recovery hint
-  • ``print_success`` / ``print_empty`` — consistent feedback helpers
-  • ``kv_table`` / ``short_id`` / ``display_status`` — data formatting
-"""
+"""UI formatters for kolay-cli."""
 from __future__ import annotations
 import sys
 import time
@@ -23,24 +14,15 @@ from .constants import (
     PRIMARY, ACCENT, SUCCESS, WARNING, ERROR,
 )
 
-# ── Global console ────────────────────────────────────────────────────────────
+
 console = Console(highlight=False)
 
 
-# ── Spinner / Loading State ───────────────────────────────────────────────────
+
 
 @contextmanager
 def spinner(message: str = "Working...") -> Generator[None, None, None]:
-    """Context manager that shows a live Kolay-branded spinner.
-
-    Usage::
-
-        with spinner("Fetching employees..."):
-            data = client.get("v2/person/list")
-
-    Args:
-        message: The text to display next to the spinner.
-    """
+    """Show a live Kolay-branded spinner."""
     from .output import is_json_mode
     if is_json_mode():
         yield  # no spinner in JSON mode
@@ -68,21 +50,7 @@ def api_call(message: str = "Working...") -> Generator[None, None, None]:
 
 
 def no_command_help(ctx: "typer.Context") -> None:  # type: ignore[name-defined]
-    """Show when a command group is invoked with no subcommand.
-
-    Prints a friendly hint, waits 3 seconds with a live countdown,
-    then displays the full help so the user knows what's available.
-
-    Usage — add this identical callback to every Typer sub-app::
-
-        @app.callback(invoke_without_command=True)
-        def _hint(ctx: typer.Context) -> None:
-            if ctx.invoked_subcommand is None:
-                no_command_help(ctx)
-
-    Args:
-        ctx: The Typer context of the invoked command group.
-    """
+    """Handle command groups invoked with no subcommand."""
     import typer
 
     if ctx.invoked_subcommand is not None:
@@ -107,17 +75,10 @@ def no_command_help(ctx: "typer.Context") -> None:  # type: ignore[name-defined]
     raise typer.Exit(0)
 
 
-# ── ID & Status Helpers ───────────────────────────────────────────────────────
+
 
 def short_id(full_id: str) -> str:
-    """Return a truncated display version of a UUID (last 8 chars).
-
-    Args:
-        full_id: The full UUID string.
-
-    Returns:
-        A rich-formatted shortened ID.
-    """
+    """Truncate UUID to last 8 chars."""
     if not full_id or full_id in ("N/A", "—"):
         return "[grey62]—[/grey62]"
     clean = str(full_id)
@@ -125,30 +86,16 @@ def short_id(full_id: str) -> str:
 
 
 def display_status(status: str) -> str:
-    """Return a styled status badge using Kolay brand colours.
-
-    Args:
-        status: The raw status string from the API.
-
-    Returns:
-        A rich-formatted status badge.
-    """
+    """Styled status badge."""
     if not status:
         return "[grey62]—[/grey62]"
     return STATUS_STYLES.get(str(status).lower(), f"[grey62]{status}[/grey62]")
 
 
-# ── Value Formatters ──────────────────────────────────────────────────────────
+
 
 def fmt_val(val: Any) -> str:
-    """Format a value for display — handles None, bool, empty string.
-
-    Args:
-        val: The value to format.
-
-    Returns:
-        A formatted string.
-    """
+    """Format value for display (handles None, bool, empty)."""
     if val is None or val == "" or val == "N/A":
         return "[grey62]—[/grey62]"
     if isinstance(val, bool):
@@ -157,14 +104,7 @@ def fmt_val(val: Any) -> str:
 
 
 def fmt_num(val: Any) -> str:
-    """Format a numeric value, stripping trailing ``.0``.
-
-    Args:
-        val: The number to format.
-
-    Returns:
-        A cleaned numeric string.
-    """
+    """Format numeric value."""
     if val is None:
         return "[grey62]—[/grey62]"
     try:
@@ -175,20 +115,11 @@ def fmt_num(val: Any) -> str:
 
 
 def label(key: str) -> str:
-    """Convert a camelCase API key to a human-readable label.
-
-    Args:
-        key: The API field key (e.g. ``firstName``).
-
-    Returns:
-        A human-readable label (e.g. ``First Name``).
-    """
+    """Convert camelCase API key to human label."""
     return FIELD_LABELS.get(key, key.replace("_", " ").title())
 
 
-# ── Print Helpers ─────────────────────────────────────────────────────────────
 
-# ── Witty Auth / Status Error Panels ─────────────────────────────────────────
 
 _WITTY_STATUS = {401, 403, 429, 500, 502, 503}
 
@@ -204,14 +135,7 @@ _WITTY_BORDER: dict[int, str] = {
 
 
 def print_api_error(exc: "APIError") -> None:  # type: ignore[name-defined]
-    """Render the best error panel for a given APIError.
-
-    Routes 401/403/429/500 through the witty panel from ``ui/messages``.
-    Falls back to the plain error panel for all other codes.
-
-    Args:
-        exc: The APIError to present to the user.
-    """
+    """Render error panel for APIError."""
     from .messages import get_scenario
 
     status = exc.status_code or 0
@@ -236,15 +160,7 @@ def print_api_error(exc: "APIError") -> None:  # type: ignore[name-defined]
 
 
 def print_error(msg: str, hint: str | None = None) -> None:
-    """Render a human-friendly error panel (never a raw traceback).
-
-    Shows the error in a bordered panel using Kolay Red with an
-    optional recovery hint.
-
-    Args:
-        msg: The error message to display.
-        hint: An optional recovery suggestion for the user.
-    """
+    """Render error panel with recovery hint."""
     # Strip redundant prefixes the API client may have added
     clean = msg
     for prefix in ("API Error: API Error:", "API Error:", "Request failed:"):
@@ -299,18 +215,10 @@ def print_empty(entity: str, hint: str | None = None) -> None:
         console.print()
 
 
-# ── Tables ────────────────────────────────────────────────────────────────────
+
 
 def kv_table(data: dict[str, Any], exclude: list[str] | None = None) -> Table:
-    """Build a key-value detail table from an API response dict.
-
-    Args:
-        data: The dictionary to display.
-        exclude: Keys to omit from the table.
-
-    Returns:
-        A rich ``Table`` ready to print.
-    """
+    """Build key-value detail table."""
     exclude = exclude or []
     table = Table(show_header=False, box=None, padding=(0, 2, 0, 0), expand=False)
     table.add_column("Key", style="grey85", no_wrap=True, min_width=16)

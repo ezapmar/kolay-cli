@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-# ── Friendly HTTP error messages ──────────────────────────────────────────────
-# Keyed by status code.  The tuple is (short_message, recovery_hint).
+
 
 HTTP_ERRORS: dict[int, tuple[str, str]] = {
     400: (
@@ -48,17 +47,8 @@ HTTP_ERRORS: dict[int, tuple[str, str]] = {
 
 
 class APIError(Exception):
-    """Base exception for all Kolay API errors.
+    """Base exception for Kolay API errors."""
 
-    Attributes:
-        message: Human-readable error description.
-        status_code: The HTTP status code (if applicable).
-        hint: Optional recovery hint for the user.
-    """
-
-    # Semantic exit codes for agent control-flow.
-    # 0 = success, 1 = general error, 2 = bad input / syntax,
-    # 3 = not found, 4 = auth / permission, 5 = conflict.
     EXIT_CODES: dict[int, int] = {
         400: 2,
         401: 4,
@@ -93,13 +83,13 @@ class APIError(Exception):
 
     @property
     def exit_code(self) -> int:
-        """Semantic exit code derived from the HTTP status."""
+        """Semantic exit code from HTTP status."""
         if self.status_code is None:
             return 1
         return self.EXIT_CODES.get(self.status_code, 1)
 
     def to_dict(self) -> dict:
-        """Structured representation for ``--json`` error output."""
+        """JSON error output."""
         from kolay_cli.ui.output import strip_markup
         d: dict = {"error": True, "message": self.message}
         if self.status_code is not None:

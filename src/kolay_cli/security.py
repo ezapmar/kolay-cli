@@ -1,39 +1,4 @@
-"""
-Kolay CLI — Security module.
-
-Responsibilities
-────────────────
-1. **Keyring storage**   Store / retrieve / delete the API token in the OS
-                         native credential manager (macOS Keychain, Windows
-                         Credential Vault, Linux Secret Service / kwallet).
-
-2. **Token validation**  Lightweight local checks:
-                         • If the token is a JWT → verify `exp` claim.
-                         • If the token is opaque → treat as valid (the API
-                           will reject it with 401 if it's not).
-                         Includes a clearly-marked PLACEHOLDER for JWKS / IdP
-                         public-key validation.
-
-3. **`require_auth`**    Decorator for MCP tool functions.  Resolves the token,
-                         validates it, and returns a structured error dict to
-                         the LLM client instead of crashing when auth fails.
-
-Token resolution order (highest wins):
-    1. KOLAY_API_TOKEN environment variable   ← CI / Docker
-    2. OS Keychain via keyring                ← interactive users
-    3. Legacy config file (auto-migrated)     ← backward compat
-
-Typical usage
-─────────────
-    from .security import require_auth, store_token, delete_token
-
-    store_token("my-api-token")
-    delete_token()
-
-    @require_auth
-    def my_mcp_tool(...):
-        ...
-"""
+"""Security and authentication for kolay-cli."""
 from __future__ import annotations
 
 import base64
@@ -45,19 +10,17 @@ from typing import Any, Callable, TypeVar
 
 _log = logging.getLogger(__name__)
 
-# ── Keyring constants ─────────────────────────────────────────────────────────
+
 
 _KEYRING_SERVICE = "kolay-cli"
 _KEYRING_USERNAME = "api_token"
 
-# ── In-process token cache ────────────────────────────────────────────────────
-# Avoids a keychain round-trip on every one of the 31 MCP tool calls.
-# Invalidated whenever store_token() or delete_token() runs.
+
 
 _SENTINEL = object()          # distinct from None (= "no token found")
 _token_cache: object = _SENTINEL  # object type so mypy doesn't complain
 
-# ── Token validation result ───────────────────────────────────────────────────
+
 
 class TokenStatus:
     """Result of a token validation check."""
@@ -73,26 +36,15 @@ class TokenStatus:
         return f"TokenStatus(valid={self.valid}, reason={self.reason!r})"
 
 
-# ── Keyring helpers ───────────────────────────────────────────────────────────
+
 
 def _is_ci() -> bool:
-    """Return True when running inside a CI environment.
-
-    Checks the conventional ``CI`` environment variable set by GitHub Actions,
-    GitLab CI, CircleCI, Travis, Jenkins, and most other providers.
-    """
+    """Return True when running inside a CI environment."""
     return os.getenv("CI", "").lower() in ("true", "1", "yes")
 
 
 def _try_configure_keyrings_alt() -> bool:
-    """Attempt to activate ``keyrings.alt`` as a fallback backend.
-
-    Only runs on Linux when:
-    • The native keyring backend is unavailable ("fail" backend)
-    • ``keyrings.alt`` is installed (``pip install 'kolay-cli[linux]'``)
-
-    Returns True if ``keyrings.alt`` was successfully set as the active backend.
-    """
+    """Attempt to activate keyrings.alt as a fallback backend on Linux."""
     import sys
     if sys.platform != "linux":
         return False
@@ -139,14 +91,7 @@ def _keyring_available() -> bool:
 
 
 def store_token(token: str) -> bool:
-    """Save the API token to the OS keychain and invalidate the in-process cache.
-
-    Args:
-        token: The bearer token to store.
-
-    Returns:
-        True if saved to keychain successfully, False if keyring is unavailable.
-    """
+    """Save API token to OS keychain and invalidate cache."""
     global _token_cache
     _token_cache = _SENTINEL  # invalidate so next resolve_token() reads fresh
     try:
@@ -229,16 +174,10 @@ def _remove_token_from_config_file() -> None:
         _log.debug("Could not remove token from config file: %s", exc)
 
 
-# ── Token resolution ──────────────────────────────────────────────────────────
+
 
 def is_first_run() -> bool:
-    """Return True when the CLI has never been configured on this machine.
-
-    Defined as: no config file exists *and* no token is resolvable from any
-    source (env var, keychain, or config file).  Used to offer a friendlier
-    onboarding hint ("run kolay setup") instead of a generic "no token found"
-    error on the very first invocation.
-    """
+    """Return True if CLI is not configured."""
     try:
         from .config import CONFIG_FILE_JSON, CONFIG_FILE_YAML
         if CONFIG_FILE_JSON.exists() or CONFIG_FILE_YAML.exists():
@@ -249,21 +188,7 @@ def is_first_run() -> bool:
 
 
 def resolve_token() -> str | None:
-    """Resolve the best available API token, with in-process caching.
-
-    On the first call the full priority chain is evaluated:
-        1. KOLAY_API_TOKEN environment variable
-        2. OS Keychain (keyring)
-        3. Legacy config file (auto-migrated to keychain if found)
-
-    Subsequent calls within the same process return the cached result
-    immediately — no keychain round-trip.  The cache is invalidated by
-    :func:`store_token` and :func:`delete_token` so login/logout always
-    take effect on the very next call.
-
-    Returns:
-        The resolved token string, or None if nothing is configured.
-    """
+    """Resolve API token with in-process caching."""
     global _token_cache
 
     # Return cached result if available (only cache successful resolution)
@@ -307,20 +232,7 @@ def _resolve_uncached() -> str | None:
 
 
 def resolve_token_with_source() -> tuple[str | None, str]:
-    """Resolve the best available token and identify where it came from.
-
-    Returns a ``(token, source_label)`` pair.  ``source_label`` is a
-    human-readable string suitable for display to the user.
-
-    Priority order matches :func:`resolve_token`:
-        1. ``KOLAY_API_TOKEN`` env var  → ``"environment variable"``
-        2. OS Keychain                  → ``"OS Keychain 🔐"``
-        3. Config file                  → ``"config file"``
-        4. Not found                    → ``(None, "not configured")``
-
-    Eliminates duplicated source-detection logic in ``auth status`` and
-    ``doctor`` that previously queried keyring a second time after resolving.
-    """
+    """Resolve token and identify its source."""
     if os.getenv("KOLAY_API_TOKEN"):
         return resolve_token(), "environment variable"
     keyring_token = get_keyring_token()
@@ -373,20 +285,14 @@ def _migration_notice() -> None:
             pass
 
 
-# ── JWT validation ────────────────────────────────────────────────────────────
 
-# Seconds of leeway applied to JWT `exp` validation to tolerate clock skew
-# between the client machine and the token-issuing server (RFC 7519 §4.1.4).
+
+# Seconds of leeway for clock skew.
 _JWT_CLOCK_SKEW_SECONDS = 5
 
 
 def _is_jwt(token: str) -> bool:
-    """Return True if the token is a structurally valid JWT.
-
-    A real JWT has three base64url-encoded parts separated by dots.
-    The header (first part) must decode to a JSON object starting with ``{``
-    — this rules out opaque tokens that happen to contain two dots.
-    """
+    """Return True if token is a structurally valid JWT."""
     parts = token.split(".")
     if len(parts) != 3:
         return False
@@ -416,38 +322,7 @@ def _decode_jwt_claims(token: str) -> dict[str, Any] | None:
 
 
 def validate_token(token: str) -> TokenStatus:
-    """Validate the token locally.
-
-    For JWT tokens:
-        • Checks the `exp` claim against the current time.
-        • ─────────────────────────────────────────────────────
-          PLACEHOLDER — JWKS / IdP signature verification:
-          Replace the block below with your company's IdP public
-          key or JWKS endpoint validation.  Example:
-          ────────────────────────────────────────────────────
-          import jwt
-          from jwt import PyJWKClient
-          jwks_client = PyJWKClient("https://your-idp.com/.well-known/jwks.json")
-          signing_key = jwks_client.get_signing_key_from_jwt(token)
-          decoded = jwt.decode(
-              token,
-              signing_key.key,
-              algorithms=["RS256"],
-              audience="your-audience",
-              issuer="https://your-idp.com",
-          )
-          ─────────────────────────────────────────────────────
-
-    For opaque tokens (non-JWT):
-        • Treats as valid — the remote API will reject with 401
-          if the token has been revoked or is malformed.
-
-    Args:
-        token: The raw token string.
-
-    Returns:
-        TokenStatus with .valid and .reason fields.
-    """
+    """Validate token locally (JWT expiry or opaque acceptance)."""
     if not token or not token.strip():
         return TokenStatus(False, "Token is empty.")
 
@@ -473,7 +348,6 @@ def validate_token(token: str) -> TokenStatus:
         if exp - now < 300:
             _log.warning("Token expires in less than 5 minutes.")
 
-    # ── PLACEHOLDER — uncomment to add JWKS / IdP signature verification ─────
     # from jwt import PyJWKClient
     # import jwt
     # try:
@@ -489,12 +363,11 @@ def validate_token(token: str) -> TokenStatus:
     #     )
     # except jwt.InvalidTokenError as e:
     #     return TokenStatus(False, f"JWT signature invalid: {e}")
-    # ─────────────────────────────────────────────────────────────────────────
 
     return TokenStatus(True, "JWT is valid.")
 
 
-# ── require_auth decorator ────────────────────────────────────────────────────
+
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -513,22 +386,7 @@ def _auth_error(message: str, hint: str | None = None) -> dict[str, Any]:
 
 
 def require_auth(fn: F) -> F:
-    """Decorator that guards an MCP tool function with token authentication.
-
-    Behaviour:
-    • Resolves the token from env / keychain / config file.
-    • Validates it (JWT expiry or opaque acceptance).
-    • On success → calls the wrapped function normally.
-    • On failure → returns a structured error dict to the LLM client
-      instead of raising an exception (prevents server crash).
-
-    Usage::
-
-        @mcp.tool
-        @require_auth
-        def person_list(status: str = "active") -> dict:
-            return person_svc.list_people(status=status)
-    """
+    """Decorator that guards an MCP tool function with token authentication."""
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         token = resolve_token()

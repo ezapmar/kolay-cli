@@ -1,19 +1,11 @@
-"""
-Kolay CLI — entry point.
-
-Global flags:
-  --version / -v   Print the CLI version and exit.
-  --json           Output machine-readable JSON to stdout (for AI agents / scripts).
-  --yes / -y       Skip all interactive confirmations.
-  --debug          Enable verbose HTTP logging to ~/.config/kolay/debug.log
-"""
+"""Kolay CLI entry point."""
 from __future__ import annotations
 import typer
 from rich.console import Console
 
 from . import __version__
 
-# Lazy command group imports — speeds up startup for all non-invoked groups
+
 from .commands import (
     auth, person, leave, transaction, calendar,
     timelog, training, unit, expense, approval, schema,
@@ -45,7 +37,7 @@ app = typer.Typer(
 )
 console = Console(highlight=False)
 
-# ── Command groups ─────────────────────────────────────────────────────────────
+
 app.add_typer(auth.app,         name="auth",        rich_help_panel="Authentication")
 app.add_typer(config_cmd.app,   name="config",      rich_help_panel="Authentication")
 app.add_typer(person.app,       name="person",      rich_help_panel="People")
@@ -88,12 +80,8 @@ def main(
         hidden=True,
     ),
 ) -> None:
-    """Kolay IK command-line interface.
-
-    Run any sub-command with --help for detailed usage.
-
-    Use --json for structured output consumable by AI agents and scripts.
-    Use --yes to skip confirmation prompts in non-interactive environments.
+    """Kolay IK CLI / MCP (ALPHA RELEASE)
+    Unofficial tool. Use with caution.
     """
     from .ui.output import set_json_mode, set_yes_mode, is_json_mode, json_output
 
@@ -106,7 +94,7 @@ def main(
         if is_json_mode():
             json_output({"version": __version__})
         else:
-            console.print(f"Kolay CLI  [bold #376BFB]{__version__}[/bold #376BFB]")
+            console.print(f"Kolay CLI version [bold #376BFB]{__version__}[/bold #376BFB]")
         raise typer.Exit()
 
     if debug:
@@ -120,7 +108,7 @@ def main(
 
 
 def _enable_debug_logging() -> None:
-    """Configure file-based debug logging for the kolay.api logger."""
+    """Configure debug logging."""
     import logging
     from pathlib import Path
 

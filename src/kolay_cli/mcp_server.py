@@ -1,25 +1,10 @@
-"""
-Kolay IK — FastMCP server.
-
-Exposes every major Kolay IK operation as an MCP tool so that LLMs,
-agents, and MCP-aware clients (Claude Desktop, Cursor, Gemini CLI …)
-can call Kolay IK without touching the CLI.
-
-Run locally (STDIO, default):
-    python -m kolay_cli.mcp_server
-
-Run as HTTP server:
-    python -m kolay_cli.mcp_server --transport http --port 8000
-
-Or via the CLI:
-    kolay mcp serve [--transport http] [--port 8000]
-"""
+"""Kolay IK FastMCP server."""
 from __future__ import annotations
 
 import os
 from typing import Any
 
-# Disable fastmcp's stdout logs and banner out-of-the-box
+# Prevent logs from breaking MCP JSON transport.
 os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
 os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
@@ -35,23 +20,26 @@ from .services import calendar as calendar_svc
 from .services import unit as unit_svc
 from .services import approval as approval_svc
 
-# ── Server ────────────────────────────────────────────────────────────────────
+
+
+try:
+    from core.constants import DISCLAIMER
+    _disclaimer = f" DISCLAIMER: {DISCLAIMER}"
+except ImportError:
+    _disclaimer = ""
 
 mcp = FastMCP(
-    name="kolay-ik",
+    name="kolay-ik [Alpha]",
     instructions=(
-        "Kolay IK HR platform tools. "
-        "Use person_list to find employee IDs before calling other person tools. "
-        "For bulk updates, use the `bulk_update_assistant` prompt which enforces human-in-the-loop confirmation. "
-        "Dates are YYYY-MM-DD, datetimes are YYYY-MM-DD HH:MM:SS. "
-        "All write operations (create/update/delete/terminate) are real and irreversible."
+        f"Kolay IK HR platform tools. "
+        f"Use person_list to find employee IDs before calling other person tools. "
+        f"For bulk updates, use the `bulk_update_assistant` prompt which enforces human-in-the-loop confirmation. "
+        f"Dates are YYYY-MM-DD, datetimes are YYYY-MM-DD HH:MM:SS.{_disclaimer}"
     ),
 )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# PEOPLE
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
@@ -61,53 +49,28 @@ def person_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List employees from the company roster.
-
-    Args:
-        status: 'active' or 'inactive'. Defaults to 'active'.
-        search: Optional name/email search term.
-        page: Page number (1-based).
-        limit: Max records per page (default 20).
-
-    Returns:
-        dict with keys: items (list of employee dicts), totalCount, page.
-    """
+    """List employees from the company roster. Status is 'active' or 'inactive'. Search by name. Paginated."""
     return person_svc.list_people(page=page, status=status, search=search, limit=limit)
 
 
 @mcp.tool
 @require_auth
 def person_view(person_id: str) -> dict[str, Any]:
-    """View the full profile of a specific employee.
-
-    Args:
-        person_id: Employee UUID (get from person_list).
-
-    Returns:
-        Full employee profile dict.
-    """
+    """View full profile of an employee. Use person_id from person_list."""
     return person_svc.view_person(person_id)
 
 
 @mcp.tool
 @require_auth
 def person_summary(person_id: str) -> dict[str, Any]:
-    """View a condensed summary of an employee (name, contact, custom fields).
-
-    Args:
-        person_id: Employee UUID.
-    """
+    """View condensed summary of an employee."""
     return person_svc.summary(person_id)
 
 
 @mcp.tool
 @require_auth
 def person_leave_status(person_id: str) -> list[dict[str, Any]]:
-    """View current leave balances for an employee (used, upcoming, remaining).
-
-    Args:
-        person_id: Employee UUID.
-    """
+    """View leave balances for an employee."""
     return person_svc.leave_status(person_id)
 
 
@@ -120,18 +83,7 @@ def person_create(
     employment_start: str,
     mobile_phone: str | None = None,
 ) -> dict[str, Any]:
-    """Create a new employee record.
-
-    Args:
-        first_name: First name.
-        last_name: Last name.
-        email: Work email address.
-        employment_start: Employment start date (YYYY-MM-DD).
-        mobile_phone: Optional mobile phone number.
-
-    Returns:
-        dict with 'id' of the created employee.
-    """
+    """Create a new employee record. Dates in YYYY-MM-DD."""
     return person_svc.create_person(
         first_name=first_name, last_name=last_name,
         email=email, employment_start=employment_start,
@@ -149,20 +101,7 @@ def person_update(
     mobile_phone: str | None = None,
     custom_fields: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Update an employee's profile. Only supplied fields are changed.
-    For single-field updates. For bulk operations, use update_employee_data.
-
-    Args:
-        person_id: Employee UUID.
-        first_name: New first name (optional).
-        last_name: New last name (optional).
-        email: New work email (optional).
-        mobile_phone: New mobile phone (optional).
-        custom_fields: Dict of {fieldToken: value} for custom data fields (optional).
-
-    Returns:
-        dict with 'status': 'updated'.
-    """
+    """Update an employee's profile. Only supplied fields are changed."""
     return person_svc.update_person(
         person_id, first_name=first_name, last_name=last_name,
         email=email, mobile_phone=mobile_phone, custom_fields=custom_fields,
@@ -176,33 +115,14 @@ def person_terminate(
     termination_date: str,
     reason_code: str,
 ) -> dict[str, Any]:
-    """Terminate the employment of an employee. Irreversible.
-
-    Args:
-        person_id: Employee UUID.
-        termination_date: Date of termination (YYYY-MM-DD).
-        reason_code: SGK reason code. Common codes:
-            '03' voluntary resignation,
-            '22' termination by employer,
-            '11' retirement,
-            '04' termination without notice,
-            '30' other.
-
-    Returns:
-        dict with 'status': 'terminated'.
-    """
+    """Terminate employee. Dates in YYYY-MM-DD. Reason codes include '03' voluntary, '22' employer."""
     return person_svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason_code)
 
 
 @mcp.tool
 @require_auth
 def person_rehire(person_id: str, start_date: str) -> dict[str, Any]:
-    """Rehire a previously terminated employee.
-
-    Args:
-        person_id: Employee UUID.
-        start_date: New employment start date (YYYY-MM-DD).
-    """
+    """Rehire a previously terminated employee. Dates in YYYY-MM-DD."""
     return person_svc.rehire_person(person_id, start_date=start_date)
 
 
@@ -212,33 +132,14 @@ def update_employee_data(
     person_id: str,
     update_fields: dict[str, str],
 ) -> dict[str, Any]:
-    """Update arbitrary fields on an employee's profile using raw API field names.
-
-    Unlike person_update (which has typed named params), this tool accepts any
-    field name the Kolay IK API supports. Only the supplied fields are changed.
-    For programmatic/bulk use. For simple named-field updates, prefer person_update.
-    Primarily designed for bulk orchestration but also useful for advanced
-    single-record updates.
-
-    Args:
-        person_id: Employee UUID (get from person_list).
-        update_fields: Dict of raw API field names to new values, e.g.
-            {"firstName": "Ahmet", "department": "Engineering", "title": "Lead"}.
-            Common writable fields: firstName, lastName, workEmail,
-            mobilePhone, department, title, location.
-
-    Returns:
-        dict with 'status': 'updated' and list of updated field names.
-    """
+    """Update arbitrary fields on an employee profile. Use raw API field names."""
     if not update_fields:
         return {"error": True, "message": "No fields provided to update."}
     return person_svc.update_person_fields(person_id, update_fields)
 
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# LEAVE
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
@@ -249,29 +150,14 @@ def leave_list(
     person_id: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """List leave records.
-
-    Args:
-        status: 'approved', 'waiting', 'rejected', or 'cancelled'. Default 'approved'.
-        start: Start date filter (YYYY-MM-DD). Defaults to Jan 1 of current year.
-        end: End date filter (YYYY-MM-DD). Defaults to Dec 31 of current year.
-        person_id: Filter by employee UUID (optional).
-        limit: Max records (default 50).
-
-    Returns:
-        List of leave record dicts.
-    """
+    """List leave records. Status is 'approved', 'waiting', 'rejected', or 'cancelled'."""
     return leave_svc.list_leaves(status=status, start=start, end=end, person_id=person_id, limit=limit)
 
 
 @mcp.tool
 @require_auth
 def leave_view(leave_id: str) -> dict[str, Any]:
-    """View full details of a leave record including workflow status.
-
-    Args:
-        leave_id: Leave record UUID (get from leave_list).
-    """
+    """View details of a leave record."""
     return leave_svc.view_leave(leave_id)
 
 
@@ -284,27 +170,14 @@ def leave_create(
     end_date: str,
     comment: str = "",
 ) -> dict[str, Any]:
-    """Submit a leave request for an employee.
-
-    Args:
-        person_id: Employee UUID.
-        leave_type_id: Leave type UUID (get from person_leave_status to see available types).
-        start_date: Leave start date (YYYY-MM-DD).
-        end_date: Leave end date (YYYY-MM-DD).
-        comment: Optional comment.
-
-    Returns:
-        dict with 'status': 'created'.
-    """
+    """Submit a leave request. Dates in YYYY-MM-DD."""
     return leave_svc.create_leave(
         person_id=person_id, leave_type_id=leave_type_id,
         start_date=start_date, end_date=end_date, comment=comment,
     )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# TIMELOGS
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
@@ -317,20 +190,7 @@ def timelog_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List timelog records (work hours, overtime, remote work).
-
-    Args:
-        start: Start date (YYYY-MM-DD). Defaults to Jan 1 of current year.
-        end: End date (YYYY-MM-DD). Defaults to Dec 31 of current year.
-        person_id: Filter by employee UUID (optional).
-        type: Filter by type: 'work', 'overtime', 'remote' (optional).
-        status: Filter by status: 'waiting', 'approved', 'rejected' (optional).
-        page: Page number.
-        limit: Records per page (default 20).
-
-    Returns:
-        dict with 'items', 'totalCount', 'page'.
-    """
+    """List timelogs. Types: 'work', 'overtime', 'remote'."""
     return timelog_svc.list_timelogs(
         start=start, end=end, person_id=person_id,
         type=type, status=status, page=page, limit=limit,
@@ -340,11 +200,7 @@ def timelog_list(
 @mcp.tool
 @require_auth
 def timelog_view(timelog_id: str) -> dict[str, Any]:
-    """View details and approval workflow for a specific timelog entry.
-
-    Args:
-        timelog_id: Timelog UUID (get from timelog_list).
-    """
+    """View timelog entry details."""
     return timelog_svc.view_timelog(timelog_id)
 
 
@@ -357,18 +213,7 @@ def timelog_create(
     type: str = "work",
     description: str = "",
 ) -> dict[str, Any]:
-    """Submit a new timelog entry for approval.
-
-    Args:
-        person_id: Employee UUID.
-        start: Start datetime (YYYY-MM-DD HH:MM:SS).
-        end: End datetime (YYYY-MM-DD HH:MM:SS).
-        type: 'work', 'overtime', or 'remote'. Default 'work'.
-        description: Optional description.
-
-    Returns:
-        dict with 'status': 'created'.
-    """
+    """Create timelog. Start/End in YYYY-MM-DD HH:MM:SS. Types: 'work', 'overtime', 'remote'."""
     return timelog_svc.create_timelog(
         person_id=person_id, start=start, end=end,
         type=type, description=description,
@@ -378,17 +223,11 @@ def timelog_create(
 @mcp.tool
 @require_auth
 def timelog_delete(timelog_id: str) -> dict[str, Any]:
-    """Permanently delete a timelog record. Irreversible.
-
-    Args:
-        timelog_id: Timelog UUID.
-    """
+    """Delete a timelog record."""
     return timelog_svc.delete_timelog(timelog_id)
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# TRAINING CATALOGUE
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
@@ -397,54 +236,28 @@ def training_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List all trainings in the company catalogue.
-
-    Args:
-        search: Optional name search term.
-        page: Page number.
-        limit: Records per page.
-
-    Returns:
-        dict with 'items', 'totalCount'.
-    """
+    """List trainings in the catalogue."""
     return training_svc.list_trainings(search=search, page=page, limit=limit)
 
 
 @mcp.tool
 @require_auth
 def training_view(training_id: str) -> dict[str, Any]:
-    """View full details of a specific training in the catalogue.
-
-    Args:
-        training_id: Training UUID (get from training_list).
-    """
+    """View training details."""
     return training_svc.view_training(training_id)
 
 
 @mcp.tool
 @require_auth
 def training_create(name: str, description: str = "", duration: str = "") -> dict[str, Any]:
-    """Add a new training to the company catalogue.
-
-    Args:
-        name: Training name (required).
-        description: Optional description.
-        duration: Optional duration in days (as string, e.g. '3').
-
-    Returns:
-        dict with 'status': 'created'.
-    """
+    """Add training to the catalogue. Duration is days string."""
     return training_svc.create_training(name=name, description=description, duration=duration)
 
 
 @mcp.tool
 @require_auth
 def training_delete(training_id: str) -> dict[str, Any]:
-    """Remove a training from the catalogue. Irreversible.
-
-    Args:
-        training_id: Training UUID.
-    """
+    """Remove training from catalogue."""
     return training_svc.delete_training(training_id)
 
 
@@ -457,24 +270,14 @@ def person_assign_training(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, Any]:
-    """Assign a training from the catalogue to an employee.
-
-    Args:
-        person_id: Employee UUID.
-        training_id: Training UUID (get from training_list).
-        status: 'waiting' or 'approved'. Default 'waiting'.
-        start_date: Assignment start date (YYYY-MM-DD, optional).
-        end_date: Assignment end date (YYYY-MM-DD, optional).
-    """
+    """Assign training to employee. Status: 'waiting' or 'approved'."""
     return person_svc.assign_training(
         person_id=person_id, training_id=training_id,
         status=status, start_date=start_date, end_date=end_date,
     )
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# TRANSACTIONS
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
@@ -485,19 +288,7 @@ def transaction_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List financial transactions (expenses, bonuses, advances, cuts).
-
-    Args:
-        person_id: Filter by employee UUID (optional).
-        type: Filter by type: 'expense', 'bonus', 'advancePayment', 'premium',
-              'otherCut', 'militaryBenefit', etc. (optional).
-        status: Filter by status: 'waiting', 'approved' (optional).
-        page: Page number.
-        limit: Records per page.
-
-    Returns:
-        dict with 'items', 'totalCount', 'page'.
-    """
+    """List transactions. Types: 'expense', 'bonus', 'advancePayment', 'premium', 'otherCut'."""
     return transaction_svc.list_transactions(
         person_id=person_id, type=type, status=status,
         page=page, limit=limit,
@@ -507,11 +298,7 @@ def transaction_list(
 @mcp.tool
 @require_auth
 def transaction_view(transaction_id: str) -> dict[str, Any]:
-    """View full details of a specific transaction.
-
-    Args:
-        transaction_id: Transaction UUID (get from transaction_list).
-    """
+    """View transaction details."""
     return transaction_svc.view_transaction(transaction_id)
 
 
@@ -525,20 +312,7 @@ def transaction_create(
     currency: str = "TL",
     description: str = "",
 ) -> dict[str, Any]:
-    """Create a financial transaction (bonus, expense, advance, cut, etc.).
-
-    Args:
-        person_id: Employee UUID.
-        type: Transaction type. Options: 'expense', 'bonus', 'advancePayment',
-              'premium', 'otherCut', 'militaryBenefit', 'fuelAllowanceBenefit'.
-        amount: Amount as a number.
-        date: Transaction date (YYYY-MM-DD).
-        currency: Currency code (default 'TL').
-        description: Optional description.
-
-    Returns:
-        dict with 'status': 'created'.
-    """
+    """Create transaction. Types: 'expense', 'bonus', 'advancePayment', 'premium', 'otherCut'."""
     return transaction_svc.create_transaction(
         person_id=person_id, type=type, amount=amount,
         date=date, currency=currency, description=description,
@@ -548,17 +322,11 @@ def transaction_create(
 @mcp.tool
 @require_auth
 def transaction_delete(transaction_id: str) -> dict[str, Any]:
-    """Permanently delete a transaction record. Irreversible.
-
-    Args:
-        transaction_id: Transaction UUID.
-    """
+    """Delete transaction."""
     return transaction_svc.delete_transaction(transaction_id)
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# CALENDAR
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
@@ -569,29 +337,14 @@ def calendar_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List calendar events for a given period.
-
-    Args:
-        start: Start date (YYYY-MM-DD). Defaults to today.
-        end: End date (YYYY-MM-DD). Defaults to 30 days from now.
-        search: Optional title keyword search.
-        page: Page number.
-        limit: Records per page.
-
-    Returns:
-        dict with 'items', 'totalCount', 'page'.
-    """
+    """List calendar events. Dates in YYYY-MM-DD."""
     return calendar_svc.list_events(start=start, end=end, search=search, page=page, limit=limit)
 
 
 @mcp.tool
 @require_auth
 def calendar_view(event_id: str) -> dict[str, Any]:
-    """View full details of a specific calendar event.
-
-    Args:
-        event_id: Event UUID (get from calendar_list).
-    """
+    """View event details."""
     return calendar_svc.view_event(event_id)
 
 
@@ -603,17 +356,7 @@ def calendar_create(
     end: str,
     comment: str = "",
 ) -> dict[str, Any]:
-    """Create a new calendar event.
-
-    Args:
-        title: Event title.
-        start: Start datetime (YYYY-MM-DD HH:MM:SS).
-        end: End datetime (YYYY-MM-DD HH:MM:SS).
-        comment: Optional description.
-
-    Returns:
-        dict with 'id' of the created event.
-    """
+    """Create calendar event. Dates in YYYY-MM-DD HH:MM:SS."""
     return calendar_svc.create_event(title=title, start=start, end=end, comment=comment)
 
 
@@ -626,66 +369,38 @@ def calendar_update(
     end: str | None = None,
     comment: str | None = None,
 ) -> dict[str, Any]:
-    """Update an existing calendar event. Only provided fields are changed.
-
-    Args:
-        event_id: Event UUID.
-        title: New title (optional).
-        start: New start datetime (optional).
-        end: New end datetime (optional).
-        comment: New comment (optional).
-    """
+    """Update calendar event. Only supplied fields are changed."""
     return calendar_svc.update_event(event_id, title=title, start=start, end=end, comment=comment)
 
 
 @mcp.tool
 @require_auth
 def calendar_delete(event_id: str) -> dict[str, Any]:
-    """Permanently delete a calendar event. Irreversible.
-
-    Args:
-        event_id: Event UUID.
-    """
+    """Delete calendar event."""
     return calendar_svc.delete_event(event_id)
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# ORGANISATION
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.tool
 @require_auth
 def unit_tree() -> list[dict[str, Any]]:
-    """Return the full organisational unit tree (departments, locations, teams, etc.).
-
-    Returns:
-        List of root unit nodes, each may contain 'children' and 'items'.
-    """
+    """Return organisational unit tree."""
     return unit_svc.unit_tree()
 
 
 @mcp.tool
 @require_auth
 def approval_list() -> list[dict[str, Any]]:
-    """List all approval workflows configured for the company.
-
-    Returns:
-        List of approval process dicts with 'name', 'type', 'steps'.
-    """
+    """List approval workflows."""
     return approval_svc.list_approval_processes()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# PROMPTS
-# ════════════════════════════════════════════════════════════════════════════
+
 
 @mcp.prompt()
 def employee_snapshot(person_query: str) -> str:
-    """Generate a comprehensive HR snapshot and leave balance report for an employee.
-
-    Args:
-        person_query: Employee name or search term (e.g. "Ahmet", "Tunca Üçer").
-    """
+    """Generate HR snapshot and leave balance report for an employee."""
     return f"""Act as an HR Manager.
 Use the `person_list` tool to find the exact ID for the employee matching "{person_query}".
 Then, use `person_view` and `person_leave_status` to gather their data.
@@ -707,11 +422,7 @@ Draft a professional email to their department manager suggesting they encourage
 
 @mcp.prompt()
 def onboarding_plan(person_query: str) -> str:
-    """Draft an onboarding kit including welcome emails and schedules for a new hire.
-
-    Args:
-        person_query: Employee name or search term (e.g. "Ahmet", "Tunca Üçer").
-    """
+    """Draft onboarding kit for a new hire."""
     return f"""Act as an Onboarding Specialist.
 First, use the `person_list` tool with search="{person_query}" to find the employee. If multiple results are returned, pick the closest match by name.
 Then use `person_view` with their ID to retrieve the exact Name, Department, and Title for the new hire.
@@ -723,11 +434,7 @@ Based on their profile and role, output 3 things:
 
 @mcp.prompt()
 def offboarding_plan(person_query: str) -> str:
-    """Draft an offboarding action plan with payout calculations and exit questions.
-
-    Args:
-        person_query: Employee name or search term (e.g. "Ahmet", "Tunca Üçer").
-    """
+    """Draft offboarding action plan for a departing employee."""
     return f"""Act as an HR Operations Specialist.
 First, use the `person_list` tool with search="{person_query}" to find the employee. If multiple results are returned, pick the closest match by name.
 Then use `person_view` and `person_leave_status` with their ID to retrieve the full profile and leave balances for the departing employee.
@@ -740,13 +447,7 @@ Output an Offboarding Action Plan including:
 
 @mcp.prompt()
 def bulk_update_assistant(target_field: str, old_value: str, new_value: str) -> str:
-    """Guides a safe, human-in-the-loop bulk data cleanup across all active employees.
-
-    Args:
-        target_field: API field name to update (e.g. "department", "title", "location").
-        old_value: Current value to match against (case-insensitive, partial match allowed).
-        new_value: Replacement value to write for every matched employee.
-    """
+    """Safe, human-in-the-loop bulk data cleanup across employees."""
     return f"""Act as an HR Data Specialist performing a controlled bulk data cleanup.
 Follow these steps EXACTLY in order — do not skip or reorder them.
 
@@ -778,9 +479,7 @@ Then ask EXACTLY this question:
 Present a concise summary: total scanned, total updated (or 0 if cancelled), any errors."""
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# Entry point
-# ════════════════════════════════════════════════════════════════════════════
+
 
 if __name__ == "__main__":
     import argparse

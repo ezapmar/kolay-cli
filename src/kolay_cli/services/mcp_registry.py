@@ -16,6 +16,11 @@ class MCPClientStrategy(ABC):
         """Name of the client (e.g. 'Claude Desktop')."""
         pass
 
+    @property
+    def description(self) -> str:
+        """Short description shown in the picker."""
+        return ""
+
     @abstractmethod
     def get_config_path(self) -> Path | None:
         """Return the path to the configuration file, or None if not determinable/supported."""
@@ -27,7 +32,22 @@ class MCPClientStrategy(ABC):
         if not config_path:
             return False, "Unsupported platform"
 
-        config_data = {}
+        config_data = self._read_config(config_path)
+        if isinstance(config_data, tuple):  # (False, error_msg)
+            return config_data  # type: ignore[return-value]
+
+        self._set_server(config_data, server_name, command, args)
+
+        try:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(json.dumps(config_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            return True, str(config_path)
+        except OSError as e:
+            return False, f"Failed to write to {config_path}: {e}"
+
+    def _read_config(self, config_path: Path) -> dict | tuple[bool, str]:
+        """Read and parse the config file. Returns dict or (False, error)."""
+        config_data: dict = {}
         if config_path.exists():
             try:
                 content = config_path.read_text(encoding="utf-8").strip()
@@ -37,30 +57,31 @@ class MCPClientStrategy(ABC):
                 return False, f"Invalid JSON in {config_path}. Aborting to prevent data loss."
             except OSError as e:
                 return False, f"Could not read {config_path}: {e}"
+        return config_data
 
-        # Most systems (Claude, Cursor, Windsurf) use the "mcpServers" key structure.
+    def _set_server(self, config_data: dict, server_name: str, command: str, args: list[str]) -> None:
+        """Write the server entry into config_data. Override for custom schema."""
         if "mcpServers" not in config_data:
             config_data["mcpServers"] = {}
         elif not isinstance(config_data["mcpServers"], dict):
-            return False, f"'mcpServers' is not a dictionary in {config_path}."
-
+            config_data["mcpServers"] = {}
         config_data["mcpServers"][server_name] = {
             "command": command,
             "args": args,
         }
 
-        try:
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            config_path.write_text(json.dumps(config_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            return True, str(config_path)
-        except OSError as e:
-            return False, f"Failed to write to {config_path}: {e}"
+
+# ── Clients ────────────────────────────────────────────────────────────────────
 
 
 class ClaudeDesktopStrategy(MCPClientStrategy):
     @property
     def name(self) -> str:
         return "Claude Desktop"
+
+    @property
+    def description(self) -> str:
+        return "Claude desktop app (macOS / Windows)"
 
     def get_config_path(self) -> Path | None:
         if sys.platform == "darwin":
@@ -69,18 +90,33 @@ class ClaudeDesktopStrategy(MCPClientStrategy):
             appdata = os.environ.get("APPDATA")
             if appdata:
                 return Path(appdata) / "Claude" / "claude_desktop_config.json"
-        # Linux doesn't have an official Claude Desktop app yet, but sometimes unofficial ports use ~/.config
         return Path.home() / ".config" / "claude" / "claude_desktop_config.json"
 
 
 class CursorProjectStrategy(MCPClientStrategy):
     @property
     def name(self) -> str:
-        return "Cursor IDE (Project)"
+        return "Cursor (project)"
+
+    @property
+    def description(self) -> str:
+        return "Project-local config (.cursor/mcp.json in cwd)"
 
     def get_config_path(self) -> Path | None:
-        # Project-specific Cursor MCP
         return Path.cwd() / ".cursor" / "mcp.json"
+
+
+class CursorGlobalStrategy(MCPClientStrategy):
+    @property
+    def name(self) -> str:
+        return "Cursor (global)"
+
+    @property
+    def description(self) -> str:
+        return "User-global config (~/.cursor/mcp.json)"
+
+    def get_config_path(self) -> Path | None:
+        return Path.home() / ".cursor" / "mcp.json"
 
 
 class WindsurfStrategy(MCPClientStrategy):
@@ -88,35 +124,135 @@ class WindsurfStrategy(MCPClientStrategy):
     def name(self) -> str:
         return "Windsurf"
 
+    @property
+    def description(self) -> str:
+        return "Windsurf IDE (~/.codeium/windsurf/mcp_config.json)"
+
     def get_config_path(self) -> Path | None:
-        # Windsurf generally uses standard Codeium paths for MCP
         return Path.home() / ".codeium" / "windsurf" / "mcp_config.json"
+
+
+class GeminiCLIStrategy(MCPClientStrategy):
+    @property
+    def name(self) -> str:
+        return "Gemini CLI"
+
+    @property
+    def description(self) -> str:
+        return "Gemini CLI tool (~/.gemini/settings.json)"
+
+    def get_config_path(self) -> Path | None:
+        return Path.home() / ".gemini" / "settings.json"
+
+
+class VSCodeStrategy(MCPClientStrategy):
+    """VS Code with GitHub Copilot (user-level MCP config)."""
+
+    @property
+    def name(self) -> str:
+        return "VS Code (Copilot)"
+
+    @property
+    def description(self) -> str:
+        return "VS Code + GitHub Copilot, user-level mcp.json"
+
+    def get_config_path(self) -> Path | None:
+        if sys.platform == "darwin":
+            return Path.home() / "Library" / "Application Support" / "Code" / "User" / "mcp.json"
+        elif sys.platform == "win32":
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                return Path(appdata) / "Code" / "User" / "mcp.json"
+        # Linux
+        return Path.home() / ".config" / "Code" / "User" / "mcp.json"
+
+    def _set_server(self, config_data: dict, server_name: str, command: str, args: list[str]) -> None:
+        # VS Code uses "servers" key (not "mcpServers") with a slightly different schema
+        if "servers" not in config_data:
+            config_data["servers"] = {}
+        elif not isinstance(config_data["servers"], dict):
+            config_data["servers"] = {}
+        config_data["servers"][server_name] = {
+            "command": command,
+            "args": args,
+        }
+
+
+class ZedStrategy(MCPClientStrategy):
+    """Zed editor — uses context_servers key inside ~/.config/zed/settings.json."""
+
+    @property
+    def name(self) -> str:
+        return "Zed"
+
+    @property
+    def description(self) -> str:
+        return "Zed editor (~/.config/zed/settings.json)"
+
+    def get_config_path(self) -> Path | None:
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                return Path(appdata) / "Zed" / "settings.json"
+        return Path.home() / ".config" / "zed" / "settings.json"
+
+    def _set_server(self, config_data: dict, server_name: str, command: str, args: list[str]) -> None:
+        # Zed uses "context_servers" with a {command: {path, args}} structure
+        if "context_servers" not in config_data:
+            config_data["context_servers"] = {}
+        elif not isinstance(config_data["context_servers"], dict):
+            config_data["context_servers"] = {}
+        config_data["context_servers"][server_name] = {
+            "command": {
+                "path": command,
+                "args": args,
+            }
+        }
+
+
+# ── Registry ───────────────────────────────────────────────────────────────────
 
 
 def get_strategies() -> list[MCPClientStrategy]:
     return [
         ClaudeDesktopStrategy(),
+        CursorGlobalStrategy(),
         CursorProjectStrategy(),
         WindsurfStrategy(),
+        GeminiCLIStrategy(),
+        VSCodeStrategy(),
+        ZedStrategy(),
     ]
 
-def install_mcp_server(server_name: str, command: str, args: list[str]) -> list[tuple[str, bool, str]]:
-    """Install the MCP server across all discovered clients.
-    
-    Returns a list of (client_name, success, path_or_error_msg).
+
+def install_mcp_server(
+    server_name: str,
+    command: str,
+    args: list[str],
+    selected: list[str] | None = None,
+) -> list[tuple[str, bool, str]]:
+    """Install the MCP server into the selected clients.
+
+    Args:
+        server_name: Key written into the config (e.g. ``"kolay-ik"``).
+        command:     Executable path.
+        args:        Argument list.
+        selected:    Strategy names to install. ``None`` means all.
+
+    Returns:
+        List of ``(client_name, success, path_or_error_msg)``.
     """
     results = []
     strategies = get_strategies()
     for strategy in strategies:
+        if selected is not None and strategy.name not in selected:
+            continue
         config_path = strategy.get_config_path()
         if not config_path:
             results.append((strategy.name, False, "Unsupported platform"))
             continue
-            
+
         success, msg = strategy.inject_server(server_name, command, args)
-        if success:
-            results.append((strategy.name, True, msg))
-        else:
-            results.append((strategy.name, False, msg))
-            
+        results.append((strategy.name, success, msg))
+
     return results

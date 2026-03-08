@@ -1,0 +1,85 @@
+name: Build and Release Standalone Wizard
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: kolay-setup-linux
+            asset_name: kolay-setup-linux
+          - os: macos-latest
+            artifact_name: kolay-setup-macos
+            asset_name: kolay-setup-macos
+          - os: windows-latest
+            artifact_name: kolay-setup-windows.exe
+            asset_name: kolay-setup-windows.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system .
+          uv pip install --system pyinstaller
+
+      - name: Build with PyInstaller
+        run: python build.py
+
+      - name: Rename executable
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv dist/kolay-setup.exe dist/${{ matrix.asset_name }}
+          else
+            mv dist/kolay-setup dist/${{ matrix.asset_name }}
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.asset_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Flatten folder structure
+        run: |
+          mkdir -p dist
+          find release-assets -type f -exec cp {} dist/ \;
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
