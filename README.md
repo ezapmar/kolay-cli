@@ -1,18 +1,24 @@
+# Disclaimer and Legal Notice (Alpha Release)
+
+1. **Unofficial Lab Application:** This project is an independent "lab/R&D" application. It is not an official product or service of Kolay İK. **Kolay Yazılım A.Ş.** cannot be held responsible for any data loss, system errors, or damages arising from the use of this software.
+2. **Token and Data Security:** The creation and secure storage of API tokens are entirely the user's responsibility. Please follow Kolay İK's official instructions and security guidelines when generating tokens to prevent unauthorized access.
+3. **Operational Risks:** Please use the tools and operations performed via the MCP and CLI carefully. Write/update actions and bulk operations can cause permanent changes or damage to your live HR data. 
+4. **Early Development Stage (Alpha):** This application is currently in its **Alpha** stage and is under active development. It may contain unexpected bugs. You can submit any bug reports, feedback, or feature requests via the GitHub [Issues](https://github.com/ezapmar/kolay-cli/issues) page.
+
+---
+
 # kolay-cli
 
 An unofficial AI-powered Command Line Interface and MCP Server for Kolay İK.
 
 ```
-           ████████████████████
-          ████████████████████
-         ████              ████
-        ████              ████      ██  ██   ████   ██       ████   ██  ██
-       ████              ████       ██ ██   ██  ██  ██      ██  ██  ██  ██
-      ████              ████        ████    ██  ██  ██      ██████   ████
-     ████              ████         ██ ██   ██  ██  ██      ██  ██    ██
-      ████            ████          ██  ██   ████   ██████  ██  ██  ███
-       ████████████████████                                        ██
-        ████████████████████                                     ███
+      █████████████████
+     ████         ████
+    ████         ████    ██ ██  ████  ██     ████  ██  ██
+   ████         ████     ████  ██  ██ ██    ██████  ████
+    ████       █████     ████  ██  ██ ██    ██  ██   ██
+     ██████████████      ██ ██  ████  █████ ██  ██  ███
+      ████████████                                 ███
 ```
 
 **kolay-cli** allows you to manage your HR tasks, employee records, and company workflows directly from your terminal. It provides lightweight access to the Kolay İK API and serves as a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for AI assistants like Claude and Cursor.
@@ -87,9 +93,3 @@ Supported clients: **Claude Desktop**, **Cursor**, **VS Code** (via Claude Dev/C
 | `--json` | Returns machine-readable JSON for prompts or scripts. |
 | `--yes` | Bypasses confirmation prompts for destructive actions. |
 | `--debug` | Logs HTTP traces to `~/.config/kolay/debug.log`. |
-
-## Notice
-
-This is an unofficial laboratory project. It is not an official product of Kolay Yazılım A.Ş. The authors are not responsible for data loss or system errors. Write operations modify live production data. Use with caution.
-
-Built with ❤️ for the Kolay İK community.

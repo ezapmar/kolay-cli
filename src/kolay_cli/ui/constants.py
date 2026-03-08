@@ -90,17 +90,12 @@ _PERSON_TRAINING_PICKER_QUIPS = ["Select a training assignment:"]
 _FILE_PICKER_QUIPS = ["Select a file:"]
 
 
-K_PRIMARY = PRIMARY # use the existing PRIMARY constant
-
 KOLAY_LOGO = f"""
-[bold {K_PRIMARY}]           ████████████████████[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]          ████████████████████[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]         ████              ████[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]        ████              ████      ██  ██   ████   ██       ████   ██  ██[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]       ████              ████       ██ ██   ██  ██  ██      ██  ██  ██  ██[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]      ████              ████        ████    ██  ██  ██      ██████   ████[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]     ████              ████         ██ ██   ██  ██  ██      ██  ██    ██[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]      ████            ████          ██  ██   ████   ██████  ██  ██  ███[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]       ████████████████████                                        ██[/bold {K_PRIMARY}]
-[bold {K_PRIMARY}]        ████████████████████                                     ███[/bold {K_PRIMARY}]
+[bold {PRIMARY}]      █████████████████[/bold {PRIMARY}]
+[bold {PRIMARY}]     ████         ████[/bold {PRIMARY}]
+[bold {PRIMARY}]    ████         ████    ██ ██  ████  ██     ████  ██  ██[/bold {PRIMARY}]
+[bold {PRIMARY}]   ████         ████     ████  ██  ██ ██    ██████  ████[/bold {PRIMARY}]
+[bold {PRIMARY}]    ████       █████     ████  ██  ██ ██    ██  ██   ██[/bold {PRIMARY}]
+[bold {PRIMARY}]     ██████████████      ██ ██  ████  █████ ██  ██  ███[/bold {PRIMARY}]
+[bold {PRIMARY}]      ████████████                                 ███[/bold {PRIMARY}]
 """
