@@ -86,16 +86,54 @@ kolay leave create --type annual --start 2026-03-01 --end 2026-03-03
 
 ## MCP Server Integration
 
-Turn your AI assistant into an HR expert. `kolay-cli` exposes its logic as an MCP server.
+Turn your AI assistant into an HR expert. `kolay-cli` exposes its full functionality as an MCP server.
 
-### Automated Installation
-Inject the MCP configuration into your favorite client:
+### Local Clients (stdio)
+
+For clients running on your machine, use the automated installer:
 
 ```bash
 kolay mcp install
 ```
 
-Supported clients: **Claude Desktop**, **Cursor**, **VS Code** (via Claude Dev/Continue).
+This writes the configuration into the correct file for each client. Supported local clients:
+
+| Client | Config Path |
+|---|---|
+| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| **Cursor** (global) | `~/.cursor/mcp.json` |
+| **Cursor** (project) | `.cursor/mcp.json` in your working directory |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` |
+| **Gemini CLI** | `~/.gemini/settings.json` |
+| **VS Code** (Copilot) | User-level `mcp.json` |
+| **Zed** | `~/.config/zed/settings.json` |
+
+Restart your client after running `kolay mcp install` to activate the connection.
+
+### Mistral Le Chat (remote)
+
+[Le Chat](https://chat.mistral.ai) supports MCP through remote HTTP connectors. To connect kolay-cli:
+
+**1. Start the MCP server in HTTP mode:**
+
+```bash
+kolay mcp serve --transport http --port 8000
+```
+
+This starts the server at `http://localhost:8000/mcp`. If you want to expose it to the internet (for Le Chat cloud access), deploy it on a server with a public IP or use a tunnel like [ngrok](https://ngrok.com):
+
+```bash
+ngrok http 8000
+```
+
+**2. Add the connector in Le Chat:**
+
+1. Go to [chat.mistral.ai/connections](https://chat.mistral.ai/connections)
+2. Click **Add custom connector**
+3. Enter your MCP server URL (e.g. `https://your-ngrok-url.ngrok.io/mcp`)
+4. Save and start chatting with your HR data
+
+> **Note:** The HTTP endpoint does not include authentication by default. When exposing your MCP server to the internet, use a reverse proxy with HTTPS and token-based access control.
 
 ## Output Modes
 
