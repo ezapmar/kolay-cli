@@ -28,17 +28,11 @@ def setup(ctx: typer.Context) -> None:
         raise typer.Exit(2)
 
 
-    try:
-        from core.constants import DISCLAIMER
-        _disclaimer = f"\n\n[grey62]{DISCLAIMER}[/grey62]"
-    except ImportError:
-        _disclaimer = ""
-
     console.print(
         Panel(
             f"[bold {_PRIMARY}]Welcome to Kolay CLI[/bold {_PRIMARY}]\n\n"
             "This wizard will get you up and running in under a minute.\n"
-            f"You'll need your Kolay API token from [bold]app.kolayik.com[/bold].{_disclaimer}",
+            "You'll need your Kolay API token from [bold]app.kolayik.com[/bold].",
             border_style=_PRIMARY,
             expand=False,
             padding=(1, 3),

@@ -22,19 +22,14 @@ from .services import approval as approval_svc
 
 
 
-try:
-    from core.constants import DISCLAIMER
-    _disclaimer = f" DISCLAIMER: {DISCLAIMER}"
-except ImportError:
-    _disclaimer = ""
-
 mcp = FastMCP(
     name="kolay-ik [Alpha]",
     instructions=(
-        f"Kolay IK HR platform tools. "
-        f"Use person_list to find employee IDs before calling other person tools. "
-        f"For bulk updates, use the `bulk_update_assistant` prompt which enforces human-in-the-loop confirmation. "
-        f"Dates are YYYY-MM-DD, datetimes are YYYY-MM-DD HH:MM:SS.{_disclaimer}"
+        "Kolay IK HR platform tools. "
+        "Use person_list to find employee IDs before calling other person tools. "
+        "For bulk updates, use the `bulk_update_assistant` prompt which enforces human-in-the-loop confirmation. "
+        "Dates are YYYY-MM-DD, datetimes are YYYY-MM-DD HH:MM:SS. "
+        "All write operations (create/update/delete/terminate) are real and irreversible."
     ),
 )
 

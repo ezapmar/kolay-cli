@@ -4,16 +4,16 @@ This document instructs you on how to write all text for this project. Read it. 
 
 ## Core Style
 
-Write like Ernest Hemingway. Be concise. Be humble. Be functional. 
+Be concise. Be humble. Be functional. But be clear and descriptive; use clear and guiding language.
 
-Do not use metaphors. Do not use clever words when simple words work. Keep sentences short. Write in the active voice. Tell the reader exactly what they need to know. Stop there.
+Do not use metaphors. Do not use clever words when simple words work. Write in the active voice. Tell the reader exactly what they need to know. Be sure they under
 
 ## README Files
 
 A README explains the software. It is not an advertisement. 
 
 * State what the project does in one sentence.
-* List the exact steps to install it.
+* List the exact steps but explain each step and why it is necessary.
 * Show one clear example of how to use it.
 * Remove filler words. Never use words like "amazing", "seamless", or "magic". Just state the facts.
 
