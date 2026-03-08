@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kolay-cli"
-version = "0.1.0-alpha"
+version = "0.10.0"
 description = "Command-line interface for Kolay IK (https://apidocs.kolayik.com)"
 authors = [
     {name = "Tunc Aucer"}
