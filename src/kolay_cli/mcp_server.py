@@ -19,6 +19,7 @@ from .services import transaction as transaction_svc
 from .services import calendar as calendar_svc
 from .services import unit as unit_svc
 from .services import approval as approval_svc
+from .ui.search import filter_items_silent
 
 
 
@@ -41,11 +42,21 @@ mcp = FastMCP(
 def person_list(
     status: str = "active",
     search: str | None = None,
+    filter: str | None = None,
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List employees from the company roster. Status is 'active' or 'inactive'. Search by name. Paginated."""
-    return person_svc.list_people(page=page, status=status, search=search, limit=limit)
+    """List employees. Status: 'active'/'inactive'. search= API-side, filter= client-side substring match on name/email."""
+    result = person_svc.list_people(page=page, status=status, search=search, limit=limit)
+    if filter:
+        result["items"] = filter_items_silent(
+            result["items"], filter,
+            [
+                lambda p: f"{p.get('firstName', '')} {p.get('lastName', '')}",
+                lambda p: p.get("workEmail") or p.get("email") or "",
+            ],
+        )
+    return result
 
 
 @mcp.tool
@@ -143,10 +154,20 @@ def leave_list(
     start: str | None = None,
     end: str | None = None,
     person_id: str | None = None,
+    filter: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """List leave records. Status is 'approved', 'waiting', 'rejected', or 'cancelled'."""
-    return leave_svc.list_leaves(status=status, start=start, end=end, person_id=person_id, limit=limit)
+    """List leave records. Status: 'approved'/'waiting'/'rejected'/'cancelled'. filter= substring match on employee name or leave type."""
+    items = leave_svc.list_leaves(status=status, start=start, end=end, person_id=person_id, limit=limit)
+    if filter:
+        items = filter_items_silent(
+            items, filter,
+            [
+                lambda lv: (lv.get("person") or {}).get("name") or "",
+                lambda lv: (lv.get("leaveType") or {}).get("name") or "",
+            ],
+        )
+    return items
 
 
 @mcp.tool
@@ -182,14 +203,24 @@ def timelog_list(
     person_id: str | None = None,
     type: str | None = None,
     status: str | None = None,
+    filter: str | None = None,
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List timelogs. Types: 'work', 'overtime', 'remote'."""
-    return timelog_svc.list_timelogs(
+    """List timelogs. Types: 'work'/'overtime'/'remote'. filter= substring match on employee name or type."""
+    result = timelog_svc.list_timelogs(
         start=start, end=end, person_id=person_id,
         type=type, status=status, page=page, limit=limit,
     )
+    if filter:
+        result["items"] = filter_items_silent(
+            result["items"], filter,
+            [
+                lambda tl: f"{(tl.get('person') or {}).get('firstName', '')} {(tl.get('person') or {}).get('lastName', '')}",
+                lambda tl: str(tl.get("type") or ""),
+            ],
+        )
+    return result
 
 
 @mcp.tool
@@ -228,11 +259,18 @@ def timelog_delete(timelog_id: str) -> dict[str, Any]:
 @require_auth
 def training_list(
     search: str | None = None,
+    filter: str | None = None,
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List trainings in the catalogue."""
-    return training_svc.list_trainings(search=search, page=page, limit=limit)
+    """List trainings in catalogue. search= API-side, filter= client-side substring match on name."""
+    result = training_svc.list_trainings(search=search, page=page, limit=limit)
+    if filter:
+        result["items"] = filter_items_silent(
+            result["items"], filter,
+            [lambda tr: str(tr.get("name", ""))],
+        )
+    return result
 
 
 @mcp.tool
@@ -280,14 +318,24 @@ def transaction_list(
     person_id: str | None = None,
     type: str | None = None,
     status: str | None = None,
+    filter: str | None = None,
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List transactions. Types: 'expense', 'bonus', 'advancePayment', 'premium', 'otherCut'."""
-    return transaction_svc.list_transactions(
+    """List transactions. Types: 'expense'/'bonus'/'advancePayment'/'premium'/'otherCut'. filter= substring match on employee name or type."""
+    result = transaction_svc.list_transactions(
         person_id=person_id, type=type, status=status,
         page=page, limit=limit,
     )
+    if filter:
+        result["items"] = filter_items_silent(
+            result["items"], filter,
+            [
+                lambda trx: f"{(trx.get('person') or {}).get('firstName', '')} {(trx.get('person') or {}).get('lastName', '')}",
+                lambda trx: str(trx.get("type") or ""),
+            ],
+        )
+    return result
 
 
 @mcp.tool
@@ -329,11 +377,18 @@ def calendar_list(
     start: str | None = None,
     end: str | None = None,
     search: str | None = None,
+    filter: str | None = None,
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List calendar events. Dates in YYYY-MM-DD."""
-    return calendar_svc.list_events(start=start, end=end, search=search, page=page, limit=limit)
+    """List calendar events. Dates YYYY-MM-DD. search= API-side, filter= client-side substring match on title."""
+    result = calendar_svc.list_events(start=start, end=end, search=search, page=page, limit=limit)
+    if filter:
+        result["items"] = filter_items_silent(
+            result["items"], filter,
+            [lambda ev: str(ev.get("title") or "")],
+        )
+    return result
 
 
 @mcp.tool
@@ -379,16 +434,38 @@ def calendar_delete(event_id: str) -> dict[str, Any]:
 
 @mcp.tool
 @require_auth
-def unit_tree() -> list[dict[str, Any]]:
-    """Return organisational unit tree."""
-    return unit_svc.unit_tree()
+def unit_tree(filter: str | None = None) -> list[dict[str, Any]]:
+    """Return organisational unit tree. filter= substring match on unit/item name (returns flat list when filtering)."""
+    nodes = unit_svc.unit_tree()
+    if not filter:
+        return nodes
+    # Flatten tree for filtering
+    flat: list[dict[str, Any]] = []
+    def _collect(node: dict) -> None:
+        flat.append({"name": node.get("name", ""), "id": str(node.get("id", ""))})
+        for item in (node.get("items") or []):
+            flat.append({"name": item.get("name", ""), "id": str(item.get("id", ""))})
+        for child in (node.get("children") or []):
+            _collect(child)
+    for n in nodes:
+        _collect(n)
+    return filter_items_silent(flat, filter, [lambda u: str(u.get("name") or "")])
 
 
 @mcp.tool
 @require_auth
-def approval_list() -> list[dict[str, Any]]:
-    """List approval workflows."""
-    return approval_svc.list_approval_processes()
+def approval_list(filter: str | None = None) -> list[dict[str, Any]]:
+    """List approval workflows. filter= substring match on process name or type."""
+    items = approval_svc.list_approval_processes()
+    if filter:
+        items = filter_items_silent(
+            items, filter,
+            [
+                lambda ap: str(ap.get("name") or ""),
+                lambda ap: str(ap.get("type") or ""),
+            ],
+        )
+    return items
 
 
 

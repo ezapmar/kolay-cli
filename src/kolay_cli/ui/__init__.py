@@ -19,7 +19,7 @@ from .pickers import (
     pick_timelog, pick_training, pick_person_training,
     pick_person_file
 )
-from .search import filter_items
+from .search import filter_items, filter_items_silent
 from .output import is_json_mode, is_yes_mode, json_output, json_error, strip_markup, require_arg, resolve_row
 
 __all__ = [
@@ -30,7 +30,7 @@ __all__ = [
     "STATUS_STYLES", "FIELD_LABELS", "HTTP_ERRORS",
     "pick_person", "pick_leave", "pick_transaction", "pick_event",
     "pick_timelog", "pick_training", "pick_person_training", "pick_person_file",
-    "filter_items",
+    "filter_items", "filter_items_silent",
     "is_json_mode", "is_yes_mode", "json_output", "json_error", "strip_markup", "require_arg", "resolve_row",
 ]
 

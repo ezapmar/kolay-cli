@@ -6,6 +6,7 @@ from ..services import expense as svc
 from ..ui import (
     console, short_id, print_empty,
     api_call, no_command_help, PRIMARY,
+    filter_items,
     is_json_mode, json_output, json_error, SUCCESS, ERROR,
 )
 
@@ -21,6 +22,7 @@ def _hint(ctx: typer.Context) -> None:
 def list_categories(
     title: str | None = typer.Option(None, "--title", "-t", help="Filter by title"),
     enabled_only: bool = typer.Option(False, "--enabled", help="Show only enabled categories"),
+    filter: str | None = typer.Option(None, "--filter", "-f", help="Filter locally by category title"),
 ) -> None:
     """List expense categories available for your company."""
     with api_call("Fetching expense categories..."):
@@ -33,7 +35,16 @@ def list_categories(
         print_empty("expense categories")
         return
 
-    console.print(f"\n[bold {PRIMARY}]🧾 Expense Categories[/bold {PRIMARY}]\n")
+    data = filter_items(
+        data, filter,
+        [lambda c: c.get("title") or c.get("name") or ""],
+        label="expense categories",
+    )
+
+    title_hdr = "🧾 Expense Categories"
+    if filter:
+        title_hdr += f" matching '{filter}'"
+    console.print(f"\n[bold {PRIMARY}]{title_hdr}[/bold {PRIMARY}]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", justify="right", width=4)
     table.add_column("Title", style="bold white", min_width=20)

@@ -70,3 +70,87 @@ def test_all_match_no_summary_printed(capsys):
 def test_empty_items_list():
     result = filter_items([], "Ali", NAME_FNS)
     assert result == []
+
+
+# ── Turkish / Unicode tests ──────────────────────────────────────────────────
+
+TURKISH_PEOPLE = [
+    {"firstName": "Bora", "lastName": "Ağaoğlu", "workEmail": "bora@example.com"},
+    {"firstName": "Elif", "lastName": "Çelik", "workEmail": "elif@example.com"},
+    {"firstName": "Gül", "lastName": "Şahin", "workEmail": "gul@example.com"},
+    {"firstName": "İsmail", "lastName": "Öztürk", "workEmail": "ismail@example.com"},
+]
+
+
+def test_turkish_partial_last_name():
+    """'Ağa' should match 'Ağaoğlu'."""
+    result = filter_items(TURKISH_PEOPLE, "Ağa", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["lastName"] == "Ağaoğlu"
+
+
+def test_turkish_full_last_name():
+    result = filter_items(TURKISH_PEOPLE, "Ağaoğlu", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["firstName"] == "Bora"
+
+
+def test_turkish_first_name():
+    result = filter_items(TURKISH_PEOPLE, "Bora", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["lastName"] == "Ağaoğlu"
+
+
+def test_turkish_full_name():
+    """Multi-word search 'Bora Ağaoğlu' should match the combined name field."""
+    result = filter_items(TURKISH_PEOPLE, "Bora Ağaoğlu", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["firstName"] == "Bora"
+
+
+def test_turkish_cedilla():
+    result = filter_items(TURKISH_PEOPLE, "Çelik", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["firstName"] == "Elif"
+
+
+def test_turkish_dotted_i():
+    result = filter_items(TURKISH_PEOPLE, "İsmail", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["lastName"] == "Öztürk"
+
+
+# ── filter_items_silent tests ────────────────────────────────────────────────
+
+from kolay_cli.ui.search import filter_items_silent
+
+
+def test_silent_no_query_returns_all():
+    result = filter_items_silent(PEOPLE, None, NAME_FNS)
+    assert result == PEOPLE
+
+
+def test_silent_match():
+    result = filter_items_silent(PEOPLE, "Ali", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["firstName"] == "Ali"
+
+
+def test_silent_no_match_returns_all():
+    """Zero matches should fall back to the full list, same as filter_items."""
+    result = filter_items_silent(PEOPLE, "zzznomatch", NAME_FNS)
+    assert result == PEOPLE
+
+
+def test_silent_turkish_partial():
+    result = filter_items_silent(TURKISH_PEOPLE, "Ağa", NAME_FNS)
+    assert len(result) == 1
+    assert result[0]["lastName"] == "Ağaoğlu"
+
+
+def test_silent_no_console_output(capsys):
+    """filter_items_silent must not print anything."""
+    filter_items_silent(PEOPLE, "Ali", NAME_FNS)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""

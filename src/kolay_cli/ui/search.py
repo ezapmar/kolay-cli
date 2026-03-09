@@ -60,3 +60,25 @@ def filter_items(
         return items  # fallback — show everything rather than a blank screen
 
     return matched
+
+
+def filter_items_silent(
+    items: list[dict[str, Any]],
+    query: str | None,
+    key_fns: list[Callable[[dict[str, Any]], str]],
+) -> list[dict[str, Any]]:
+    """Same as ``filter_items`` but without Rich console output.
+
+    Designed for the MCP server where printing would corrupt the JSON
+    transport stream.  Returns the full list when *query* is empty or
+    ``None``.
+    """
+    if not query or not query.strip():
+        return items
+
+    q = query.strip().lower()
+    matched = [
+        item for item in items
+        if any(q in fn(item).lower() for fn in key_fns)
+    ]
+    return matched if matched else items
