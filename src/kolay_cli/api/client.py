@@ -70,10 +70,14 @@ class KolayClient:
 
         self.session = requests.Session()
 
-        # 3 retries with exponential backoff on transient errors
+        # 3 retries with exponential backoff on transient errors.
+        # respect_retry_after=True honours the Retry-After header on 429s
+        # so we back off exactly as long as the API asks, not longer.
         retries = Retry(
             total=3,
             backoff_factor=0.5,
+            backoff_max=60,
+            respect_retry_after_header=True,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET", "POST", "PUT", "DELETE"],
         )

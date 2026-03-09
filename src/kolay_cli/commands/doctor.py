@@ -48,7 +48,7 @@ def _check_config_file() -> tuple[str, str]:
 
 def _check_token() -> tuple[str, str]:
     """Check if an API token is configured and report its source."""
-    from ..security import resolve_token_with_source, validate_token
+    from ..security import resolve_token_with_source, validate_token, _is_jwt, _decode_jwt_claims
 
     token, source = resolve_token_with_source()
     if not token:
@@ -65,6 +65,24 @@ def _check_token() -> tuple[str, str]:
     validation = validate_token(token)
     if not validation:
         return _FAIL, f"Token found but invalid  [grey62]({validation.reason})[/grey62]"
+
+    # JWT-specific expiry inspection
+    if _is_jwt(token):
+        claims = _decode_jwt_claims(token)
+        if claims and claims.get("exp") is None:
+            return _WARN, (
+                f"API token configured  [grey62](source: {source})[/grey62]\n"
+                "       [yellow]⚠ JWT has no expiry claim — token never expires[/yellow]"
+            )
+        if claims and claims.get("exp") is not None:
+            import time
+            remaining = claims["exp"] - int(time.time())
+            if 0 < remaining < 86400:  # less than 24 hours
+                hours = remaining // 3600
+                return _WARN, (
+                    f"API token configured  [grey62](source: {source})[/grey62]\n"
+                    f"       [yellow]⚠ Token expires in ~{hours}h — refresh soon with [bold]kolay auth login[/bold][/yellow]"
+                )
 
     return _OK, f"API token configured  [grey62](source: {source})[/grey62]"
 
