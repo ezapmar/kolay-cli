@@ -5,7 +5,7 @@ Provides formatting, constants, and interactive pickers.
 from .formatters import (
     console, short_id, display_status, fmt_val, fmt_num, label,
     print_error, print_api_error, print_success, print_fetching, print_empty, kv_table,
-    spinner, api_call, no_command_help,
+    spinner, api_call, recoverable_api_call, no_command_help,
 )
 from .constants import (
     PRIMARY, ACCENT, SUCCESS, WARNING, ERROR,
@@ -25,7 +25,7 @@ from .output import is_json_mode, is_yes_mode, json_output, json_error, strip_ma
 __all__ = [
     "console", "short_id", "display_status", "fmt_val", "fmt_num", "label",
     "print_error", "print_success", "print_fetching", "print_empty", "kv_table",
-    "spinner", "api_call",
+    "spinner", "api_call", "recoverable_api_call",
     "PRIMARY", "ACCENT", "SUCCESS", "WARNING", "ERROR",
     "STATUS_STYLES", "FIELD_LABELS", "HTTP_ERRORS",
     "pick_person", "pick_leave", "pick_transaction", "pick_event",

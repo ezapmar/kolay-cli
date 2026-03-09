@@ -9,7 +9,7 @@ from ..api import KolayClient, safe_id
 from ..services import leave as svc
 from ..ui import (
     console, short_id, display_status, print_error, print_success, print_empty, kv_table,
-    pick_person, pick_leave, api_call, no_command_help, PRIMARY, SUCCESS,
+    pick_person, pick_leave, api_call, recoverable_api_call, no_command_help, PRIMARY, SUCCESS,
     filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg,
 )
@@ -122,6 +122,8 @@ def create_leave(
     comment: str | None = typer.Option(None, "--comment", "-c", help="Optional comment"),
 ) -> None:
     """Create a new leave request. Prompts for missing details interactively."""
+    from ..api.errors import APIError
+    from datetime import datetime as _dt
     console.print(f"\n[bold {PRIMARY}]🏖️ Create Leave Request[/bold {PRIMARY}]\n")
 
     if not person_id:
@@ -147,22 +149,75 @@ def create_leave(
             selected = types[idx]
             leave_type_id = str(selected.get("leaveTypeId", ""))
             sel_name = selected.get("leaveType", {}).get("name", "Unknown")
+            sel_remaining = selected.get("unused", "?")
             console.print(f"  [{PRIMARY}]→ Selected: {sel_name}[/{PRIMARY}]\n")
         except (ValueError, IndexError):
             print_error("Invalid selection.")
             return
+    else:
+        sel_name = leave_type_id
+        sel_remaining = "?"
 
     if not start_date:
-        start_date = typer.prompt("  Start date", default=datetime.now().strftime("%Y-%m-%d"))
+        start_date = typer.prompt("  Start date", default=_dt.now().strftime("%Y-%m-%d"))
 
     if not end_date:
         end_date = typer.prompt("  End date", default=start_date[:10])
 
-    with api_call("Submitting leave request..."):
-        svc.create_leave(
-            person_id=person_id, leave_type_id=leave_type_id,
-            start_date=start_date, end_date=end_date,
-            comment=comment or "",
-        )
+    while True:
+        try:
+            with recoverable_api_call("Submitting leave request..."):
+                svc.create_leave(
+                    person_id=person_id, leave_type_id=leave_type_id,
+                    start_date=start_date, end_date=end_date,
+                    comment=comment or "",
+                )
+            print_success("Leave request submitted successfully.")
+            break
+        except APIError as exc:
+            msg = getattr(exc, "message", "")
+            msg_lower = msg.lower()
 
-    print_success("Leave request submitted successfully.")
+            console.print()
+            if "bakiye" in msg_lower or "balance" in msg_lower or "gün" in msg_lower or "insufficient" in msg_lower:
+                console.print(
+                    f"  [bold yellow]💡 Tip:[/bold yellow] Insufficient leave balance for [bold]{sel_name}[/bold].\n"
+                    f"  Remaining: [bold]{sel_remaining}[/bold] days.\n"
+                    "  Check the requested date range and try again."
+                )
+            elif "üst üste" in msg_lower or "overlap" in msg_lower or "dates" in msg_lower:
+                console.print(
+                    f"  [bold yellow]💡 Tip:[/bold yellow] The requested dates overlap with an existing leave request.\n"
+                    "  Check your current leave records: [bold]kolay leave list[/bold]"
+                )
+
+            console.print()
+            console.print(f"  [cyan]1[/cyan]  Try different dates")
+            console.print(f"  [cyan]2[/cyan]  Check leave balance for this employee")
+            console.print(f"  [cyan]3[/cyan]  Abort")
+            console.print()
+
+            choice = typer.prompt("  Choose an option", default="3").strip()
+            if choice == "1":
+                start_date = typer.prompt("  New start date", default=start_date)
+                end_date = typer.prompt("  New end date", default=end_date)
+                # loop again
+            elif choice == "2":
+                with api_call("Fetching leave balances..."):
+                    from ..services.person import leave_status as _ls
+                    balances = _ls(person_id)
+                if balances:
+                    for b in balances:
+                        ltype = (b.get("leaveType") or {}).get("name", "—")
+                        console.print(
+                            f"  [grey85]{ltype}[/grey85]:  "
+                            f"[orange1]{b.get('used', 0)} used[/orange1]  "
+                            f"[bold green]{b.get('unused', 0)} remaining[/bold green]"
+                        )
+                    console.print()
+                else:
+                    console.print("  [grey62]No balance info found.[/grey62]\n")
+                # Loop again after showing balances
+            else:
+                console.print("\n  [grey62]Aborted.[/grey62]\n")
+                raise typer.Exit(1)

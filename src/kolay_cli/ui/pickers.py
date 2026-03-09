@@ -38,7 +38,7 @@ def _base_pick(
             client = KolayClient()
         except APIError as exc:
             print_error_inline(str(exc))
-            return _typer.prompt(f"  Paste {prompt} ID manually")
+            return _prompt_or_abort(prompt)
 
     console.print(f"\n[grey62]{random.choice(quips)}[/grey62]\n")  # nosec B311 — cosmetic UI quip, not crypto
 
@@ -47,11 +47,11 @@ def _base_pick(
             items = fetch_fn(client)
     except APIError as exc:
         console.print(f"[grey62]  Couldn't fetch the list: {exc}[/grey62]")
-        return _typer.prompt(f"  Paste {prompt} ID manually")
+        return _prompt_or_abort(prompt)
 
     if not items:
         console.print(f"[grey62]  No {prompt.lower()} records found.[/grey62]")
-        return _typer.prompt(f"  Paste {prompt} ID manually")
+        return _prompt_or_abort(prompt)
 
     if search_keys:
         query = _typer.prompt(
@@ -82,6 +82,23 @@ def print_error_inline(msg: str) -> None:
     """Lightweight inline error for use inside pickers."""
     from .constants import ERROR
     console.print(f"[{ERROR}]  ✘ {msg}[/{ERROR}]")
+
+
+def _prompt_or_abort(prompt: str) -> str:
+    """Prompt for a manual ID once. If the user leaves it blank, abort cleanly.
+
+    This prevents infinite loops when a picker can't fetch data due to an
+    auth or network error — the user can paste an ID or press Enter to quit.
+    """
+    console.print(
+        f"  [grey62]Enter the {prompt.lower()} ID manually, or press [bold]Enter[/bold] "
+        "to abort.[/grey62]"
+    )
+    value = _typer.prompt(f"  {prompt} ID", default="").strip()
+    if not value:
+        console.print(f"\n  [grey62]Aborted — no {prompt.lower()} ID provided.[/grey62]\n")
+        raise _typer.Exit(4)
+    return value
 
 
 def _make_table(*columns: tuple[str, str, dict[str, Any] | None]) -> Table:

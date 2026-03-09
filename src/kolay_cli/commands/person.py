@@ -13,7 +13,7 @@ from ..ui import (
     console, short_id, display_status, fmt_val, fmt_num, label,
     print_error, print_success, print_fetching, print_empty, kv_table,
     pick_person, pick_training, pick_person_training, pick_person_file,
-    api_call, no_command_help, PRIMARY, filter_items,
+    api_call, recoverable_api_call, no_command_help, PRIMARY, filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
 )
 
@@ -204,12 +204,24 @@ def terminate_person(
     ),
 ) -> None:
     """Terminate the employment of a specific employee.
-    
+
     Will prompt for the termination date and reason if not provided as options.
     """
+    from ..api.errors import APIError
+    from ..ui.formatters import recoverable_api_call
+
     require_arg(person_id, "person-id")
     if not person_id:
         person_id = pick_person()
+
+    # Remember the resolved employee name for use in prompts/errors
+    try:
+        person_data = svc.view_person(person_id)
+        emp_name = f"{person_data.get('firstName', '')} {person_data.get('lastName', '')}".strip()
+    except Exception:
+        person_data = {}
+        emp_name = ""
+    display_name = emp_name or short_id(person_id)
 
     if not termination_date:
         if is_json_mode():
@@ -227,22 +239,127 @@ def terminate_person(
         reason = typer.prompt("\n  Enter reason code", type=str)
 
     if not is_yes_mode():
-        # Fetch the name for a friendlier confirmation prompt
-        try:
-            person_data = svc.view_person(person_id)
-            emp_name = f"{person_data.get('firstName', '')} {person_data.get('lastName', '')}".strip()
-        except Exception:
-            emp_name = ""
-        label = emp_name or short_id(person_id)
-        typer.confirm(f"  Terminate {label}?", abort=True)
+        typer.confirm(f"  Terminate {display_name}?", abort=True)
 
-    with api_call("Processing termination..."):
-        result = svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason)
+    try:
+        with recoverable_api_call("Processing termination..."):
+            result = svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason)
+    except APIError as exc:
+        _handle_terminate_error(exc, person_id=person_id, display_name=display_name)
+        return
 
     if is_json_mode():
         json_output(result)
     else:
         print_success("Employee terminated successfully.")
+
+
+def _handle_terminate_error(exc: "Any", *, person_id: str, display_name: str) -> None:
+    """Offer recovery options after a termination API error."""
+    from ..api.errors import APIError
+    import typer
+
+    msg = str(exc.message if hasattr(exc, "message") else exc).lower()
+    has_pending = "talep" in msg or "pending" in msg or "onay" in msg or "bekley" in msg
+
+    console.print()
+    if has_pending:
+        console.print(
+            f"  [bold yellow]💡 Tip:[/bold yellow] [bold]{display_name}[/bold] has pending "
+            "requests that must be resolved before termination.\n"
+            "  Approve, reject, or delete them, then try again."
+        )
+    else:
+        console.print(
+            "  [bold yellow]💡 What would you like to do?[/bold yellow]"
+        )
+
+    console.print()
+    console.print(f"  [cyan]1[/cyan]  Show pending leave requests for {display_name}")
+    console.print(f"  [cyan]2[/cyan]  Show pending timelog requests for {display_name}")
+    console.print(f"  [cyan]3[/cyan]  Pick a different employee to terminate")
+    console.print(f"  [cyan]4[/cyan]  Abort")
+    console.print()
+
+    choice = typer.prompt("  Choose an option", default="4").strip()
+
+    if choice == "1":
+        # Show pending leaves for this person
+        try:
+            from ..services import leave as leave_svc
+            leaves = leave_svc.list_leaves(status="waiting", person_id=person_id, limit=20)
+            if not leaves:
+                console.print(f"\n  [grey62]No pending leave requests found for {display_name}.[/grey62]\n")
+            else:
+                from rich.table import Table
+                console.print(f"\n  [bold white]Pending leave requests for {display_name}:[/bold white]\n")
+                tbl = Table(box=None, show_edge=False, header_style=f"bold {PRIMARY}")
+                tbl.add_column("#", style="grey62", width=4, justify="right")
+                tbl.add_column("Type", style="bold white")
+                tbl.add_column("Start", style="grey62")
+                tbl.add_column("End", style="grey62")
+                tbl.add_column("Short ID", style="grey62")
+                for i, lv in enumerate(leaves, 1):
+                    ltype = (lv.get("leaveType") or {}).get("name", "—")
+                    tbl.add_row(
+                        str(i), ltype,
+                        (lv.get("startDate") or "—")[:10],
+                        (lv.get("endDate") or "—")[:10],
+                        short_id(str(lv.get("id", ""))),
+                    )
+                console.print(tbl)
+            console.print(
+                f"\n  [grey62]→ Run [bold]kolay leave list --person-id {person_id} --status waiting[/bold] "
+                "to manage them.[/grey62]\n"
+            )
+        except Exception:
+            console.print(f"\n  [grey62]Run: kolay leave list --person-id {person_id} --status waiting[/grey62]\n")
+
+    elif choice == "2":
+        # Show pending timelogs for this person
+        try:
+            from ..services import timelog as timelog_svc
+            tls = timelog_svc.list_timelogs(status="waiting", person_id=person_id, limit=20)
+            items = tls.get("items", [])
+            if not items:
+                console.print(f"\n  [grey62]No pending timelog requests found for {display_name}.[/grey62]\n")
+            else:
+                from rich.table import Table
+                console.print(f"\n  [bold white]Pending timelog requests for {display_name}:[/bold white]\n")
+                tbl = Table(box=None, show_edge=False, header_style=f"bold {PRIMARY}")
+                tbl.add_column("#", style="grey62", width=4, justify="right")
+                tbl.add_column("Type", style="bold white")
+                tbl.add_column("Start", style="grey62")
+                tbl.add_column("End", style="grey62")
+                tbl.add_column("Short ID", style="grey62")
+                for i, tl in enumerate(items, 1):
+                    tbl.add_row(
+                        str(i),
+                        str(tl.get("type", "—")),
+                        (tl.get("startDate") or "—")[:16],
+                        (tl.get("endDate") or "—")[:16],
+                        short_id(str(tl.get("id", ""))),
+                    )
+                console.print(tbl)
+            console.print(
+                f"\n  [grey62]→ Run [bold]kolay timelog list --person-id {person_id} --status waiting[/bold] "
+                "to manage them.[/grey62]\n"
+            )
+        except Exception:
+            console.print(f"\n  [grey62]Run: kolay timelog list --person-id {person_id} --status waiting[/grey62]\n")
+
+    elif choice == "3":
+        # Restart with a different employee
+        new_person_id = pick_person()
+        terminate_person(
+            person_id=new_person_id,
+            termination_date=termination_date if "termination_date" in dir() else None,
+            reason=reason if "reason" in dir() else None,
+        )
+
+    else:
+        console.print("\n  [grey62]Aborted.[/grey62]\n")
+        raise typer.Exit(1)
 
 
 @app.command(name="update")
@@ -330,6 +447,7 @@ def create_person(
     employment_start: str | None = typer.Option(None, "--start-date", help="Employment start date (YYYY-MM-DD)"),
 ) -> None:
     """Create a new employee record. Prompts for missing required fields."""
+    from ..api.errors import APIError
     console.print(f"\n[bold {PRIMARY}]👤 Create Employee[/bold {PRIMARY}]\n")
     if not first_name:
         first_name = typer.prompt("  First name")
@@ -340,14 +458,27 @@ def create_person(
     if not employment_start:
         employment_start = typer.prompt("  Employment start date (YYYY-MM-DD)")
 
-    with api_call(f"Creating employee {first_name} {last_name}..."):
-        data = svc.create_person(
-            first_name=first_name, last_name=last_name,
-            email=email, employment_start=employment_start,
-            mobile_phone=mobile_phone,
-        )
-        new_id = data.get("id", "—")
-        print_success(f"Employee created! ID: [cyan]{new_id}[/cyan]")
+    try:
+        with recoverable_api_call(f"Creating employee {first_name} {last_name}..."):
+            data = svc.create_person(
+                first_name=first_name, last_name=last_name,
+                email=email, employment_start=employment_start,
+                mobile_phone=mobile_phone,
+            )
+            new_id = data.get("id", "—")
+            print_success(f"Employee created! ID: [cyan]{new_id}[/cyan]")
+    except APIError as exc:
+        status = getattr(exc, "status_code", None)
+        if status in (409, 400):
+            msg = getattr(exc, "message", "").lower()
+            if "email" in msg or "duplicate" in msg or status == 409:
+                console.print(
+                    f"\n  [bold yellow]💡 Tip:[/bold yellow] An employee with the email "
+                    f"[bold]{email}[/bold] may already exist.\n"
+                    f"  Run [bold]kolay person list --search {email}[/bold] to check.\n"
+                )
+                return
+        raise typer.Exit(exc.exit_code if hasattr(exc, "exit_code") else 1)
 
 
 @app.command(name="bulk-view")
@@ -421,6 +552,7 @@ def rehire_person(
     start_date: str | None = typer.Option(None, "--start-date", help="New start date (YYYY-MM-DD)"),
 ) -> None:
     """Rehire a previously terminated employee."""
+    from ..api.errors import APIError
     if not person_id:
         person_id = pick_person()
 
@@ -428,9 +560,24 @@ def rehire_person(
         from datetime import datetime
         start_date = typer.prompt("  New employment start date (YYYY-MM-DD)", default=datetime.now().strftime("%Y-%m-%d"))
 
-    with api_call("Processing rehire..."):
-        svc.rehire_person(person_id, start_date=start_date)
+    try:
+        with recoverable_api_call("Processing rehire..."):
+            svc.rehire_person(person_id, start_date=start_date)
         print_success("Employee rehired successfully.")
+    except APIError as exc:
+        msg = getattr(exc, "message", "").lower()
+        if "active" in msg or "aktif" in msg or "already" in msg:
+            console.print(
+                "\n  [bold yellow]💡 Tip:[/bold yellow] This employee may already be active.\n"
+                f"  Run [bold]kolay person view {person_id}[/bold] to check their current status.\n"
+            )
+        else:
+            console.print(
+                "\n  [bold yellow]💡 Tip:[/bold yellow] Check that this employee is actually "
+                "in a terminated state before rehiring.\n"
+                f"  Run [bold]kolay person view {person_id}[/bold] to inspect their profile.\n"
+            )
+        raise typer.Exit(exc.exit_code if hasattr(exc, "exit_code") else 1)
 
 
 @app.command(name="list-files")

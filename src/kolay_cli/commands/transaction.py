@@ -11,7 +11,7 @@ from ..services.transaction import TRANSACTION_TYPES
 from ..ui import (
     console, short_id, display_status, fmt_num,
     print_success, print_empty, kv_table,
-    pick_person, pick_transaction, api_call, no_command_help, PRIMARY,
+    pick_person, pick_transaction, api_call, recoverable_api_call, no_command_help, PRIMARY,
     filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg,
 )
@@ -128,6 +128,7 @@ def create_transaction(
     description: str | None = typer.Option(None, "--desc", help="Optional description"),
 ) -> None:
     """Create a new financial transaction (bonus, cut, or expense)."""
+    from ..api.errors import APIError
     console.print(f"\n[bold {PRIMARY}]💸 New Transaction[/bold {PRIMARY}]\n")
 
     if not person_id:
@@ -140,13 +141,42 @@ def create_transaction(
     if not date:
         date = typer.prompt("  Date (YYYY-MM-DD)", default=datetime.now().strftime("%Y-%m-%d"))
 
-    with api_call("Submitting transaction..."):
-        svc.create_transaction(
-            person_id=person_id, type=type, amount=amount,
-            currency=currency, date=date, description=description or "",
-        )
+    while True:
+        try:
+            with recoverable_api_call("Submitting transaction..."):
+                svc.create_transaction(
+                    person_id=person_id, type=type, amount=amount,
+                    currency=currency, date=date, description=description or "",
+                )
+            print_success("Transaction created successfully.")
+            break
+        except APIError as exc:
+            msg = getattr(exc, "message", "").lower()
 
-    print_success("Transaction created successfully.")
+            console.print()
+            if "amount" in msg or "miktar" in msg or "tutar" in msg:
+                console.print(
+                    "  [bold yellow]💡 Tip:[/bold yellow] The amount may be invalid for this transaction type."
+                )
+            elif "date" in msg or "tarih" in msg:
+                console.print(
+                    "  [bold yellow]💡 Tip:[/bold yellow] The transaction date may be outside the allowed period."
+                )
+
+            console.print()
+            console.print(f"  [cyan]1[/cyan]  Try a different amount")
+            console.print(f"  [cyan]2[/cyan]  Try a different date")
+            console.print(f"  [cyan]3[/cyan]  Abort")
+            console.print()
+
+            choice = typer.prompt("  Choose an option", default="3").strip()
+            if choice == "1":
+                amount = float(typer.prompt("  New amount", default=str(amount)))
+            elif choice == "2":
+                date = typer.prompt("  New date (YYYY-MM-DD)", default=date)
+            else:
+                console.print("\n  [grey62]Aborted.[/grey62]\n")
+                raise typer.Exit(1)
 
 
 @app.command(name="delete")

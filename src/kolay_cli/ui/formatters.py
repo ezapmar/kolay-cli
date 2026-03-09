@@ -49,6 +49,27 @@ def api_call(message: str = "Working...") -> Generator[None, None, None]:
         raise typer.Exit(exc.exit_code)
 
 
+@contextmanager
+def recoverable_api_call(message: str = "Working...") -> Generator[None, None, None]:
+    """Like api_call(), but re-raises APIError for the caller to handle recovery.
+
+    Use this for interactive mutating commands where the user may want to retry
+    with different input rather than hitting a dead end.
+    """
+    from ..api.errors import APIError
+    from .output import is_json_mode, json_error
+
+    try:
+        with spinner(message):
+            yield
+    except APIError as exc:
+        if is_json_mode():
+            json_error(exc.message, status=exc.status_code, hint=exc.hint, exit_code=exc.exit_code)
+        # In interactive mode: print the error but let the caller decide
+        print_api_error(exc)
+        raise
+
+
 def no_command_help(ctx: "typer.Context") -> None:  # type: ignore[name-defined]
     """Handle command groups invoked with no subcommand."""
     import typer

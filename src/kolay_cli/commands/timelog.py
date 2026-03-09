@@ -10,7 +10,7 @@ from ..services import timelog as svc
 from ..ui import (
     console, short_id, display_status, fmt_val,
     print_success, print_empty, kv_table, pick_timelog, pick_person,
-    api_call, no_command_help, PRIMARY,
+    api_call, recoverable_api_call, no_command_help, PRIMARY,
     filter_items,
     is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
 )
@@ -131,40 +131,73 @@ def create_timelog(
     description: str | None = typer.Option(None, "--desc", help="Optional description"),
 ) -> None:
     """Submit a new timelog entry for approval."""
+    from ..api.errors import APIError
     console.print(f"\n[bold {PRIMARY}]⏱️ Create Timelog Entry[/bold {PRIMARY}]\n")
 
     require_arg(person_id, "person-id")
     if not person_id:
         person_id = pick_person()
-    if not start:
-        if is_json_mode():
-            require_arg(None, "start")
-        start = typer.prompt("  Start (YYYY-MM-DD HH:MM:SS)", default=datetime.now().replace(minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"))
-    if not end:
-        if is_json_mode():
-            require_arg(None, "end")
-        end = typer.prompt("  End (YYYY-MM-DD HH:MM:SS)")
 
-    try:
-        datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
-        datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        if is_json_mode():
-            json_error("Invalid datetime format. Use YYYY-MM-DD HH:MM:SS", exit_code=2)
-        else:
-            console.print("\n[bold red]\u274c Invalid datetime format.[/bold red] Please use YYYY-MM-DD HH:MM:SS")
-        raise typer.Exit(2)
+    while True:
+        if not start:
+            if is_json_mode():
+                require_arg(None, "start")
+            start = typer.prompt("  Start (YYYY-MM-DD HH:MM:SS)", default=datetime.now().replace(minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"))
+        if not end:
+            if is_json_mode():
+                require_arg(None, "end")
+            end = typer.prompt("  End (YYYY-MM-DD HH:MM:SS)")
 
-    with api_call("Submitting timelog..."):
-        result = svc.create_timelog(
-            person_id=person_id, start=start, end=end,
-            type=type, description=description or "",
-        )
+        try:
+            datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
+            datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            if is_json_mode():
+                json_error("Invalid datetime format. Use YYYY-MM-DD HH:MM:SS", exit_code=2)
+            else:
+                console.print("\n[bold red]\u274c Invalid datetime format.[/bold red] Please use YYYY-MM-DD HH:MM:SS")
+            raise typer.Exit(2)
 
-    if is_json_mode():
-        json_output(result)
-    else:
-        print_success("Timelog entry submitted for approval.")
+        try:
+            with recoverable_api_call("Submitting timelog..."):
+                result = svc.create_timelog(
+                    person_id=person_id, start=start, end=end,
+                    type=type, description=description or "",
+                )
+
+            if is_json_mode():
+                json_output(result)
+            else:
+                print_success("Timelog entry submitted for approval.")
+            break  # success
+
+        except APIError as exc:
+            msg = getattr(exc, "message", "")
+            msg_lower = msg.lower()
+
+            console.print()
+            if "\xfcst \xfcste" in msg_lower or "overlap" in msg_lower or "conflict" in msg_lower:
+                console.print(
+                    "  [bold yellow]💡 Tip:[/bold yellow] These hours overlap with an existing timelog entry.\n"
+                    "  Check your existing entries: [bold]kolay timelog list[/bold]"
+                )
+            elif "s\xfcre" in msg_lower or "duration" in msg_lower or "end" in msg_lower:
+                console.print(
+                    "  [bold yellow]💡 Tip:[/bold yellow] The end time must be after the start time."
+                )
+
+            console.print()
+            console.print(f"  [cyan]1[/cyan]  Try different times")
+            console.print(f"  [cyan]2[/cyan]  Abort")
+            console.print()
+
+            choice = typer.prompt("  Choose an option", default="2").strip()
+            if choice == "1":
+                start = None  # reset so the loop re-prompts
+                end = None
+            else:
+                console.print("\n  [grey62]Aborted.[/grey62]\n")
+                raise typer.Exit(1)
 
 
 @app.command(name="delete")
