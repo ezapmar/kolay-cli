@@ -23,7 +23,7 @@ def list_leaves(
         "limit": limit,
     }
     if person_id:
-        params["personId"] = person_id
+        params["personId"] = safe_id(person_id, "person_id")
     return KolayClient().get("v2/leave/list", params=params).get("data", [])
 
 

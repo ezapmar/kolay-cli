@@ -26,7 +26,7 @@ def list_timelogs(
         "sortType": "startDate", "sortOrder": "desc",
     }
     if person_id:
-        payload["personId"] = person_id
+        payload["personId"] = safe_id(person_id, "person_id")
     if type:
         payload["type"] = type
     if status:

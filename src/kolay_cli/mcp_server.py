@@ -157,7 +157,7 @@ def leave_list(
     filter: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """List leave records. Status: 'approved'/'waiting'/'rejected'/'cancelled'. filter= substring match on employee name or leave type."""
+    """List leave records. Status: 'approved'/'waiting'/'rejected'/'cancelled'. person_id must be a numeric ID from person_list (omit to list all). filter= substring match on employee name or leave type."""
     items = leave_svc.list_leaves(status=status, start=start, end=end, person_id=person_id, limit=limit)
     if filter:
         items = filter_items_silent(
@@ -207,7 +207,7 @@ def timelog_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List timelogs. Types: 'work'/'overtime'/'remote'. filter= substring match on employee name or type."""
+    """List timelogs. Types: 'work'/'overtime'/'remote'. person_id must be a numeric ID from person_list (omit to list all). filter= substring match on employee name or type."""
     result = timelog_svc.list_timelogs(
         start=start, end=end, person_id=person_id,
         type=type, status=status, page=page, limit=limit,
@@ -322,7 +322,7 @@ def transaction_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List transactions. Types: 'expense'/'bonus'/'advancePayment'/'premium'/'otherCut'. filter= substring match on employee name or type."""
+    """List transactions. Types: 'expense'/'bonus'/'advancePayment'/'premium'/'otherCut'. person_id must be a numeric ID from person_list (omit to list all). filter= substring match on employee name or type."""
     result = transaction_svc.list_transactions(
         person_id=person_id, type=type, status=status,
         page=page, limit=limit,

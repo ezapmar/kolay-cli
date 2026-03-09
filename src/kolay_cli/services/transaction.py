@@ -28,7 +28,7 @@ def list_transactions(
         "endDate": f"{year}-12-31 23:59:59",
     }
     if person_id:
-        payload["personId"] = person_id
+        payload["personId"] = safe_id(person_id, "person_id")
     if type:
         payload["type"] = type
     if status:
