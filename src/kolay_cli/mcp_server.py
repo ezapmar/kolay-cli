@@ -62,21 +62,21 @@ def person_list(
 @mcp.tool
 @require_auth
 def person_view(person_id: str) -> dict[str, Any]:
-    """View full profile of an employee. Use person_id from person_list."""
+    """View full profile of an employee. person_id can be a hash ID from person_list OR an employee name (e.g. 'Bora Ağaoğlu'). Names are auto-resolved to IDs."""
     return person_svc.view_person(person_id)
 
 
 @mcp.tool
 @require_auth
 def person_summary(person_id: str) -> dict[str, Any]:
-    """View condensed summary of an employee."""
+    """View condensed summary of an employee. person_id can be a hash ID or an employee name."""
     return person_svc.summary(person_id)
 
 
 @mcp.tool
 @require_auth
 def person_leave_status(person_id: str) -> list[dict[str, Any]]:
-    """View leave balances for an employee."""
+    """View leave balances for an employee. person_id can be a hash ID or an employee name."""
     return person_svc.leave_status(person_id)
 
 

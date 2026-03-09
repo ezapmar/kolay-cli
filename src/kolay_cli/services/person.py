@@ -1,9 +1,48 @@
 """Person / employee services."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ..api.client import KolayClient, safe_id
+
+
+# 32-char hex hash — the format Kolay IK uses for person IDs
+_HASH_RE = re.compile(r"^[a-f0-9]{32}$")
+
+
+def resolve_person_id(person_id: str) -> str:
+    """Resolve a person identifier to a valid hash ID.
+
+    If *person_id* already looks like a 32-char hex hash, return it as-is.
+    Otherwise, treat it as a name/search term: call person_list(search=...)
+    and return the first match's ID.
+
+    Raises ``ValueError`` if no match is found.
+    """
+    person_id = person_id.strip()
+    if _HASH_RE.match(person_id):
+        return person_id
+
+    # Not a hash — try to resolve by name search
+    result = list_people(search=person_id, limit=5)
+    items = result.get("items", [])
+    if not items:
+        raise ValueError(
+            f"'{person_id}' ile eşleşen çalışan bulunamadı. "
+            f"Lütfen tam ismi kontrol edin."
+        )
+    if len(items) == 1:
+        return items[0]["id"]
+
+    # Multiple matches — try exact match first
+    for item in items:
+        full_name = f"{item.get('firstName', '')} {item.get('lastName', '')}".strip()
+        if full_name.lower() == person_id.lower():
+            return item["id"]
+
+    # Fall back to first result
+    return items[0]["id"]
 
 
 REASON_CODES = {
@@ -37,18 +76,23 @@ def list_people(
 
 
 def view_person(person_id: str) -> dict[str, Any]:
-    """Full profile dict."""
-    resp = KolayClient().get(f"v2/person/view/{safe_id(person_id)}")
+    """Full profile dict. Accepts a hash ID or an employee name."""
+    resolved = resolve_person_id(person_id)
+    resp = KolayClient().get(f"v2/person/view/{safe_id(resolved)}")
     outer = resp.get("data", {})
     return outer.get("person", outer)
 
 
 def summary(person_id: str) -> dict[str, Any]:
-    return KolayClient().get(f"v2/person/summary/{safe_id(person_id)}").get("data", {})
+    """Condensed summary. Accepts a hash ID or an employee name."""
+    resolved = resolve_person_id(person_id)
+    return KolayClient().get(f"v2/person/summary/{safe_id(resolved)}").get("data", {})
 
 
 def leave_status(person_id: str) -> list[dict[str, Any]]:
-    return KolayClient().get(f"v2/person/leave-status/{safe_id(person_id)}").get("data", [])
+    """Leave balances. Accepts a hash ID or an employee name."""
+    resolved = resolve_person_id(person_id)
+    return KolayClient().get(f"v2/person/leave-status/{safe_id(resolved)}").get("data", [])
 
 
 def create_person(
