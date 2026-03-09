@@ -28,9 +28,12 @@ mcp = FastMCP(
     instructions=(
         "Kolay IK HR platform tools. "
         "Use person_list to find employee IDs before calling other person tools. "
-        "For bulk updates, use the `bulk_update_assistant` prompt which enforces human-in-the-loop confirmation. "
         "Dates are YYYY-MM-DD, datetimes are YYYY-MM-DD HH:MM:SS. "
-        "All write operations (create/update/delete/terminate) are real and irreversible."
+        "All write operations (create/update/delete/terminate) are real and irreversible — "
+        "tools marked [WRITE] or [DESTRUCTIVE] mutate data. "
+        "For complex workflows, use the built-in prompts: "
+        "employee_snapshot, burnout_analyzer, onboarding_plan, offboarding_plan, "
+        "bulk_update_assistant (enforces human-in-the-loop confirmation for bulk changes)."
     ),
 )
 
@@ -46,7 +49,7 @@ def person_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List employees. Status: 'active'/'inactive'. search= API-side, filter= client-side substring match on name/email."""
+    """List employees. Status: 'active'/'inactive'. search= API-side, filter= client-side substring match on name/email. Returns {items, totalCount, page}."""
     result = person_svc.list_people(page=page, status=status, search=search, limit=limit)
     if filter:
         result["items"] = filter_items_silent(
@@ -62,21 +65,21 @@ def person_list(
 @mcp.tool
 @require_auth
 def person_view(person_id: str) -> dict[str, Any]:
-    """View full profile of an employee. person_id can be a hash ID from person_list OR an employee name (e.g. 'Bora Ağaoğlu'). Names are auto-resolved to IDs."""
+    """View full profile of an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
     return person_svc.view_person(person_id)
 
 
 @mcp.tool
 @require_auth
 def person_summary(person_id: str) -> dict[str, Any]:
-    """View condensed summary of an employee. person_id can be a hash ID or an employee name."""
+    """View condensed summary of an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
     return person_svc.summary(person_id)
 
 
 @mcp.tool
 @require_auth
 def person_leave_status(person_id: str) -> list[dict[str, Any]]:
-    """View leave balances for an employee. person_id can be a hash ID or an employee name."""
+    """View leave balances for an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
     return person_svc.leave_status(person_id)
 
 
@@ -89,7 +92,7 @@ def person_create(
     employment_start: str,
     mobile_phone: str | None = None,
 ) -> dict[str, Any]:
-    """Create a new employee record. Dates in YYYY-MM-DD."""
+    """[WRITE] Create a new employee record. Dates in YYYY-MM-DD."""
     return person_svc.create_person(
         first_name=first_name, last_name=last_name,
         email=email, employment_start=employment_start,
@@ -107,7 +110,7 @@ def person_update(
     mobile_phone: str | None = None,
     custom_fields: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Update an employee's profile. Only supplied fields are changed."""
+    """[WRITE] Update an employee's profile. Only supplied fields are changed. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
     return person_svc.update_person(
         person_id, first_name=first_name, last_name=last_name,
         email=email, mobile_phone=mobile_phone, custom_fields=custom_fields,
@@ -121,24 +124,24 @@ def person_terminate(
     termination_date: str,
     reason_code: str,
 ) -> dict[str, Any]:
-    """Terminate employee. Dates in YYYY-MM-DD. Reason codes include '03' voluntary, '22' employer."""
+    """[DESTRUCTIVE] Terminate employee. Cannot be undone. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Dates in YYYY-MM-DD. Reason codes: '01' probation, '03' voluntary resignation (istifa), '04' termination without notice, '10' end of contract, '11' retirement, '22' employer termination, '23' death, '30' other."""
     return person_svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason_code)
 
 
 @mcp.tool
 @require_auth
 def person_rehire(person_id: str, start_date: str) -> dict[str, Any]:
-    """Rehire a previously terminated employee. Dates in YYYY-MM-DD."""
+    """[WRITE] Rehire a previously terminated employee. person_id: Employee ID (UUID, must be an inactive/terminated employee). Dates in YYYY-MM-DD."""
     return person_svc.rehire_person(person_id, start_date=start_date)
 
 
 @mcp.tool
 @require_auth
-def update_employee_data(
+def person_update_fields(
     person_id: str,
     update_fields: dict[str, str],
 ) -> dict[str, Any]:
-    """Update arbitrary fields on an employee profile. Use raw API field names."""
+    """[WRITE] Update arbitrary fields on an employee profile using raw API field names (e.g. {"department": "Engineering"}). person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
     if not update_fields:
         return {"error": True, "message": "No fields provided to update."}
     return person_svc.update_person_fields(person_id, update_fields)
@@ -157,7 +160,7 @@ def leave_list(
     filter: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """List leave records. Status: 'approved'/'waiting'/'rejected'/'cancelled'. person_id must be a numeric ID from person_list (omit to list all). filter= substring match on employee name or leave type."""
+    """List leave records. Status: 'approved'/'waiting'/'rejected'/'cancelled'. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved; omit to list all). filter= substring match on employee name or leave type."""
     items = leave_svc.list_leaves(status=status, start=start, end=end, person_id=person_id, limit=limit)
     if filter:
         items = filter_items_silent(
@@ -186,12 +189,18 @@ def leave_create(
     end_date: str,
     comment: str = "",
 ) -> dict[str, Any]:
-    """Submit a leave request. Dates in YYYY-MM-DD."""
+    """[WRITE] Submit a leave request. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Dates in YYYY-MM-DD."""
     return leave_svc.create_leave(
         person_id=person_id, leave_type_id=leave_type_id,
         start_date=start_date, end_date=end_date, comment=comment,
     )
 
+
+@mcp.tool
+@require_auth
+def leave_cancel(leave_id: str) -> dict[str, Any]:
+    """[DESTRUCTIVE] Cancel a leave request. Only 'waiting' or 'approved' leaves can be cancelled. leave_id: UUID from leave_list."""
+    return leave_svc.cancel_leave(leave_id)
 
 
 
@@ -207,7 +216,7 @@ def timelog_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List timelogs. Types: 'work'/'overtime'/'remote'. person_id must be a numeric ID from person_list (omit to list all). filter= substring match on employee name or type."""
+    """List timelogs. Types: 'work'/'overtime'/'remote'. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved; omit to list all). filter= substring match on employee name or type."""
     result = timelog_svc.list_timelogs(
         start=start, end=end, person_id=person_id,
         type=type, status=status, page=page, limit=limit,
@@ -239,7 +248,7 @@ def timelog_create(
     type: str = "work",
     description: str = "",
 ) -> dict[str, Any]:
-    """Create timelog. Start/End in YYYY-MM-DD HH:MM:SS. Types: 'work', 'overtime', 'remote'."""
+    """[WRITE] Create timelog. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Start/End in YYYY-MM-DD HH:MM:SS. Types: 'work', 'overtime', 'remote'."""
     return timelog_svc.create_timelog(
         person_id=person_id, start=start, end=end,
         type=type, description=description,
@@ -249,7 +258,7 @@ def timelog_create(
 @mcp.tool
 @require_auth
 def timelog_delete(timelog_id: str) -> dict[str, Any]:
-    """Delete a timelog record."""
+    """[DESTRUCTIVE] Permanently delete a timelog record. Cannot be undone."""
     return timelog_svc.delete_timelog(timelog_id)
 
 
@@ -283,15 +292,26 @@ def training_view(training_id: str) -> dict[str, Any]:
 @mcp.tool
 @require_auth
 def training_create(name: str, description: str = "", duration: str = "") -> dict[str, Any]:
-    """Add training to the catalogue. Duration is days string."""
+    """[WRITE] Add training to the company catalogue. Duration is a string (e.g. '3 days')."""
     return training_svc.create_training(name=name, description=description, duration=duration)
 
 
 @mcp.tool
 @require_auth
 def training_delete(training_id: str) -> dict[str, Any]:
-    """Remove training from catalogue."""
+    """[DESTRUCTIVE] Permanently remove training from the company catalogue and all assignment history. Cannot be undone."""
     return training_svc.delete_training(training_id)
+
+
+@mcp.tool
+@require_auth
+def training_update(
+    training_id: str,
+    name: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """[WRITE] Update a training in the catalogue. Only supplied fields are changed."""
+    return training_svc.update_training(training_id, name=name, description=description)
 
 
 @mcp.tool
@@ -303,13 +323,37 @@ def person_assign_training(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict[str, Any]:
-    """Assign training to employee. Status: 'waiting' or 'approved'."""
+    """[WRITE] Assign training to employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). training_id: UUID from training_list. Status: 'waiting' or 'approved'."""
     return person_svc.assign_training(
         person_id=person_id, training_id=training_id,
         status=status, start_date=start_date, end_date=end_date,
     )
 
 
+@mcp.tool
+@require_auth
+def person_list_trainings(person_id: str) -> list[dict[str, Any]]:
+    """List training assignments for an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Returns the employee's training history and pending assignments."""
+    return person_svc.list_trainings(person_id)
+
+
+@mcp.tool
+@require_auth
+def person_update_training(
+    assignment_id: str,
+    status: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, Any]:
+    """[WRITE] Update a training assignment. assignment_id: UUID from person_list_trainings. Status: 'waiting'/'approved'/'completed'. Dates in YYYY-MM-DD."""
+    return person_svc.update_training(assignment_id, status=status, start_date=start_date, end_date=end_date)
+
+
+@mcp.tool
+@require_auth
+def person_delete_training(assignment_id: str) -> dict[str, Any]:
+    """[DESTRUCTIVE] Remove a training assignment from an employee. Cannot be undone. assignment_id: UUID from person_list_trainings."""
+    return person_svc.delete_training(assignment_id)
 
 
 @mcp.tool
@@ -322,7 +366,7 @@ def transaction_list(
     page: int = 1,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """List transactions. Types: 'expense'/'bonus'/'advancePayment'/'premium'/'otherCut'. person_id must be a numeric ID from person_list (omit to list all). filter= substring match on employee name or type."""
+    """List transactions. Types: 'expense'/'bonus'/'advancePayment'/'premium'/'otherCut'. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved; omit to list all). filter= substring match on employee name or type."""
     result = transaction_svc.list_transactions(
         person_id=person_id, type=type, status=status,
         page=page, limit=limit,
@@ -355,7 +399,7 @@ def transaction_create(
     currency: str = "TL",
     description: str = "",
 ) -> dict[str, Any]:
-    """Create transaction. Types: 'expense', 'bonus', 'advancePayment', 'premium', 'otherCut'."""
+    """[WRITE] Create transaction. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Types: 'expense', 'bonus', 'advancePayment', 'premium', 'otherCut'. Dates in YYYY-MM-DD."""
     return transaction_svc.create_transaction(
         person_id=person_id, type=type, amount=amount,
         date=date, currency=currency, description=description,
@@ -365,7 +409,7 @@ def transaction_create(
 @mcp.tool
 @require_auth
 def transaction_delete(transaction_id: str) -> dict[str, Any]:
-    """Delete transaction."""
+    """[DESTRUCTIVE] Permanently delete a transaction record. Cannot be undone."""
     return transaction_svc.delete_transaction(transaction_id)
 
 
@@ -406,7 +450,7 @@ def calendar_create(
     end: str,
     comment: str = "",
 ) -> dict[str, Any]:
-    """Create calendar event. Dates in YYYY-MM-DD HH:MM:SS."""
+    """[WRITE] Create calendar event. Dates in YYYY-MM-DD HH:MM:SS."""
     return calendar_svc.create_event(title=title, start=start, end=end, comment=comment)
 
 
@@ -419,14 +463,14 @@ def calendar_update(
     end: str | None = None,
     comment: str | None = None,
 ) -> dict[str, Any]:
-    """Update calendar event. Only supplied fields are changed."""
+    """[WRITE] Update calendar event. Only supplied fields are changed."""
     return calendar_svc.update_event(event_id, title=title, start=start, end=end, comment=comment)
 
 
 @mcp.tool
 @require_auth
 def calendar_delete(event_id: str) -> dict[str, Any]:
-    """Delete calendar event."""
+    """[DESTRUCTIVE] Permanently delete a calendar event. Cannot be undone."""
     return calendar_svc.delete_event(event_id)
 
 
@@ -543,7 +587,7 @@ Then ask EXACTLY this question:
 "Do you confirm updating `{target_field}` for these **N** employees from \\"{old_value}\\" → \\"{new_value}\\"? (Yes / No)"
 
 **Step 4 — Execute (only on explicit "Yes"):**
-• If the user responds with "Yes": loop through each matched employee and call `update_employee_data` with their ID and {{"{target_field}": "{new_value}"}}.
+• If the user responds with "Yes": loop through each matched employee and call `person_update_fields` with their ID and {{"{target_field}": "{new_value}"}}.
   Confirm each update as it completes (e.g. "✅ Updated Ahmet Yılmaz").
 • If the user responds with anything other than "Yes": abort immediately and state "Operation cancelled. No changes were made."
 

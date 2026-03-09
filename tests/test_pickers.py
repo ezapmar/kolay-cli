@@ -31,7 +31,7 @@ runner = CliRunner()
 # ── Shared mock data ──────────────────────────────────────────────────────────
 
 PEOPLE = [
-    {"id": "p1", "firstName": "Alice", "lastName": "Smith", "workEmail": "a@co.com"},
+    {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith", "workEmail": "a@co.com"},
     {"id": "p2", "firstName": "Bob", "lastName": "Jones", "workEmail": "b@co.com"},
 ]
 LEAVE_RECORDS = [
@@ -88,7 +88,7 @@ class TestBasePick:
                 confirm_fn=lambda p: f"Selected {p.get('firstName')}",
                 search_keys=None,
             )
-        assert result == "p1"
+        assert result == "a0000000000000000000000000000000"
 
     def test_raw_id_passthrough(self):
         from kolay_cli.ui.pickers import _base_pick
@@ -175,7 +175,7 @@ class TestBasePick:
                 search_keys=[lambda p: f"{p.get('firstName', '')} {p.get('lastName', '')}"],
             )
         # After filtering on "alice", only Alice is left → row 1 → p1
-        assert result == "p1"
+        assert result == "a0000000000000000000000000000000"
 
     def test_none_client_creates_one(self):
         """_base_pick(client=None) triggers lazy KolayClient() construction."""
@@ -215,10 +215,10 @@ class TestPickerViaCLI:
     def test_pick_person_row_1_via_cli(self, mock_client):
         """person view with no ID triggers pick_person → returns p1."""
         mock_client.get.return_value = {
-            "data": {"id": "p1", "firstName": "Alice", "lastName": "Smith",
+            "data": {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith",
                      "status": "active", "workEmail": "a@co.com"}
         }
-        with patch("kolay_cli.commands.person.pick_person", return_value="p1"):
+        with patch("kolay_cli.commands.person.pick_person", return_value="a0000000000000000000000000000000"):
             result = runner.invoke(app, ["person", "view"])
         assert result.exit_code == 0
         assert "Alice" in result.output
@@ -227,10 +227,10 @@ class TestPickerViaCLI:
         """person view --json with explicit ID → JSON output (picker not triggered)."""
         import json
         mock_client.get.return_value = {
-            "data": {"id": "p1", "firstName": "Alice", "lastName": "Smith",
+            "data": {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith",
                      "status": "active", "workEmail": "a@co.com"}
         }
-        result = runner.invoke(app, ["--json", "person", "view", "p1"])
+        result = runner.invoke(app, ["--json", "person", "view", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data.get("firstName") == "Alice"
@@ -291,7 +291,7 @@ class TestPickerTableRendering:
         client.post.return_value = {"data": {"items": PEOPLE, "totalCount": 2}}
         with patch("kolay_cli.ui.pickers._typer.prompt", side_effect=["", "1"]):
             result = pick_person(client)
-        assert result == "p1"
+        assert result == "a0000000000000000000000000000000"
 
     def test_pick_leave_table(self):
         from kolay_cli.ui.pickers import pick_leave

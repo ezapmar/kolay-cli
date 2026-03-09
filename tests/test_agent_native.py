@@ -40,7 +40,7 @@ def test_version_human():
 PERSON_LIST_RESPONSE = {
     "data": {
         "items": [
-            {"id": "p1", "firstName": "Alice", "lastName": "Smith", "workEmail": "alice@co.com"},
+            {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith", "workEmail": "alice@co.com"},
             {"id": "p2", "firstName": "Bob", "lastName": "Jones", "workEmail": "bob@co.com"},
         ],
         "totalCount": 2,
@@ -71,9 +71,9 @@ def test_person_list_json_empty(mock_client):
 
 def test_person_view_json(mock_client):
     mock_client.get.return_value = {
-        "data": {"id": "p1", "firstName": "Alice", "lastName": "Smith", "status": "active"}
+        "data": {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith", "status": "active"}
     }
-    result = runner.invoke(app, ["--json", "person", "view", "p1"])
+    result = runner.invoke(app, ["--json", "person", "view", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert data["firstName"] == "Alice"

@@ -7,7 +7,7 @@ from rich.console import Console
 app = typer.Typer(help="Manage the Kolay IK MCP server for AI/LLM integration.")
 console = Console(highlight=False)
 
-_PRIMARY = "#376BFB"
+from ..ui.constants import PRIMARY as _PRIMARY
 _home = __import__("pathlib").Path.home()
 
 

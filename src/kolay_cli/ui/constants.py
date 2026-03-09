@@ -4,8 +4,9 @@ Shared UI constants for kolay-cli.
 from __future__ import annotations
 
 
-PRIMARY = "#376BFB"       # Blue 600 — headings, borders, spinner
-PRIMARY_SOFT = "#EFF1FF"  # Blue 50
+# ── Brand palette ─────────────────────────────────────────────
+PRIMARY_DARK = "#162A4C"  # Brand primary — too dark for terminals
+PRIMARY = "#376BFB"       # Brand secondary — main terminal colour
 ACCENT = "#8B9EFD"        # Blue 400 — secondary data
 SHADE = "#0E4AC4"         # Blue 900 — dark emphasis
 
@@ -110,3 +111,8 @@ KOLAY_LOGO = f"""
 [bold {PRIMARY}]               ███████████████████████                                                                  ██████ [/bold {PRIMARY}]
 [bold {PRIMARY}]                █████████████████████                                                                   ███ [/bold {PRIMARY}]
 """
+
+KOLAY_LOGO_COMPACT = (
+    f"\n[bold {PRIMARY}]  ██ Kolay IK CLI[/bold {PRIMARY}]"
+    f"  [grey50]Unofficial CLI for Kolay HR — type a command or run [bold]kolay --help[/bold][/grey50]\n"
+)

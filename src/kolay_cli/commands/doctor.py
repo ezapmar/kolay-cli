@@ -18,7 +18,7 @@ from ..config import CONFIG_FILE_JSON, CONFIG_FILE_YAML
 app = typer.Typer(help="Check your Kolay CLI installation health.")
 console = Console(highlight=False)
 
-_PRIMARY = "#376BFB"
+from ..ui.constants import PRIMARY as _PRIMARY
 _OK = "[bold #57CC99]✔[/bold #57CC99]"
 _FAIL = "[bold #FF6B6B]✘[/bold #FF6B6B]"
 _WARN = "[bold #FFD93D]⚠[/bold #FFD93D]"

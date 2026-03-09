@@ -10,10 +10,12 @@ from ..services import transaction as svc
 from ..services.transaction import TRANSACTION_TYPES
 from ..ui import (
     console, short_id, display_status, fmt_num,
-    print_success, print_empty, kv_table,
+    print_success, print_empty, kv_table, print_next_steps, print_pagination_footer,
+    save_page_state, load_page_state,
+    confirm_destructive_action, print_irreversible_warning,
     pick_person, pick_transaction, api_call, recoverable_api_call, no_command_help, PRIMARY,
-    filter_items,
-    is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg,
+    filter_items, validate_date, prompt_date, fmt_datetime,
+    is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg, global_to_page_relative,
 )
 
 app = typer.Typer(help="Manage financial transactions (expenses, bonuses, advances).")
@@ -62,13 +64,13 @@ def list_transactions(
     title = "\U0001f4b8 Transactions"
     if filter:
         title += f" matching '{filter}'"
-    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", justify="right", width=4)
     table.add_column("Employee", style="bold white", min_width=18)
     table.add_column("Type", style="grey85")
     table.add_column("Amount", justify="right", style="bold white")
-    table.add_column("Status", justify="center")
+    table.add_column("Status", justify="center", min_width=14)
     table.add_column("Short ID", style="grey62")
 
     for i, trx in enumerate(items, 1):
@@ -85,13 +87,37 @@ def list_transactions(
         )
 
     console.print(table)
-    console.print()
+    _extra_parts = []
+    if type:
+        _extra_parts.append(f"--type {type}")
+    if status:
+        _extra_parts.append(f"--status {status}")
+    print_pagination_footer(
+        command="kolay transaction list",
+        page=page, limit=limit, shown=len(items), total=total,
+        extra_flags=" ".join(_extra_parts),
+    )
+    save_page_state(resource="transaction", page=page, limit=limit, total=total)
+    print_next_steps([
+        ("kolay transaction view <#>", "View transaction details"),
+        ("kolay transaction create", "Create a new transaction (bonus, expense…)"),
+        ("kolay transaction list --status waiting", "See pending approvals"),
+    ])
 
 
 def _resolve_transaction_id(value: str, *, limit: int = 50) -> str:
-    """Resolve row number from `kolay transaction list` to a real transaction UUID."""
+    """Resolve row number from `kolay transaction list` to a real UUID.
+
+    Honours the last-listed page and converts global row numbers to
+    page-relative indices before resolving.
+    """
     if not value.isdigit():
         return value
+    state = load_page_state("transaction")
+    if state and state["page"] > 1:
+        page_rel = global_to_page_relative(int(value), page=state["page"], limit=state["limit"])
+        result = svc.list_transactions(page=state["page"], limit=state["limit"])
+        return resolve_row(str(page_rel), result["items"], label="transaction")
     result = svc.list_transactions(limit=limit)
     return resolve_row(value, result["items"], label="transaction")
 
@@ -138,8 +164,12 @@ def create_transaction(
         type = typer.prompt("  Pick a type", default="expense")
     if amount is None:
         amount = float(typer.prompt("  Amount"))
-    if not date:
-        date = typer.prompt("  Date (YYYY-MM-DD)", default=datetime.now().strftime("%Y-%m-%d"))
+    if amount < 0:
+        console.print("  [yellow]\u26a0\ufe0f Negative amount \u2014 did you mean a deduction (otherCut)?[/yellow]")
+    if date:
+        date = validate_date(date)
+    else:
+        date = prompt_date("Date", default=datetime.now().strftime("%Y-%m-%d"))
 
     while True:
         try:
@@ -173,7 +203,7 @@ def create_transaction(
             if choice == "1":
                 amount = float(typer.prompt("  New amount", default=str(amount)))
             elif choice == "2":
-                date = typer.prompt("  New date (YYYY-MM-DD)", default=date)
+                date = prompt_date("New date", default=date)
             else:
                 console.print("\n  [grey62]Aborted.[/grey62]\n")
                 raise typer.Exit(1)
@@ -186,10 +216,35 @@ def delete_transaction(transaction_id: str | None = typer.Argument(None, help="I
         transaction_id = pick_transaction()
     transaction_id = _resolve_transaction_id(transaction_id)
 
-    if not is_yes_mode():
-        typer.confirm("  Delete this transaction?", abort=True)
+    # 3.2: Fetch the record so the user sees what they're deleting
+    try:
+        with api_call("Fetching transaction details..."):
+            trx_data = svc.view_transaction(transaction_id)
+        p = trx_data.get("person", {})
+        emp = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else "—"
+        trx_type = str(trx_data.get("type") or "—")
+        amt = trx_data.get("amount") or trx_data.get("totalAmount") or "—"
+        curr = trx_data.get("currency", "")
+        amt_str = f"{fmt_num(amt)} {curr}".strip() if amt != "—" else "—"
+        trx_date = fmt_datetime(str(trx_data.get("date") or trx_data.get("createdAt") or "—"))
+        status = str(trx_data.get("status") or "—")
+
+        confirm_destructive_action(
+            action="Delete transaction record",
+            details=[
+                ("Employee", emp),
+                ("Type", trx_type),
+                ("Amount", amt_str),
+                ("Date", trx_date),
+                ("Status", status),
+            ],
+        )
+    except Exception:
+        if not is_yes_mode():
+            typer.confirm("  Delete this transaction?", abort=True)
 
     with api_call("Deleting transaction..."):
         svc.delete_transaction(transaction_id)
 
     print_success("Transaction deleted successfully.")
+    print_irreversible_warning()

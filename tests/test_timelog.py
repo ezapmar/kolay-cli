@@ -129,5 +129,5 @@ def test_timelog_create_invalid_datetime(mock_client):
         "--end", "2025-01-10 12:00:00"
     ])
     assert result.exit_code == 2  # semantic: bad input
-    assert "Invalid datetime format" in result.output
+    assert "Invalid date" in result.output
     mock_client.post.assert_not_called()

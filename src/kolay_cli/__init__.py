@@ -1,4 +1,4 @@
 """
 Kolay CLI
 """
-__version__ = "0.10.0-alpha"
+__version__ = "0.10.1-alpha"

@@ -21,14 +21,13 @@ def test_version_flag():
 
 
 def test_bare_invocation_shows_help():
-    """Running `kolay` with no args must print the logo area + command list."""
+    """Running `kolay` with no args must print the compact banner + command list."""
     result = runner.invoke(app, [])
     assert result.exit_code == 0
-    # Logo characters appear somewhere
-    assert "+" in result.output or "%" in result.output
-    # Help panel appears
-    assert "person" in result.output
-    assert "leave" in result.output
+    # Compact banner appears (block character unique to KOLAY_LOGO_COMPACT)
+    assert "Kolay IK CLI" in result.output or "██" in result.output
+    # Help panel appears (for returning users who already set up)
+    assert "person" in result.output or "setup" in result.output
 
 
 def test_help_flag():
@@ -46,7 +45,7 @@ def test_help_flag():
     "transaction", "expense", "approval", "calendar", "unit", "config",
 ])
 def test_bare_command_group_shows_hint_then_help(group, mock_client):
-    """Any bare `kolay <group>` must show the hint and then the help text."""
+    """Any bare `kolay <group>` must immediately show the hint and help text."""
     result = runner.invoke(app, [group])
     assert result.exit_code == 0, f"{group!r} exited {result.exit_code}: {result.output}"
     # Hint line

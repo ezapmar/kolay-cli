@@ -1,7 +1,6 @@
 """UI formatters for kolay-cli."""
 from __future__ import annotations
 import sys
-import time
 from contextlib import contextmanager
 from typing import Any, Generator
 
@@ -82,21 +81,162 @@ def no_command_help(ctx: "typer.Context") -> None:  # type: ignore[name-defined]
         f"\n[bold {PRIMARY}]kolay {name}[/bold {PRIMARY}] needs a sub-command.\n"
         f"  Try: [bold]kolay {name} --help[/bold]\n"
     )
-
-    # 3-second countdown with a live status indicator
-    for secs in (3, 2, 1):
-        with console.status(
-            f"[{PRIMARY}]Showing help in {secs}…[/{PRIMARY}]",
-            spinner="dots",
-        ):
-            time.sleep(1)
-
-    console.print()
     console.print(ctx.get_help())
     raise typer.Exit(0)
 
 
+def print_next_steps(steps: list[tuple[str, str]]) -> None:
+    """Print a contextual 'what\'s next' hint block after list commands.
 
+    Each step is a (command, description) tuple, e.g.::
+
+        [("kolay person view <#>", "View full profile"),
+         ("kolay person list --search name", "Search by name")]
+
+    Automatically skipped in JSON mode.
+    """
+    from .output import is_json_mode
+    if is_json_mode():
+        return
+    parts = "".join(
+        f"  [bold white]{cmd}[/bold white]  [grey50]{desc}[/grey50]\n"
+        for cmd, desc in steps
+    )
+    console.print(f"  [grey50]💡 Next steps:[/grey50]\n{parts}")
+
+
+def print_pagination_footer(
+    *,
+    command: str,
+    page: int,
+    limit: int,
+    shown: int,
+    total: int,
+    extra_flags: str = "",
+) -> None:
+    """Print a pagination status footer below a list table.
+
+    Renders one of three states:
+
+    * **More pages ahead** — shows current range + next-page command.
+    * **Last page / single page with exact match** — shows range, no next hint.
+    * **Limit-only mode** (pass ``page=0``) — just shows "Showing N of total"
+      with a truncation warning when ``shown == limit < total``.
+
+    Args:
+        command:     Full kolay command prefix, e.g. ``"kolay person list"``.
+        page:        Current 1-based page number (pass 0 for limit-only mode).
+        limit:       Records per page / max records fetched.
+        shown:       Number of items actually rendered (after client filtering).
+        total:       Total records on the server.
+        extra_flags: Additional flags to echo in the next-page hint, e.g.
+                     ``"--status waiting"`` so the user's context is preserved.
+    """
+    from .output import is_json_mode
+    if is_json_mode() or shown == 0:
+        return
+
+    PRIMARY_ = PRIMARY  # local alias
+
+    if page > 0:
+        # ── Paginated mode ───────────────────────────────────────────────────
+        first = (page - 1) * limit + 1
+        last = first + shown - 1
+        total_pages = max(1, (total + limit - 1) // limit)
+
+        range_str = f"{first}–{last} of {total}"
+        page_str = f"Page {page} of {total_pages}"
+
+        if page < total_pages:
+            next_page = page + 1
+            flags = f"--page {next_page}"
+            if extra_flags:
+                flags = f"{extra_flags} {flags}"
+            next_cmd = f"{command} {flags}"
+            console.print(
+                f"  [grey50]{page_str}  ·  Showing {range_str}  ·  "
+                f"Next: [bold white]{next_cmd}[/bold white][/grey50]"
+            )
+        else:
+            # Last page reached
+            if total_pages > 1:
+                console.print(
+                    f"  [grey50]{page_str}  ·  Showing {range_str}  ·  "
+                    f"[{PRIMARY_}]All caught up ✓[/{PRIMARY_}][/grey50]"
+                )
+            else:
+                # Single page, show count
+                console.print(
+                    f"  [grey50]Showing {shown} of {total} records[/grey50]"
+                )
+    else:
+        # ── Limit-only mode (e.g. leave list) ───────────────────────────────
+        if shown == limit and total > limit:
+            flags = f"--limit {min(limit * 2, total)}"
+            if extra_flags:
+                flags = f"{extra_flags} {flags}"
+            console.print(
+                f"  [grey50]Showing {shown} of {total} records  ·  "
+                f"More available: [bold white]{command} {flags}[/bold white][/grey50]"
+            )
+        else:
+            console.print(
+                f"  [grey50]Showing {shown} of {total} records[/grey50]"
+            )
+    console.print()
+
+
+def confirm_destructive_action(
+    *,
+    action: str,
+    details: list[tuple[str, str]],
+    warning: str | None = None,
+) -> None:
+    """Render a warning panel then ask for explicit confirmation.
+
+    Aborts with exit code 1 if the user declines.  Skipped entirely in
+    ``--yes`` mode so automated scripts remain non-interactive.
+
+    Args:
+        action:  Short imperative description, e.g.
+                 ``"Terminate Ahmed Yılmaz"`` or ``"Delete timelog record"``.
+        details: Ordered list of ``(label, value)`` rows shown inside the
+                 panel, e.g. ``[("Employee", "Ahmed Yılmaz"), ("Date", "2026-03-09")]``.
+        warning: Optional extra warning line shown in red below the details,
+                 e.g. ``"This will be reported to SGK — legal record."``.
+    """
+    from .output import is_json_mode, is_yes_mode
+    import typer as _typer
+
+    if is_json_mode() or is_yes_mode():
+        return
+
+    console.print()
+    console.print(f"  [bold red]⚠  {action}[/bold red]")
+    for lbl, val in details:
+        console.print(f"  [grey62]  {lbl}:[/grey62] [bold white]{val}[/bold white]")
+    if warning:
+        console.print(f"  [red]  ⚠  {warning}[/red]")
+    console.print()
+
+    confirmed = _typer.confirm("  Confirm?", default=False)
+    if not confirmed:
+        console.print("\n  [grey62]Aborted — no changes made.[/grey62]\n")
+        raise _typer.Exit(1)
+
+
+def print_irreversible_warning() -> None:
+    """Print a brief 'cannot be undone' notice after a destructive action.
+
+    Skipped in JSON mode (machine consumers don't need prose warnings).
+    """
+    from .output import is_json_mode
+    if is_json_mode():
+        return
+    console.print(
+        "  [grey50]💡 This action cannot be undone from the CLI. "
+        "Contact your Kolay admin if you need to restore.[/grey50]\n"
+    )
 
 def short_id(full_id: str) -> str:
     """Truncate UUID to last 8 chars."""
@@ -112,6 +252,50 @@ def display_status(status: str) -> str:
         return "[grey62]—[/grey62]"
     return STATUS_STYLES.get(str(status).lower(), f"[grey62]{status}[/grey62]")
 
+def validate_date(value: str, fmt: str = "%Y-%m-%d") -> str:
+    """Validate and normalize a date string. Aborts with code 2 if invalid."""
+    from datetime import datetime
+    import typer
+    from .output import is_json_mode, json_error
+    try:
+        return datetime.strptime(value.strip(), fmt).strftime(fmt)
+    except Exception:
+        if is_json_mode():
+            json_error(f"Invalid date format. Expected {fmt}", exit_code=2)
+        else:
+            console.print(f"\n  [bold red]Error:[/bold red] Invalid date '{value}'. Expected format: {fmt}\n")
+        raise typer.Exit(2)
+
+
+def prompt_date(prompt_text: str, default: str | None = None, is_datetime: bool = False) -> str:
+    """Interactively prompt for a date, looping until valid.
+    
+    Adds the (YYYY-MM-DD...) hint automatically.
+    """
+    from datetime import datetime
+    import typer
+    fmt = "%Y-%m-%d %H:%M:%S" if is_datetime else "%Y-%m-%d"
+    hint = "YYYY-MM-DD HH:MM:SS" if is_datetime else "YYYY-MM-DD"
+    while True:
+        val = typer.prompt(f"{prompt_text} ({hint})", default=default).strip()
+        try:
+            return datetime.strptime(val, fmt).strftime(fmt)
+        except ValueError:
+            console.print(f"  [red]Invalid format. Please use {hint}.[/red]")
+
+
+def fmt_datetime(dt: str | None, fallback: str = "—") -> str:
+    """Format a raw API datetime string (YYYY-MM-DD HH:MM:SS) for display (e.g., '15 Mar 2026')."""
+    if not dt or dt == "—":
+        return fallback
+    from datetime import datetime
+    try:
+        # Handles both "YYYY-MM-DD HH:MM:SS" and just dates
+        if len(dt) > 10:
+            return datetime.strptime(dt[:19], "%Y-%m-%d %H:%M:%S").strftime("%d %b %Y  %H:%M")
+        return datetime.strptime(dt[:10], "%Y-%m-%d").strftime("%d %b %Y")
+    except ValueError:
+        return dt
 
 
 
@@ -137,7 +321,10 @@ def fmt_num(val: Any) -> str:
 
 def label(key: str) -> str:
     """Convert camelCase API key to human label."""
-    return FIELD_LABELS.get(key, key.replace("_", " ").title())
+    import re
+    if key in FIELD_LABELS:
+        return FIELD_LABELS[key]
+    return re.sub(r"([a-z])([A-Z])", r"\1 \2", key).replace("_", " ").title()
 
 
 

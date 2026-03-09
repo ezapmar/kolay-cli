@@ -40,8 +40,24 @@ def is_yes_mode() -> bool:
     return _yes_mode.get()
 
 
+def global_to_page_relative(global_row: int, *, page: int, limit: int) -> int:
+    """Convert a global 1-based row number to a page-relative 1-based index.
+
+    Example: global row 21, page 2, limit 20  →  page-relative index 1.
+    Returns the original value unchanged when page == 1 (no conversion needed).
+    """
+    if page <= 1:
+        return global_row
+    offset = (page - 1) * limit
+    return global_row - offset
+
+
 def resolve_row(value: str, items: list, *, id_key: str = "id", label: str = "item") -> str:
-    """Resolve a 1-based row number to the item's ID."""
+    """Resolve a 1-based row number to the item's ID.
+
+    ``value`` should be a **page-relative** 1-based index.  Use
+    ``global_to_page_relative()`` first when the user sees global row numbers.
+    """
     if not value.isdigit():
         return value
     import typer as _typer

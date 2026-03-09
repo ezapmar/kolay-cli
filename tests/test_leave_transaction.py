@@ -93,8 +93,8 @@ def test_leave_create(mock_client):
         "leave", "create",
         "--person-id", "pid1",
         "--type-id", "lt1",
-        "--start", "2025-06-01 09:00:00",
-        "--end", "2025-06-05 18:00:00",
+        "--start", "2025-06-01",
+        "--end", "2025-06-05",
     ])
     assert result.exit_code == 0
     assert "submitted" in result.output.lower() or "success" in result.output.lower()

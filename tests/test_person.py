@@ -62,7 +62,7 @@ def test_person_view(mock_client):
 def test_person_view_not_found(mock_client):
     """Empty data → renders cleanly, exit 0."""
     mock_client.get.return_value = {"data": {}}
-    result = runner.invoke(app, ["person", "view", "nonexistentid"])
+    result = runner.invoke(app, ["person", "view", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
 
 
@@ -134,7 +134,7 @@ def test_person_summary(mock_client):
             }
         }
     }
-    result = runner.invoke(app, ["person", "summary", "someid"])
+    result = runner.invoke(app, ["person", "summary", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
     # Summary renders a panel — check it exit cleanly
     assert result.exit_code == 0
@@ -147,7 +147,7 @@ def test_person_leave_status(mock_client):
              "used": 3, "totalUpcoming": 0, "unused": 11}
         ]
     }
-    result = runner.invoke(app, ["person", "leave-status", "someid"])
+    result = runner.invoke(app, ["person", "leave-status", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
     assert "Annual Leave" in result.output
 
@@ -158,7 +158,7 @@ def test_person_list_files(mock_client):
             {"id": "f1", "name": "contract.pdf", "folderName": "HR", "size": 12340, "createdAt": "2025-01-01"}
         ]
     }
-    result = runner.invoke(app, ["person", "list-files", "somepersonid"])
+    result = runner.invoke(app, ["person", "list-files", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
     assert "contract.pdf" in result.output
 
@@ -170,7 +170,7 @@ def test_person_list_trainings(mock_client):
              "startDate": "2025-01-01", "endDate": "2025-02-01"}
         ]
     }
-    result = runner.invoke(app, ["person", "list-trainings", "somepersonid"])
+    result = runner.invoke(app, ["person", "list-trainings", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
     assert "Safety Course" in result.output
 
@@ -228,12 +228,12 @@ def test_update_person_fields(mock_client):
 
 def test_update_person_fields_empty(mock_client):
     """Empty fields dict is handled safely by the MCP tool layer (no API call)."""
-    from kolay_cli.mcp_server import update_employee_data
+    from kolay_cli.mcp_server import person_update_fields
     from unittest.mock import patch, MagicMock
 
     with patch("kolay_cli.security.resolve_token", return_value="fake-token"), \
          patch("kolay_cli.security.validate_token", return_value=MagicMock(valid=True, __bool__=lambda s: True)):
-        result = update_employee_data(person_id="someid", update_fields={})
+        result = person_update_fields(person_id="someid", update_fields={})
 
     assert result.get("error") is True
     assert "No fields" in result.get("message", "")

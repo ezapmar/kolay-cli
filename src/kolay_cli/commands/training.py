@@ -8,8 +8,11 @@ from ..api import KolayClient, safe_id
 from ..services import training as svc
 from ..ui import (
     console, short_id, print_success, print_empty, kv_table, pick_training,
+    print_next_steps, print_pagination_footer,
+    print_irreversible_warning,
+    save_page_state, load_page_state,
     api_call, no_command_help, PRIMARY, filter_items,
-    is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
+    is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row, global_to_page_relative,
 )
 
 app = typer.Typer(help="Manage company training catalogue.")
@@ -53,7 +56,7 @@ def list_trainings(
     if filter:
         title += f" filtered by '{filter}'"
 
-    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", justify="right", width=4)
     table.add_column("Training Name", style="bold white", min_width=24)
@@ -61,20 +64,40 @@ def list_trainings(
     table.add_column("Short ID", style="grey62")
 
     for i, tr in enumerate(items, 1):
+        row_num = (page - 1) * limit + i
         dur = tr.get("duration") or tr.get("durationDays") or "—"
-        table.add_row(str(i), str(tr.get("name", "—")), str(dur), short_id(str(tr.get("id", ""))))
+        table.add_row(str(row_num), str(tr.get("name", "—")), str(dur), short_id(str(tr.get("id", ""))))
 
     console.print(table)
-    console.print()
+    _extra = f"--search \"{search}\"" if search else ""
+    print_pagination_footer(
+        command="kolay training list",
+        page=page, limit=limit, shown=len(items), total=total,
+        extra_flags=_extra,
+    )
+    save_page_state(resource="training", page=page, limit=limit, total=total)
+    print_next_steps([
+        ("kolay training view <#>", "View training details"),
+        ("kolay person assign-training", "Assign a training to an employee"),
+        ("kolay training create", "Add a new training to the catalogue"),
+    ])
 
 
 def _resolve_training_id(value: str, *, limit: int = 50) -> str:
-    """Resolve row number from `kolay training list` to a real training UUID."""
+    """Resolve row number from `kolay training list` to a real training UUID.
+
+    Honours the last-listed page and converts global row numbers to
+    page-relative indices before resolving.
+    """
     if not value.isdigit():
         return value
+    state = load_page_state("training")
+    if state and state["page"] > 1:
+        page_rel = global_to_page_relative(int(value), page=state["page"], limit=state["limit"])
+        result = svc.list_trainings(page=state["page"], limit=state["limit"])
+        return resolve_row(str(page_rel), result.get("items", []), label="training")
     result = svc.list_trainings(limit=limit)
-    items = result.get("items", [])
-    return resolve_row(value, items, label="training")
+    return resolve_row(value, result.get("items", []), label="training")
 
 
 @app.command(name="view")
@@ -181,3 +204,4 @@ def delete_training(training_id: str | None = typer.Argument(None, help="ID of t
         json_output(result)
     else:
         print_success("Training removed from catalogue.")
+        print_irreversible_warning()

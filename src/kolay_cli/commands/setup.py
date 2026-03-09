@@ -14,7 +14,7 @@ from ..config import get_api_token
 app = typer.Typer(help="Guided first-run setup wizard.")
 console = Console(highlight=False)
 
-_PRIMARY = "#376BFB"
+from ..ui.constants import PRIMARY as _PRIMARY
 _SUCCESS = "#57CC99"
 
 

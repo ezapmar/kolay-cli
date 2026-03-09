@@ -49,3 +49,9 @@ def create_leave(
         "comment": comment,
     })
     return {"status": "created", "person_id": person_id, "start": start_date, "end": end_date}
+
+
+def cancel_leave(leave_id: str) -> dict[str, Any]:
+    """Cancel a leave request."""
+    KolayClient().post(f"v2/leave/cancel/{safe_id(leave_id)}")
+    return {"status": "cancelled", "id": leave_id}

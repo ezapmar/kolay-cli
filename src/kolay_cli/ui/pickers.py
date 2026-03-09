@@ -11,7 +11,7 @@ from .constants import (
     _TIMELOG_PICKER_QUIPS, _TRAINING_PICKER_QUIPS, _PERSON_TRAINING_PICKER_QUIPS,
     _FILE_PICKER_QUIPS,
 )
-from .formatters import console, short_id, display_status, fmt_num
+from .formatters import console, short_id, display_status, fmt_num, fmt_datetime
 
 if TYPE_CHECKING:
     from ..api.client import KolayClient
@@ -25,9 +25,24 @@ def _base_pick(
     table_factory: Callable[[list[dict[str, Any]]], Table],
     confirm_fn: Callable[[dict[str, Any]], str],
     search_keys: list[Callable[[dict[str, Any]], str]] | None = None,
+    *,
+    fetch_more_fn: Callable[[KolayClient, int], list[dict[str, Any]]] | None = None,
+    limit_hint: int = 0,
 ) -> str:
     """Core logic for interactive pickers.
-    Fetches data, filters by search term, renders table, and prompts for selection.
+
+    Fetches data, optionally filters by search term, renders a table, and
+    prompts for selection.
+
+    Args:
+        fetch_fn:      Callable that takes a client and returns the initial
+                       item list.
+        fetch_more_fn: Optional callable ``(client, new_limit) -> items`` for
+                       the "Load more?" prompt.  When provided and
+                       ``len(items) == limit_hint``, the picker offers to
+                       double the batch size before the selection prompt.
+        limit_hint:    The limit used in the initial fetch.  Used to detect
+                       whether the list may be truncated.
     """
     from ..api.client import KolayClient
     from ..api.errors import APIError
@@ -46,7 +61,9 @@ def _base_pick(
         with console.status(f"[{PRIMARY}]Fetching...[/{PRIMARY}]", spinner="dots"):
             items = fetch_fn(client)
     except APIError as exc:
-        console.print(f"[grey62]  Couldn't fetch the list: {exc}[/grey62]")
+        status = getattr(exc, "status_code", "Unknown")
+        msg = str(exc.message if hasattr(exc, "message") else exc)
+        console.print(f"[grey62]  [bold]Couldn't fetch the list ({status} — {msg}).[/bold] Enter ID manually or press Enter to abort.[/grey62]")
         return _prompt_or_abort(prompt)
 
     if not items:
@@ -60,6 +77,33 @@ def _base_pick(
         )
         if query.strip():
             items = filter_items(items, query, search_keys, label=f"{prompt.lower()}s")
+
+    # ── "Load more?" loop ────────────────────────────────────────────────────
+    current_limit = limit_hint or len(items)
+    while fetch_more_fn and len(items) >= current_limit:
+        console.print(table_factory(items))
+        console.print(
+            f"\n  [grey50]Showing {len(items)} records — there may be more.[/grey50]"
+            f"\n  [grey50]Load more?[/grey50] [bold](y/N)[/bold] ",
+            end="",
+        )
+        answer = _typer.prompt("", default="n", show_default=False).strip().lower()
+        if answer not in ("y", "yes"):
+            break
+        new_limit = current_limit * 2
+        console.print(f"  [grey62]Fetching up to {new_limit}…[/grey62]")
+        try:
+            with console.status(f"[{PRIMARY}]Loading more...[/{PRIMARY}]", spinner="dots"):
+                more = fetch_more_fn(client, new_limit)
+            if more:
+                items = more
+                current_limit = new_limit
+            else:
+                console.print("  [grey62]No additional records found.[/grey62]")
+                break
+        except APIError as exc:
+            console.print(f"  [grey62]Couldn't load more: {exc}[/grey62]")
+            break
 
     console.print(table_factory(items))
     console.print()
@@ -117,23 +161,34 @@ def _make_table(*columns: tuple[str, str, dict[str, Any] | None]) -> Table:
 
 
 
-def pick_person(client: KolayClient | None = None) -> str:
+def pick_person(client: KolayClient | None = None, status: str = "active") -> str:
     """Interactive employee picker."""
+    _PERSON_LIMIT = 30
+
     def fetch(c: KolayClient) -> list[dict[str, Any]]:
-        resp = c.post("v2/person/list", data={"page": 1, "limit": 30, "status": "active"})
+        resp = c.post("v2/person/list", data={"page": 1, "limit": _PERSON_LIMIT, "status": status})
+        data = resp.get("data", {})
+        return data.get("items", data) if isinstance(data, dict) else data
+
+    def fetch_more(c: KolayClient, new_limit: int) -> list[dict[str, Any]]:
+        resp = c.post("v2/person/list", data={"page": 1, "limit": new_limit, "status": status})
         data = resp.get("data", {})
         return data.get("items", data) if isinstance(data, dict) else data
 
     def make_table(items: list[dict[str, Any]]) -> Table:
         tbl = _make_table(
             ("Name", "bold white", {"min_width": 20}),
+            ("Title", "cyan", {}),
+            ("Department", "cyan", {}),
             ("Email", "grey85", {}),
             ("Short ID", "grey62", {"no_wrap": True}),
         )
         for i, p in enumerate(items, 1):
             name = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() or "—"
+            title = p.get("title", "") or "—"
+            dept = p.get("department", "") or "—"
             email = p.get("workEmail") or p.get("email") or "—"
-            tbl.add_row(str(i), name, email, short_id(str(p.get("id", ""))))
+            tbl.add_row(str(i), name, title, dept, email, short_id(str(p.get("id", ""))))
         return tbl
 
     def confirm(p: dict[str, Any]) -> str:
@@ -143,7 +198,10 @@ def pick_person(client: KolayClient | None = None) -> str:
         lambda p: f"{p.get('firstName', '')} {p.get('lastName', '')}",
         lambda p: p.get("workEmail") or p.get("email") or "",
     ]
-    return _base_pick(client, _PICKER_QUIPS, "Colleague", fetch, make_table, confirm, search_keys)
+    return _base_pick(
+        client, _PICKER_QUIPS, "Colleague", fetch, make_table, confirm, search_keys,
+        fetch_more_fn=fetch_more, limit_hint=_PERSON_LIMIT,
+    )
 
 
 def pick_leave(client: KolayClient | None = None) -> str:
@@ -182,7 +240,7 @@ def pick_leave(client: KolayClient | None = None) -> str:
             tname = ltype.get("name", "—") if isinstance(ltype, dict) else str(ltype)
             tbl.add_row(
                 str(i), pname, tname,
-                (lv.get("startDate") or "—")[:10],
+                fmt_datetime(lv.get("startDate")),
                 display_status(str(lv.get("status", ""))),
                 short_id(str(lv.get("id", ""))),
             )
@@ -276,7 +334,7 @@ def pick_event(client: KolayClient | None = None) -> str:
         for i, ev in enumerate(items, 1):
             tbl.add_row(
                 str(i), str(ev.get("title", "—")),
-                (ev.get("start") or "—")[:16],
+                fmt_datetime(ev.get("start")),
                 short_id(str(ev.get("id", ""))),
             )
         return tbl
@@ -318,7 +376,7 @@ def pick_timelog(client: KolayClient | None = None) -> str:
             pname = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else "—"
             tbl.add_row(
                 str(i), pname, str(tl.get("type", "—")),
-                (tl.get("startDate") or "—")[:16],
+                fmt_datetime(tl.get("startDate")),
                 display_status(str(tl.get("status", ""))),
                 short_id(str(tl.get("id", ""))),
             )
@@ -339,8 +397,15 @@ def pick_timelog(client: KolayClient | None = None) -> str:
 
 def pick_training(client: KolayClient | None = None) -> str:
     """Interactive training catalogue picker."""
+    _TRAINING_LIMIT = 30
+
     def fetch(c: KolayClient) -> list[dict[str, Any]]:
-        resp = c.get("v2/training/list", params={"page": 1, "limit": 30})
+        resp = c.get("v2/training/list", params={"page": 1, "limit": _TRAINING_LIMIT})
+        data = resp.get("data", {})
+        return data.get("items", data) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+
+    def fetch_more(c: KolayClient, new_limit: int) -> list[dict[str, Any]]:
+        resp = c.get("v2/training/list", params={"page": 1, "limit": new_limit})
         data = resp.get("data", {})
         return data.get("items", data) if isinstance(data, dict) else (data if isinstance(data, list) else [])
 
@@ -361,7 +426,10 @@ def pick_training(client: KolayClient | None = None) -> str:
     search_keys = [
         lambda tr: str(tr.get("name") or ""),
     ]
-    return _base_pick(client, _TRAINING_PICKER_QUIPS, "Training", fetch, make_table, confirm, search_keys)
+    return _base_pick(
+        client, _TRAINING_PICKER_QUIPS, "Training", fetch, make_table, confirm, search_keys,
+        fetch_more_fn=fetch_more, limit_hint=_TRAINING_LIMIT,
+    )
 
 
 def pick_person_training(client: KolayClient | None = None, person_id: str | None = None) -> str:
@@ -396,7 +464,7 @@ def pick_person_training(client: KolayClient | None = None, person_id: str | Non
             tbl.add_row(
                 str(i), tname,
                 display_status(str(pt.get("status", ""))),
-                (pt.get("startDate") or "—")[:10],
+                fmt_datetime(pt.get("startDate")),
                 short_id(str(pt.get("id", ""))),
             )
         return tbl

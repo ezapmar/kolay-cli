@@ -177,7 +177,7 @@ class TestUnitExtended:
 # 3. commands/person.py — uncovered commands
 # ══════════════════════════════════════════════════════════════════════════════
 
-PERSON_DATA = {"id": "p1", "firstName": "Alice", "lastName": "Smith", "status": "active", "workEmail": "a@co.com"}
+PERSON_DATA = {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith", "status": "active", "workEmail": "a@co.com"}
 PERSON_LIST = {"data": {"items": [PERSON_DATA], "totalCount": 1}}
 
 
@@ -189,7 +189,7 @@ class TestPersonExtended:
         mock_client.get.return_value = {"data": PERSON_DATA}
         mock_client.post.return_value = {"data": {}}
         result = runner.invoke(app, [
-            "--yes", "person", "terminate", "p1",
+            "--yes", "person", "terminate", "a0000000000000000000000000000000",
             "--termination-date", "2026-03-08",
             "--reason", "01",
         ])
@@ -200,7 +200,7 @@ class TestPersonExtended:
         mock_client.get.return_value = {"data": PERSON_DATA}
         mock_client.post.return_value = {"data": {"terminated": True}}
         result = runner.invoke(app, [
-            "--json", "--yes", "person", "terminate", "p1",
+            "--json", "--yes", "person", "terminate", "a0000000000000000000000000000000",
             "--termination-date", "2026-03-08",
             "--reason", "01",
         ])
@@ -215,23 +215,23 @@ class TestPersonExtended:
 
     def test_update_first_name(self, mock_client):
         mock_client.put.return_value = {"data": {}}
-        result = runner.invoke(app, ["person", "update", "p1", "--first-name", "Bob"])
+        result = runner.invoke(app, ["person", "update", "a0000000000000000000000000000000", "--first-name", "Bob"])
         assert result.exit_code == 0
         assert "updated" in result.output.lower() or "success" in result.output.lower()
 
     def test_update_nothing_to_update_exits_cleanly(self, mock_client):
-        result = runner.invoke(app, ["person", "update", "p1"])
+        result = runner.invoke(app, ["person", "update", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "nothing to update" in result.output.lower()
 
     def test_update_custom_field(self, mock_client):
         mock_client.put.return_value = {"data": {}}
-        result = runner.invoke(app, ["person", "update", "p1", "--custom", "adres=Street 1"])
+        result = runner.invoke(app, ["person", "update", "a0000000000000000000000000000000", "--custom", "adres=Street 1"])
         assert result.exit_code == 0
 
     def test_update_json_mode(self, mock_client):
-        mock_client.put.return_value = {"data": {"id": "p1"}}
-        result = runner.invoke(app, ["--json", "person", "update", "p1", "--email", "new@co.com"])
+        mock_client.put.return_value = {"data": {"id": "a0000000000000000000000000000000"}}
+        result = runner.invoke(app, ["--json", "person", "update", "a0000000000000000000000000000000", "--email", "new@co.com"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert "person_id" in data or "status" in data
@@ -240,7 +240,7 @@ class TestPersonExtended:
 
     def test_summary_basic(self, mock_client):
         mock_client.get.return_value = {"data": {"firstName": "Alice", "lastName": "Smith", "dataList": []}}
-        result = runner.invoke(app, ["person", "summary", "p1"])
+        result = runner.invoke(app, ["person", "summary", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "Alice" in result.output
 
@@ -249,7 +249,7 @@ class TestPersonExtended:
             "firstName": "Alice", "lastName": "Smith",
             "dataList": [{"fieldToken": "adres", "value": "Straße 1"}],
         }}
-        result = runner.invoke(app, ["person", "summary", "p1"])
+        result = runner.invoke(app, ["person", "summary", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "Custom Fields" in result.output or "adres" in result.output
 
@@ -280,7 +280,7 @@ class TestPersonExtended:
 
     def test_bulk_view_empty_returns_empty_message(self, mock_client):
         mock_client.post.return_value = {"data": []}
-        result = runner.invoke(app, ["person", "bulk-view", "p1"])
+        result = runner.invoke(app, ["person", "bulk-view", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "no" in result.output.lower() or "empty" in result.output.lower()
 
@@ -303,7 +303,7 @@ class TestPersonExtended:
 
     def test_rehire_with_flags(self, mock_client):
         mock_client.post.return_value = {"data": {}}
-        result = runner.invoke(app, ["person", "rehire", "p1", "--start-date", "2026-06-01"])
+        result = runner.invoke(app, ["person", "rehire", "a0000000000000000000000000000000", "--start-date", "2026-06-01"])
         assert result.exit_code == 0
         assert "rehired" in result.output.lower() or "success" in result.output.lower()
 
@@ -313,13 +313,13 @@ class TestPersonExtended:
         mock_client.get.return_value = {"data": [
             {"id": "f1", "name": "contract.pdf", "folderName": "HR Documents"}
         ]}
-        result = runner.invoke(app, ["person", "list-files", "p1"])
+        result = runner.invoke(app, ["person", "list-files", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "contract.pdf" in result.output
 
     def test_list_files_empty(self, mock_client):
         mock_client.get.return_value = {"data": []}
-        result = runner.invoke(app, ["person", "list-files", "p1"])
+        result = runner.invoke(app, ["person", "list-files", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
 
     # ── delete-file ───────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ class TestPersonExtended:
     def test_upload_file_not_found_exits_1(self, mock_client):
         result = runner.invoke(app, [
             "person", "upload-file",
-            "--person-id", "p1",
+            "--person-id", "a0000000000000000000000000000000",
             "--file", "/nonexistent/path/file.pdf",
         ])
         assert result.exit_code == 1
@@ -353,18 +353,18 @@ class TestPersonExtended:
         mock_client.get.return_value = {"data": [
             {"leaveType": {"name": "Annual"}, "dayLimit": 20, "used": 5, "totalUpcoming": 2, "unused": 13}
         ]}
-        result = runner.invoke(app, ["person", "leave-status", "p1"])
+        result = runner.invoke(app, ["person", "leave-status", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "Annual" in result.output
 
     def test_leave_status_empty(self, mock_client):
         mock_client.get.return_value = {"data": []}
-        result = runner.invoke(app, ["person", "leave-status", "p1"])
+        result = runner.invoke(app, ["person", "leave-status", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
 
     def test_leave_status_json_mode(self, mock_client):
         mock_client.get.return_value = {"data": [{"leaveType": {"name": "Annual"}, "dayLimit": 20}]}
-        result = runner.invoke(app, ["--json", "person", "leave-status", "p1"])
+        result = runner.invoke(app, ["--json", "person", "leave-status", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
@@ -376,20 +376,20 @@ class TestPersonExtended:
             {"id": "pt1", "training": {"name": "Python 101"}, "status": "approved",
              "startDate": "2026-01-01", "endDate": "2026-02-01"}
         ]}
-        result = runner.invoke(app, ["person", "list-trainings", "p1"])
+        result = runner.invoke(app, ["person", "list-trainings", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
         assert "Python 101" in result.output
 
     def test_list_trainings_empty(self, mock_client):
         mock_client.get.return_value = {"data": []}
-        result = runner.invoke(app, ["person", "list-trainings", "p1"])
+        result = runner.invoke(app, ["person", "list-trainings", "a0000000000000000000000000000000"])
         assert result.exit_code == 0
 
     def test_assign_training_with_flags(self, mock_client):
         mock_client.post.return_value = {"data": {"id": "pt_new"}}
         result = runner.invoke(app, [
             "person", "assign-training",
-            "--person-id", "p1", "--training-id", "t1",
+            "--person-id", "a0000000000000000000000000000000", "--training-id", "t1",
             "--start", "2026-04-01", "--end", "2026-05-01",
         ])
         assert result.exit_code == 0
@@ -465,7 +465,7 @@ class TestOutputModule:
     def test_require_arg_in_json_mode_with_value_does_nothing(self):
         from kolay_cli.ui.output import set_json_mode, require_arg
         set_json_mode(True)
-        require_arg("p1", "person-id")  # must not raise
+        require_arg("a0000000000000000000000000000000", "person-id")  # must not raise
 
     def test_require_arg_outside_json_mode_none_does_nothing(self):
         from kolay_cli.ui.output import set_json_mode, require_arg

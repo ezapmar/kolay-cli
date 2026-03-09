@@ -76,8 +76,14 @@ class APIError(Exception):
         self.raw_response = raw_response
 
         # Auto-generate hint from HTTP_ERRORS if not explicitly provided
-        if hint is None and status_code and status_code in HTTP_ERRORS:
-            self.hint = HTTP_ERRORS[status_code][1]
+        if hint is None:
+            # Special case for Kolay's weird 400 for bad API keys
+            if status_code == 400 and "API anahtarını kontrol edin" in str(message):
+                self.hint = "Your API token is invalid. Run [bold]kolay auth login[/bold] to re-authenticate."
+            elif status_code and status_code in HTTP_ERRORS:
+                self.hint = HTTP_ERRORS[status_code][1]
+            else:
+                self.hint = hint
         else:
             self.hint = hint
 
@@ -86,6 +92,11 @@ class APIError(Exception):
         """Semantic exit code from HTTP status."""
         if self.status_code is None:
             return 1
+        
+        # Override for misleading 400 auth errors from Kolay API
+        if self.status_code == 400 and "API anahtarını kontrol edin" in str(self.message):
+            return 4  # Auth error
+            
         return self.EXIT_CODES.get(self.status_code, 1)
 
     def to_dict(self) -> dict:

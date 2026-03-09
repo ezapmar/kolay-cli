@@ -14,8 +14,10 @@ from .commands import (
 from .commands import config as config_cmd  # avoid shadowing built-in
 from .commands import mcp as mcp_cmd
 
-from .ui.constants import KOLAY_LOGO
+from .ui.constants import KOLAY_LOGO, KOLAY_LOGO_COMPACT, PRIMARY
 _LOGO = KOLAY_LOGO
+_LOGO_COMPACT = KOLAY_LOGO_COMPACT
+_PRIMARY = PRIMARY
 
 app = typer.Typer(
     no_args_is_help=False,   # we handle the no-args case ourselves to show the logo
@@ -80,7 +82,7 @@ def main(
         if is_json_mode():
             json_output({"version": __version__})
         else:
-            console.print(f"Kolay CLI version [bold #376BFB]{__version__}[/bold #376BFB]")
+            console.print(f"Kolay CLI version [bold {_PRIMARY}]{__version__}[/bold {_PRIMARY}]")
         raise typer.Exit()
 
     if debug:
@@ -90,7 +92,17 @@ def main(
         if not is_json_mode():
             # No sub-command → show logo then the help panel
             console.print(_LOGO, no_wrap=True, crop=False)
-            console.print(ctx.get_help())
+
+            # First-run detection: nudge the user towards `kolay setup`
+            from .config import CONFIG_FILE_JSON, CONFIG_FILE_YAML
+            from .security import is_first_run
+            if is_first_run() and not CONFIG_FILE_YAML.exists() and not CONFIG_FILE_JSON.exists():
+                console.print(
+                    f"  [bold {_PRIMARY}]👋  Looks like your first time here![/bold {_PRIMARY}]\n"
+                    f"  Run [bold]kolay setup[/bold] to authenticate and get started in under a minute.\n"
+                )
+            else:
+                console.print(ctx.get_help())
 
 
 def _enable_debug_logging() -> None:

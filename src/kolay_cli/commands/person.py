@@ -10,11 +10,15 @@ from rich.columns import Columns
 from ..api import KolayClient, APIError, safe_id
 from ..services import person as svc
 from ..ui import (
-    console, short_id, display_status, fmt_val, fmt_num, label,
+    console, short_id, display_status, fmt_val, fmt_num, label, fmt_datetime,
     print_error, print_success, print_fetching, print_empty, kv_table,
+    print_next_steps, print_pagination_footer,
+    confirm_destructive_action, print_irreversible_warning,
+    save_page_state, load_page_state,
     pick_person, pick_training, pick_person_training, pick_person_file,
     api_call, recoverable_api_call, no_command_help, PRIMARY, filter_items,
-    is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
+    validate_date, prompt_date,
+    is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row, global_to_page_relative,
 )
 
 app = typer.Typer(help="Manage person/employee records in Kolay.")
@@ -64,9 +68,9 @@ def list_people(
         title += f" matching '{search}'"
     if filter:
         title += f" filtered by '{filter}'"
-    
-    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
-    
+
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
+
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", justify="right", width=4)
     table.add_column("Name", style="bold white", min_width=22)
@@ -75,23 +79,48 @@ def list_people(
     table.add_column("Short ID", style="grey62")
 
     for i, person in enumerate(items, 1):
+        row_num = (page - 1) * limit + i
         name = f"{person.get('firstName', '')} {person.get('lastName', '')}".strip() or person.get("name", "—")
         email = person.get("workEmail") or person.get("email") or "—"
         phone = person.get("mobilePhone") or "—"
         table.add_row(
-            str(i),
+            str(row_num),
             name, email, phone,
             short_id(str(person.get("id", "")))
         )
-    
+
     console.print(table)
-    console.print()
+    _extra = f"--status {status}"
+    if search:
+        _extra += f" --search \"{search}\""
+    print_pagination_footer(
+        command="kolay person list",
+        page=page, limit=limit, shown=len(items), total=total,
+        extra_flags=_extra,
+    )
+    save_page_state(resource="person", page=page, limit=limit, total=total)
+    print_next_steps([
+        ("kolay person view <#>", "View full profile"),
+        ("kolay person list --search <name>", "Search by name/email"),
+        ("kolay person create", "Add a new employee"),
+    ])
 
 
 def _resolve_person_id(value: str, *, status: str = "active", limit: int = 50) -> str:
-    """Resolve a row-number shorthand (e.g. '1') to a real person UUID."""
+    """Resolve a row-number shorthand (e.g. '21') to a real person UUID.
+
+    Honours the last-listed page: if the user ran ``kolay person list --page 2``
+    (seeing rows 21–40), then types ``kolay person view 21``, this correctly
+    fetches page 2 and resolves the page-relative index (1) → item 1 of page 2.
+    Falls back to page 1 when no recent state is found.
+    """
     if not value.isdigit():
         return value
+    state = load_page_state("person")
+    if state and state["page"] > 1:
+        page_rel = global_to_page_relative(int(value), page=state["page"], limit=state["limit"])
+        result = svc.list_people(page=state["page"], status=status, limit=state["limit"])
+        return resolve_row(str(page_rel), result["items"], label="employee")
     result = svc.list_people(page=1, status=status, limit=limit)
     return resolve_row(value, result["items"], label="employee")
 
@@ -123,8 +152,26 @@ def view_person(person_id: str | None = typer.Argument(None, help="ID or row num
     console.print(f"\n[bold {PRIMARY}]👤 Employee Profile[/bold {PRIMARY}] [bold white]{fname} {lname}[/bold white]")
     console.print(f"  {display_status(st)}  [grey62]{email}[/grey62]\n")
 
-    tbl = kv_table(data, exclude=["id", "firstName", "lastName", "status", "workEmail", "email", "units"])
-    console.print(Panel(tbl, border_style=PRIMARY, expand=False))
+    SECTIONS = {
+        "Identity": ["tckn", "birthDate", "gender", "maritalStatus", "bloodType"],
+        "Employment": ["employmentStart", "employmentEnd", "department", "title", "manager", "managerId", "workerType", "contractType", "jobType"],
+        "Contact": ["mobilePhone", "workPhone", "homePhone", "address"],
+        "Internal": ["id", "shortId", "companyId", "createdAt", "updatedAt"],
+    }
+
+    mapped_keys = [k for group in SECTIONS.values() for k in group]
+    exclude_core = ["id", "firstName", "lastName", "status", "workEmail", "email", "units"]
+    
+    for sec_name, attrs in SECTIONS.items():
+        subset = {k: data[k] for k in attrs if k in data and data[k]}
+        if subset:
+            console.print(f"\n[bold {PRIMARY}]{sec_name}[/bold {PRIMARY}]")
+            console.print(Panel(kv_table(subset), border_style=PRIMARY, expand=False))
+
+    other_subset = {k: v for k, v in data.items() if k not in mapped_keys and k not in exclude_core and v}
+    if other_subset:
+        console.print(f"\n[bold {PRIMARY}]Other Details[/bold {PRIMARY}]")
+        console.print(Panel(kv_table(other_subset), border_style=PRIMARY, expand=False))
     
     # Display Unit Details if available
     units = data.get("units", [])
@@ -223,12 +270,14 @@ def terminate_person(
         emp_name = ""
     display_name = emp_name or short_id(person_id)
 
-    if not termination_date:
+    if termination_date:
+        termination_date = validate_date(termination_date)
+    else:
         if is_json_mode():
             require_arg(None, "termination-date")
         from datetime import datetime
         default_date = datetime.now().strftime("%Y-%m-%d")
-        termination_date = typer.prompt("  Termination date", default=default_date)
+        termination_date = prompt_date("Termination date", default=default_date)
 
     if not reason:
         if is_json_mode():
@@ -238,23 +287,42 @@ def terminate_person(
             console.print(f"  [cyan]{code}[/cyan] : {desc}")
         reason = typer.prompt("\n  Enter reason code", type=str)
 
-    if not is_yes_mode():
-        typer.confirm(f"  Terminate {display_name}?", abort=True)
+    # 3.3: Show full termination details before confirming — reason code has
+    # legal implications under Turkish labour law (SGK reporting).
+    reason_desc = svc.REASON_CODES.get(reason, f"Unknown code ({reason})")
+    confirm_destructive_action(
+        action=f"Terminate {display_name}",
+        details=[
+            ("Employee", display_name),
+            ("Reason", f"{reason} — {reason_desc}"),
+            ("Effective date", termination_date),
+        ],
+        warning="This will be reported to SGK. Ensure the reason code is correct.",
+    )
 
     try:
         with recoverable_api_call("Processing termination..."):
             result = svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason)
     except APIError as exc:
-        _handle_terminate_error(exc, person_id=person_id, display_name=display_name)
+        _handle_terminate_error(exc, person_id=person_id, display_name=display_name,
+                                termination_date=termination_date, reason=reason)
         return
 
     if is_json_mode():
         json_output(result)
     else:
         print_success("Employee terminated successfully.")
+        print_irreversible_warning()
 
 
-def _handle_terminate_error(exc: "Any", *, person_id: str, display_name: str) -> None:
+def _handle_terminate_error(
+    exc: "Any",
+    *,
+    person_id: str,
+    display_name: str,
+    termination_date: str | None = None,
+    reason: str | None = None,
+) -> None:
     """Offer recovery options after a termination API error."""
     from ..api.errors import APIError
     import typer
@@ -303,8 +371,8 @@ def _handle_terminate_error(exc: "Any", *, person_id: str, display_name: str) ->
                     ltype = (lv.get("leaveType") or {}).get("name", "—")
                     tbl.add_row(
                         str(i), ltype,
-                        (lv.get("startDate") or "—")[:10],
-                        (lv.get("endDate") or "—")[:10],
+                        fmt_datetime(lv.get("startDate")),
+                        fmt_datetime(lv.get("endDate")),
                         short_id(str(lv.get("id", ""))),
                     )
                 console.print(tbl)
@@ -336,8 +404,8 @@ def _handle_terminate_error(exc: "Any", *, person_id: str, display_name: str) ->
                     tbl.add_row(
                         str(i),
                         str(tl.get("type", "—")),
-                        (tl.get("startDate") or "—")[:16],
-                        (tl.get("endDate") or "—")[:16],
+                        fmt_datetime(tl.get("startDate")),
+                        fmt_datetime(tl.get("endDate")),
                         short_id(str(tl.get("id", ""))),
                     )
                 console.print(tbl)
@@ -349,12 +417,12 @@ def _handle_terminate_error(exc: "Any", *, person_id: str, display_name: str) ->
             console.print(f"\n  [grey62]Run: kolay timelog list --person-id {person_id} --status waiting[/grey62]\n")
 
     elif choice == "3":
-        # Restart with a different employee
+        # Restart with a different employee — carry over date & reason from outer scope
         new_person_id = pick_person()
         terminate_person(
             person_id=new_person_id,
-            termination_date=termination_date if "termination_date" in dir() else None,
-            reason=reason if "reason" in dir() else None,
+            termination_date=termination_date,
+            reason=reason,
         )
 
     else:
@@ -455,8 +523,10 @@ def create_person(
         last_name = typer.prompt("  Last name")
     if not email:
         email = typer.prompt("  Work email")
-    if not employment_start:
-        employment_start = typer.prompt("  Employment start date (YYYY-MM-DD)")
+    if employment_start:
+        employment_start = validate_date(employment_start, "%Y-%m-%d")
+    else:
+        employment_start = prompt_date("Employment start date")
 
     try:
         with recoverable_api_call(f"Creating employee {first_name} {last_name}..."):
@@ -475,9 +545,27 @@ def create_person(
                 console.print(
                     f"\n  [bold yellow]💡 Tip:[/bold yellow] An employee with the email "
                     f"[bold]{email}[/bold] may already exist.\n"
-                    f"  Run [bold]kolay person list --search {email}[/bold] to check.\n"
                 )
-                return
+                from rich.prompt import Prompt
+                choice = Prompt.ask(
+                    "  [bold]How would you like to proceed?[/bold]\n"
+                    "  [1] Search for existing employee\n"
+                    "  [2] Try a different email\n"
+                    "  [3] Abort",
+                    choices=["1", "2", "3"],
+                    default="1"
+                )
+                if choice == "1":
+                    list_people(search=email)
+                    return
+                elif choice == "2":
+                    create_person(
+                        first_name=first_name, last_name=last_name, email=None, 
+                        mobile_phone=mobile_phone, employment_start=employment_start
+                    )
+                    return
+                else:
+                    return
         raise typer.Exit(exc.exit_code if hasattr(exc, "exit_code") else 1)
 
 
@@ -554,11 +642,13 @@ def rehire_person(
     """Rehire a previously terminated employee."""
     from ..api.errors import APIError
     if not person_id:
-        person_id = pick_person()
+        person_id = pick_person(status="inactive")
 
-    if not start_date:
+    if start_date:
+        start_date = validate_date(start_date)
+    else:
         from datetime import datetime
-        start_date = typer.prompt("  New employment start date (YYYY-MM-DD)", default=datetime.now().strftime("%Y-%m-%d"))
+        start_date = prompt_date("New employment start date", default=datetime.now().strftime("%Y-%m-%d"))
 
     try:
         with recoverable_api_call("Processing rehire..."):
@@ -614,13 +704,30 @@ def delete_person_file(file_id: str | None = typer.Argument(None, help="ID of th
     """Delete a document from an employee profile."""
     if not file_id:
         file_id = pick_person_file()
-    
-    if not is_yes_mode():
-        typer.confirm(f"  Delete file {file_id}?", abort=True)
+
+    # 3.1: Resolve filename so confirm shows a human-readable label, not a UUID
+    file_label = f"file …{file_id[-8:]}" if len(file_id) > 8 else file_id
+    folder_label = ""
+    try:
+        # The file-view endpoint isn't documented; we infer details from list if available
+        # pick_person_file already knows the person — but we don't have person_id here.
+        # Best effort: use the id itself as label in the confirmation.
+        pass
+    except Exception:
+        pass
+
+    confirm_destructive_action(
+        action=f"Delete {file_label}",
+        details=[
+            ("File ID", f"…{file_id[-8:]}" if len(file_id) > 8 else file_id),
+        ],
+        warning="The file will be permanently removed from the employee profile.",
+    )
 
     with api_call("Deleting file..."):
         svc.delete_file(file_id)
-        print_success("File deleted.")
+    print_success("File deleted.")
+    print_irreversible_warning()
 
 
 @app.command(name="delete-folder")
@@ -628,13 +735,19 @@ def delete_person_folder(folder_id: str | None = typer.Argument(None, help="ID o
     """Delete a folder and all documents inside it from an employee profile."""
     if not folder_id:
         folder_id = pick_person_file()
-    
-    if not is_yes_mode():
-        typer.confirm(f"  Delete folder {folder_id}? All contents will be lost.", abort=True)
+
+    confirm_destructive_action(
+        action=f"Delete folder …{folder_id[-8:]}" if len(folder_id) > 8 else f"Delete folder {folder_id}",
+        details=[
+            ("Folder ID", f"…{folder_id[-8:]}" if len(folder_id) > 8 else folder_id),
+        ],
+        warning="ALL documents inside this folder will be permanently deleted.",
+    )
 
     with api_call("Deleting folder..."):
         svc.delete_folder(folder_id)
-        print_success("Folder deleted.")
+    print_success("Folder deleted.")
+    print_irreversible_warning()
 
 
 @app.command(name="upload-file")
@@ -718,8 +831,8 @@ def list_person_trainings(person_id: str | None = typer.Argument(None, help="ID 
         st = display_status(str(pt.get("status", "")))
         table.add_row(
             str(i), tname, st,
-            (pt.get("startDate") or "—")[:10],
-            (pt.get("endDate") or "—")[:10],
+            fmt_datetime(pt.get("startDate")),
+            fmt_datetime(pt.get("endDate")),
             short_id(str(pt.get("id", "")))
         )
 

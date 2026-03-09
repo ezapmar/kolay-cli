@@ -10,9 +10,12 @@ from ..services import timelog as svc
 from ..ui import (
     console, short_id, display_status, fmt_val,
     print_success, print_empty, kv_table, pick_timelog, pick_person,
+    print_next_steps, print_pagination_footer,
+    save_page_state, load_page_state,
+    confirm_destructive_action, print_irreversible_warning,
     api_call, recoverable_api_call, no_command_help, PRIMARY,
-    filter_items,
-    is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row,
+    filter_items, validate_date, prompt_date, fmt_datetime,
+    is_json_mode, is_yes_mode, json_output, json_error, require_arg, resolve_row, global_to_page_relative,
 )
 
 app = typer.Typer(help="Manage timelogs (work hours, overtime, etc.) in Kolay.")
@@ -63,14 +66,14 @@ def list_timelogs(
     title = f"\u23f1\ufe0f Timelog Records"
     if filter:
         title += f" matching '{filter}'"
-    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({len(items)}/{total})[/grey62]\n")
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", justify="right", width=4)
     table.add_column("Employee", style="bold white", min_width=18)
     table.add_column("Type", style="grey85")
     table.add_column("Start", style="grey62")
     table.add_column("End", style="grey62")
-    table.add_column("Status", justify="center")
+    table.add_column("Status", justify="center", min_width=14)
     table.add_column("Short ID", style="grey62")
 
     for i, tl in enumerate(items, 1):
@@ -79,20 +82,44 @@ def list_timelogs(
         table.add_row(
             str(i + (page - 1) * limit), pname,
             str(tl.get("type", "—")),
-            (tl.get("startDate") or "—")[:16],
-            (tl.get("endDate") or "—")[:16],
+            fmt_datetime(tl.get("startDate")),
+            fmt_datetime(tl.get("endDate")),
             display_status(str(tl.get("status", ""))),
             short_id(str(tl.get("id", "")))
         )
 
     console.print(table)
-    console.print()
+    _extra_parts = []
+    if type:
+        _extra_parts.append(f"--type {type}")
+    if status:
+        _extra_parts.append(f"--status {status}")
+    print_pagination_footer(
+        command="kolay timelog list",
+        page=page, limit=limit, shown=len(items), total=total,
+        extra_flags=" ".join(_extra_parts),
+    )
+    save_page_state(resource="timelog", page=page, limit=limit, total=total)
+    print_next_steps([
+        ("kolay timelog view <#>", "View timelog details"),
+        ("kolay timelog create", "Submit a new timelog entry"),
+        ("kolay timelog list --status waiting", "See pending approvals"),
+    ])
 
 
 def _resolve_timelog_id(value: str, *, limit: int = 50) -> str:
-    """Resolve row number from `kolay timelog list` to a real timelog UUID."""
+    """Resolve row number from `kolay timelog list` to a real timelog UUID.
+
+    Honours the last-listed page and converts global row numbers to
+    page-relative indices before resolving.
+    """
     if not value.isdigit():
         return value
+    state = load_page_state("timelog")
+    if state and state["page"] > 1:
+        page_rel = global_to_page_relative(int(value), page=state["page"], limit=state["limit"])
+        result = svc.list_timelogs(page=state["page"], limit=state["limit"])
+        return resolve_row(str(page_rel), result["items"], label="timelog")
     result = svc.list_timelogs(limit=limit)
     return resolve_row(value, result["items"], label="timelog")
 
@@ -139,24 +166,19 @@ def create_timelog(
         person_id = pick_person()
 
     while True:
-        if not start:
+        if start:
+            start = validate_date(start, "%Y-%m-%d %H:%M:%S")
+        else:
             if is_json_mode():
                 require_arg(None, "start")
-            start = typer.prompt("  Start (YYYY-MM-DD HH:MM:SS)", default=datetime.now().replace(minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"))
-        if not end:
+            start = prompt_date("Start", default=datetime.now().replace(minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"), is_datetime=True)
+
+        if end:
+            end = validate_date(end, "%Y-%m-%d %H:%M:%S")
+        else:
             if is_json_mode():
                 require_arg(None, "end")
-            end = typer.prompt("  End (YYYY-MM-DD HH:MM:SS)")
-
-        try:
-            datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
-            datetime.strptime(end, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            if is_json_mode():
-                json_error("Invalid datetime format. Use YYYY-MM-DD HH:MM:SS", exit_code=2)
-            else:
-                console.print("\n[bold red]\u274c Invalid datetime format.[/bold red] Please use YYYY-MM-DD HH:MM:SS")
-            raise typer.Exit(2)
+            end = prompt_date("End", is_datetime=True)
 
         try:
             with recoverable_api_call("Submitting timelog..."):
@@ -208,8 +230,30 @@ def delete_timelog(timelog_id: str | None = typer.Argument(None, help="ID of the
         timelog_id = pick_timelog()
     timelog_id = _resolve_timelog_id(timelog_id)
 
-    if not is_yes_mode():
-        typer.confirm(f"  Delete this timelog record?", abort=True)
+    # 3.1: Fetch the record so we can show meaningful details in the prompt
+    try:
+        with api_call("Fetching timelog details..."):
+            tl_data = svc.view_timelog(timelog_id)
+        p = tl_data.get("person", {})
+        emp = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() or short_id(timelog_id)
+        tl_type = str(tl_data.get("type") or "—")
+        start = fmt_datetime(tl_data.get("startDate"))
+        end = fmt_datetime(tl_data.get("endDate"))
+        period = f"{start} → {end}"
+
+        confirm_destructive_action(
+            action="Delete timelog record",
+            details=[
+                ("Employee", emp),
+                ("Type", tl_type),
+                ("Period", period),
+                ("Status", str(tl_data.get("status") or "—")),
+            ],
+        )
+    except Exception:
+        # Fallback if fetch fails — still confirm with whatever we have
+        if not is_yes_mode():
+            typer.confirm("  Delete this timelog record?", abort=True)
 
     with api_call("Deleting timelog..."):
         result = svc.delete_timelog(timelog_id)
@@ -218,3 +262,4 @@ def delete_timelog(timelog_id: str | None = typer.Argument(None, help="ID of the
         json_output(result)
     else:
         print_success("Timelog deleted successfully.")
+        print_irreversible_warning()

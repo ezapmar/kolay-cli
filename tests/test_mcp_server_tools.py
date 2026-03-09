@@ -10,7 +10,7 @@ Coverage targets: every @mcp.tool body line (75, 89, 100, 111, 135, 166, 194,
 206, 235, 264, 275, 299, 334, 348, 372, 386, 410, 421, 437, 448, 469, 501,
 515, 542, 556, 584, 595, 617, 638, 649, 664, 675, 689, 701, 715, 731, 750).
 
-Also covers the @mcp.prompt bodies and update_employee_data guard branch.
+Also covers the @mcp.prompt bodies and person_update_fields guard branch.
 """
 from __future__ import annotations
 
@@ -96,19 +96,19 @@ class TestPersonTools:
         m.assert_called_once_with("p1", start_date="2026-06-01")
         assert result == expected
 
-    def test_update_employee_data_returns_result(self):
-        from kolay_cli.mcp_server import update_employee_data
+    def test_person_update_fields_returns_result(self):
+        from kolay_cli.mcp_server import person_update_fields
         expected = {"status": "updated", "updated_fields": ["department"]}
         with patch(_svc("person_svc.update_person_fields"), return_value=expected) as m:
-            result = update_employee_data("p1", {"department": "Engineering"})
+            result = person_update_fields("p1", {"department": "Engineering"})
         m.assert_called_once_with("p1", {"department": "Engineering"})
         assert result == expected
 
-    def test_update_employee_data_empty_guard(self):
+    def test_person_update_fields_empty_guard(self):
         """Empty update_fields dict must return error without calling the service."""
-        from kolay_cli.mcp_server import update_employee_data
+        from kolay_cli.mcp_server import person_update_fields
         with patch(_svc("person_svc.update_person_fields")) as m:
-            result = update_employee_data("p1", {})
+            result = person_update_fields("p1", {})
         m.assert_not_called()
         assert result["error"] is True
 
@@ -362,6 +362,6 @@ class TestMcpPrompts:
         assert "department" in result
         assert "Old Dept" in result
         assert "New Dept" in result
-        assert "update_employee_data" in result
+        assert "person_update_fields" in result
         # Safety guardrail must be present
         assert "CONFIRMATION" in result or "confirm" in result.lower()

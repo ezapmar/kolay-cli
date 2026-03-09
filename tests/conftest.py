@@ -14,15 +14,7 @@ from kolay_cli.cli import app
 from kolay_cli.api import KolayClient
 
 
-@pytest.fixture(autouse=True)
-def fast_sleep(monkeypatch):
-    """Make time.sleep instant inside ui.formatters for all tests.
 
-    formatters.py imports `time` at module level, so patching
-    `kolay_cli.ui.formatters.time.sleep` is reliable.
-    """
-    import kolay_cli.ui.formatters as fmt_mod
-    monkeypatch.setattr(fmt_mod.time, "sleep", lambda _s: None)
 
 
 @pytest.fixture(autouse=True)

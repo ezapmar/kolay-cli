@@ -8,9 +8,11 @@ from datetime import datetime
 from ..api import KolayClient, safe_id
 from ..services import leave as svc
 from ..ui import (
-    console, short_id, display_status, print_error, print_success, print_empty, kv_table,
+    console, short_id, display_status, print_error, print_success, print_empty,
+    kv_table, print_next_steps, print_pagination_footer,
+    save_page_state, load_page_state,
     pick_person, pick_leave, api_call, recoverable_api_call, no_command_help, PRIMARY, SUCCESS,
-    filter_items,
+    filter_items, validate_date, prompt_date, fmt_datetime,
     is_json_mode, is_yes_mode, json_output, json_error, resolve_row, require_arg,
 )
 
@@ -61,6 +63,7 @@ def list_leaves(
     table.add_column("Type", style="grey85")
     table.add_column("Start", style="grey62")
     table.add_column("End", style="grey62")
+    table.add_column("Status", justify="center", min_width=14)
     table.add_column("Short ID", style="grey62")
 
     for i, lv in enumerate(data, 1):
@@ -70,20 +73,40 @@ def list_leaves(
             str(i),
             p.get("name") or "—",
             ltype.get("name") or "—",
-            (lv.get("startDate") or "—")[:10],
-            (lv.get("endDate") or "—")[:10],
+            fmt_datetime(lv.get("startDate")),
+            fmt_datetime(lv.get("endDate")),
+            display_status(str(lv.get("status", ""))),
             short_id(str(lv.get("id", "")))
         )
 
     console.print(table)
-    console.print()
+    # Leave API doesn't expose a server-side total — use limit-hit as proxy
+    _leave_total = limit + 1 if len(data) == limit else len(data)
+    _extra = f"--status {status}"
+    print_pagination_footer(
+        command="kolay leave list",
+        page=0, limit=limit, shown=len(data), total=_leave_total,
+        extra_flags=_extra,
+    )
+    save_page_state(resource="leave", page=1, limit=limit, total=len(data))
+    print_next_steps([
+        ("kolay leave view <#>", "View leave details"),
+        ("kolay leave create", "Submit a new leave request"),
+        ("kolay leave list --status waiting", "See pending approvals"),
+    ])
 
 
 def _resolve_leave_id(value: str, *, status: str = "approved", limit: int = 50) -> str:
-    """Resolve row number from `kolay leave list` to a real leave UUID."""
+    """Resolve row number from `kolay leave list` to a real leave UUID.
+
+    Leave is limit-only (no pagination), so page state just validates the
+    limit used — falls back to the default limit when no state is found.
+    """
     if not value.isdigit():
         return value
-    items = svc.list_leaves(status=status, limit=limit)
+    state = load_page_state("leave")
+    effective_limit = state["limit"] if state else limit
+    items = svc.list_leaves(status=status, limit=effective_limit)
     return resolve_row(value, items, label="leave record")
 
 
@@ -158,11 +181,23 @@ def create_leave(
         sel_name = leave_type_id
         sel_remaining = "?"
 
-    if not start_date:
-        start_date = typer.prompt("  Start date", default=_dt.now().strftime("%Y-%m-%d"))
+    if start_date:
+        start_date = validate_date(start_date)
+    else:
+        start_date = prompt_date("Start date", default=_dt.now().strftime("%Y-%m-%d"))
 
-    if not end_date:
-        end_date = typer.prompt("  End date", default=start_date[:10])
+    if end_date:
+        end_date = validate_date(end_date)
+    else:
+        from datetime import timedelta
+        start_dt = _dt.strptime(start_date[:10], "%Y-%m-%d")
+        # 5.4: Default to start_date + 1 weekday for Annual Leaves
+        default_end = start_date[:10]
+        if "yıllık" in sel_name.lower() or "annual" in sel_name.lower():
+            days_to_add = 3 if start_dt.weekday() == 4 else 1 # skip weekend if Friday
+            default_end = (start_dt + timedelta(days=days_to_add)).strftime("%Y-%m-%d")
+            
+        end_date = prompt_date("End date", default=default_end)
 
     while True:
         try:
@@ -199,8 +234,8 @@ def create_leave(
 
             choice = typer.prompt("  Choose an option", default="3").strip()
             if choice == "1":
-                start_date = typer.prompt("  New start date", default=start_date)
-                end_date = typer.prompt("  New end date", default=end_date)
+                start_date = prompt_date("New start date", default=start_date)
+                end_date = prompt_date("New end date", default=end_date)
                 # loop again
             elif choice == "2":
                 with api_call("Fetching leave balances..."):
