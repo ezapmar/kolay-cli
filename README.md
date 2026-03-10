@@ -84,20 +84,31 @@ kolay person list --limit 10
 kolay leave create --type annual --start 2026-03-01 --end 2026-03-03
 ```
 
-### 4. Enhance Productivity with Behavioral Nudges
+### 🎨 Behavioral Nudge Engine
 
-**kolay-cli** includes an intelligent Behavioral Nudge Engine functioning as your personal productivity coach. Instead of overwhelming you with a massive backlog, it distills your tasks into actionable, time-boxed bursts.
+**kolay-cli** isn't just a tool; it's a personal productivity coach. It uses a built-in **Behavioral Nudge Engine** to distill your overwhelming HR tasks into actionable, time-boxed bursts.
 
-Configure your personalized interaction style:
+#### How it Works:
+```mermaid
+graph LR
+    A[API Data] --> B{Nudge Engine}
+    B -->|Calculate| C[Next Action]
+    B -->|Context| D[Safety Thresholds]
+    C --> E[Console Nudge]
+    D --> E
+    E --> F[User Focus]
+```
 
+*   **Contextual Intelligence**: Nudges appear only when relevant (e.g., after listing leaves, it reminds you of pending approvals).
+*   **Safety Thresholds**: Prevents "alert fatigue" by intelligently throttling notifications based on your interaction history.
+*   **Gamification**: Track your "Consistency Streak" by clearing nudges daily.
+
+Configure your coach:
 ```bash
 kolay nudge configure
 ```
 
-You can choose your cadence (daily, weekly), preferred style (gentle, direct, gamification), and your sprint lengths.
-
 Ready to crush some tasks? Start a focused micro-sprint:
-
 ```bash
 kolay nudge sprint
 ```
@@ -108,8 +119,22 @@ kolay nudge sprint
 
 Turn your AI assistant into an HR expert. `kolay-cli` exposes its full functionality as an MCP server.
 
-### Local Clients (stdio)
+### 🔌 Connection Architecture
 
+```mermaid
+graph TD
+    subgraph "Local Mode (stdio)"
+    A[Claude Desktop / Cursor] <-->|stdio| B[kolay-cli mcp]
+    end
+    subgraph "Server Mode (HTTP/SSE)"
+    C[Mistral Le Chat / ChatGPT] <-->|HTTP/SSE| D[Railway / ngrok]
+    D <-->|X-API-Key| E[kolay-cli mcp]
+    end
+```
+
+`kolay-cli` facilitates these interactions seamlessly:
+
+### Local Clients (stdio)
 For clients running on your machine, use the automated installer:
 
 ```bash

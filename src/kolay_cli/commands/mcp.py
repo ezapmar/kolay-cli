@@ -68,11 +68,17 @@ def serve(
         raise typer.Exit(1)
 
     if transport == "http":
+        from ..mcp_server import create_secured_http_app
+        import uvicorn
+
+        api_key_status = "[green]✔ enabled[/green]" if __import__("os").environ.get("MCP_API_KEY") else "[yellow]⚠ disabled[/yellow] (set MCP_API_KEY to secure)"
         console.print(
             f"\n[bold {_PRIMARY}]🔌 Kolay IK MCP server[/bold {_PRIMARY}]  "
-            f"[grey62]http://{host}:{port}/mcp[/grey62]\n"
+            f"[grey62]http://{host}:{port}/mcp[/grey62]"
+            f"\n   Auth: {api_key_status}\n"
         )
-        mcp.run(transport="http", host=host, port=port)
+        app = create_secured_http_app()
+        uvicorn.run(app, host=host, port=port)
     else:
         # STDIO — no banner (would corrupt the JSON stream)
         mcp.run()

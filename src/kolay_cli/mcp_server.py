@@ -691,6 +691,60 @@ For those employees, cross-reference their data:
 Output a very succinct, highly readable dashboard-style summary."""
 
 
+# ── HTTP API Key Authentication Middleware ──────────────────────────
+#
+# Protects the MCP HTTP/SSE endpoints when deployed on a public URL
+# (e.g. Railway, Render, Fly.io).  Reads the expected key from the
+# MCP_API_KEY environment variable.  If the env var is not set, auth
+# is disabled (development mode).
+#
+# Uses raw ASGI instead of Starlette's BaseHTTPMiddleware to avoid
+# breaking Server-Sent Events streaming.
+# ────────────────────────────────────────────────────────────────────
+
+class APIKeyMiddleware:
+    """Raw ASGI middleware that validates X-API-Key on every request."""
+
+    def __init__(self, app):
+        self.app = app
+        self.api_key = os.environ.get("MCP_API_KEY")
+
+    async def __call__(self, scope, receive, send):
+        # Only gate HTTP requests (not lifespan events)
+        if scope["type"] in ("http", "websocket") and self.api_key:
+            headers = dict(scope.get("headers", []))
+            provided = headers.get(b"x-api-key", b"").decode()
+
+            if provided != self.api_key:
+                if scope["type"] == "http":
+                    await self._send_401(send)
+                    return
+                # For websockets, simply refuse the connection
+                await send({"type": "websocket.close", "code": 4001})
+                return
+
+        await self.app(scope, receive, send)
+
+    @staticmethod
+    async def _send_401(send):
+        body = b'{"error": "Unauthorized", "message": "Missing or invalid X-API-Key header."}'
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                [b"content-type", b"application/json"],
+                [b"content-length", str(len(body)).encode()],
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
+
+def create_secured_http_app():
+    """Build a Starlette ASGI app from the FastMCP server with API key auth."""
+    starlette_app = mcp.http_app()
+    return APIKeyMiddleware(starlette_app)
+
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -703,7 +757,11 @@ if __name__ == "__main__":
 
     if args.transport == "http":
         print(f"\n🔌 Kolay IK MCP server  http://{args.host}:{args.port}/mcp\n")
-        mcp.run(transport="http", host=args.host, port=args.port)
+
+        # ── Secured HTTP launch ──
+        import uvicorn
+        app = create_secured_http_app()
+        uvicorn.run(app, host=args.host, port=args.port)
     elif sys.stdin.isatty():
         # User ran `kolay-mcp` directly in a terminal — give them guidance
         print(
@@ -722,4 +780,3 @@ if __name__ == "__main__":
         )
     else:
         mcp.run()
-
