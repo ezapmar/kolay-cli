@@ -1,19 +1,25 @@
 """
 Railway entry point — Universal Stateless MCP Proxy for Kolay IK.
 
-Two-layer authentication:
-  1. Gatekeeper:  X-API-Key header  →  validated against MCP_API_KEY env var
-  2. Data Key:    X-Kolay-Token  or  Authorization: Bearer <token>
-                  →  forwarded per-request to the Kolay IK API
+Authentication is handled at the TOOL level via @require_auth, not at
+the HTTP transport level.  This allows MCP clients (Mistral Le Chat,
+OpenAI Desktop, Claude, etc.) to complete the protocol handshake before
+any authentication is checked.
 
-The server is entirely stateless. Tokens are held in-memory for the
-duration of a single request cycle and immediately discarded.
+Token resolution (in priority order):
+  1. X-Kolay-Token header   → per-request token from client
+  2. Authorization: Bearer   → Mistral/OpenAI sends token this way
+  3. KOLAY_API_TOKEN env var → single-tenant fallback (Railway config)
 
+The server is entirely stateless. Per-request tokens live only in a
+ContextVar for the duration of the ASGI call and are immediately discarded.
 No tokens, PII, or HR response data are ever logged or persisted.
 
 Environment variables:
-  MCP_API_KEY      – gatekeeper secret   (required)
-  PORT             – set by Railway      (default: 8080)
+  KOLAY_API_TOKEN  – Kolay IK API token (required for single-tenant)
+  MCP_API_KEY      – optional gatekeeper (extra abuse-prevention layer)
+  PORT             – set by Railway automatically (default: 8080)
+  PYTHONUNBUFFERED – set to 1 on Railway for immediate log output
 
 Connection URL:
   https://<your-domain>/mcp
@@ -27,103 +33,84 @@ from contextvars import ContextVar
 
 # ── Silence upstream deprecation from websockets 16.x ──
 warnings.filterwarnings("ignore", message="websockets.legacy is deprecated")
+warnings.filterwarnings("ignore", message="websockets.server.WebSocketServerProtocol is deprecated")
 
 # ── FastMCP log suppression (must be set before import) ──
 os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
 os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
 import uvicorn  # noqa: E402
-from fastmcp import FastMCP  # noqa: E402
 
 # ────────────────────────────────────────────────────────────────────
 # Context variable: carries the per-request Kolay token from the
-# middleware down to the service layer.  Automatically cleaned up
-# when the ASGI task ends (no manual teardown needed).
+# middleware down to the service layer.
 # ────────────────────────────────────────────────────────────────────
 request_token: ContextVar[str | None] = ContextVar("request_token", default=None)
 
 
+def _log(msg: str) -> None:
+    """Print a log line with immediate flush (required for containers)."""
+    print(msg, flush=True)
+
+
 # ────────────────────────────────────────────────────────────────────
-# ASGI Middleware — Two-Layer Authentication
+# ASGI Middleware — Token Injection
 # ────────────────────────────────────────────────────────────────────
-class ProxyAuthMiddleware:
-    """Raw ASGI middleware implementing the universal proxy auth model.
+class KolayProxyMiddleware:
+    """Raw ASGI middleware that extracts the Kolay API token from
+    request headers and injects it into the environment for the
+    duration of the request.
 
-    Layer 1 — Gatekeeper:
-        Validates X-API-Key against MCP_API_KEY env var.
+    Optional gatekeeper: if MCP_API_KEY is set, requests must also
+    provide that key via X-API-Key header.  If MCP_API_KEY is NOT set,
+    the gatekeeper is disabled and all requests pass through to the
+    MCP layer (tools are still protected by @require_auth).
 
-    Layer 2 — Data Key:
-        Extracts the user's Kolay token from X-Kolay-Token or
-        Authorization: Bearer headers and injects it into the
-        request_token ContextVar for downstream services.
-
-    Zero-persistence: tokens live only in the ContextVar for the
-    duration of the ASGI call and are never logged.
+    Token sources (checked in order):
+      1. X-Kolay-Token header
+      2. Authorization: Bearer <token>
     """
 
     def __init__(self, app):
         self.app = app
-        # Strip potential whitespace from the env var to avoid invisible mismatches
         raw_key = os.environ.get("MCP_API_KEY")
         self.api_key = raw_key.strip() if raw_key else None
 
     async def __call__(self, scope, receive, send):
-        # 1. Allow lifespan events (startup/shutdown)
+        # Allow lifespan events
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
-        # 2. Allow discovery paths to pass (Mistral/Google often check these)
         path = scope.get("path", "")
-        if path.startswith("/.well-known"):
-            await self.app(scope, receive, send)
-            return
-
         headers = dict(scope.get("headers", []))
 
-        # 3. Layer 1: Gatekeeper
+        # ── Optional Gatekeeper (only if MCP_API_KEY is set) ──
         if self.api_key:
-            provided_key, header_name = self._extract_api_key(headers)
-
-            if provided_key == self.api_key:
-                if provided_key:
-                    print(f"[auth] Success: key matched via {header_name}")
-            else:
-                # Key mismatch or missing
-                if scope["type"] == "http":
-                    # Debug logging for the mismatch (safe, no full keys)
-                    if not provided_key:
-                        print(f"[auth] Failure: no api key found in headers for path {path}")
-                    else:
-                        print(
-                            f"[auth] Mismatch: header={header_name} "
-                            f"len(got)={len(provided_key)} len(expected)={len(self.api_key)} "
-                            f"hint={provided_key[:2]}...{provided_key[-2:]}"
-                        )
-
+            # Always allow discovery paths (Mistral/Google probe these)
+            if not path.startswith("/.well-known"):
+                x_api_key = headers.get(b"x-api-key", b"").decode().strip()
+                if x_api_key and x_api_key == self.api_key:
+                    _log(f"[auth] Gatekeeper: ✔ key matched via X-API-Key")
+                elif x_api_key:
+                    _log(f"[auth] Gatekeeper: ✘ key mismatch (len={len(x_api_key)} vs expected={len(self.api_key)})")
                     await self._send_json(send, 401, {
                         "error": "Unauthorized",
-                        "message": "Missing or invalid API key.",
-                        "hint": "Check your MCP_API_KEY in Railway vs. your Mistral connector headers.",
-                        "tried_header": header_name or "none",
+                        "message": "Invalid X-API-Key.",
                     })
                     return
-                await send({"type": "websocket.close", "code": 4001})
-                return
+                # If no X-API-Key header at all, let it through —
+                # the gatekeeper is a bonus layer, not a hard requirement.
+                # Tool-level @require_auth is the real security.
 
-        # ── Layer 2: Data Key (Kolay Token) ──
-        kolay_token = self._extract_kolay_token(headers)
+        # ── Token Injection (Kolay API Token) ──
+        kolay_token = self._extract_token(headers)
         if kolay_token:
-            # Inject into the KOLAY_API_TOKEN env var so that
-            # KolayClient() picks it up through the existing
-            # config.get_api_token() → resolve_token() chain.
-            # We use contextvars + env override for maximum compat.
-            token = request_token.set(kolay_token)
+            ctx_token = request_token.set(kolay_token)
             old_env = os.environ.get("KOLAY_API_TOKEN")
             os.environ["KOLAY_API_TOKEN"] = kolay_token
 
-            # Invalidate the security module's token cache so it
-            # re-reads from the env var on next resolve_token() call.
+            # Invalidate security module's token cache
             try:
                 from kolay_cli.security import _SENTINEL
                 import kolay_cli.security as sec_mod
@@ -134,62 +121,39 @@ class ProxyAuthMiddleware:
             try:
                 await self.app(scope, receive, send)
             finally:
-                # ── Zero-persistence cleanup ──
-                request_token.reset(token)
+                request_token.reset(ctx_token)
                 if old_env is not None:
                     os.environ["KOLAY_API_TOKEN"] = old_env
                 else:
                     os.environ.pop("KOLAY_API_TOKEN", None)
-                # Re-invalidate cache after cleanup
                 try:
                     sec_mod._token_cache = _SENTINEL  # type: ignore[possibly-undefined]
                 except Exception:
                     pass
             return
 
-        # No Kolay token provided — still allow the request through.
-        # The MCP tools' @require_auth decorator will return a
-        # structured 401 error to the AI agent, which is the correct
-        # MCP-level response (not an HTTP 401).
+        # No per-request token — fall through to app.
+        # If KOLAY_API_TOKEN env var is set on Railway, tools will
+        # use that (single-tenant mode).  If not, @require_auth
+        # will return a structured error to the AI agent.
         await self.app(scope, receive, send)
 
     @staticmethod
-    def _extract_api_key(headers: dict[bytes, bytes]) -> tuple[str | None, str | None]:
-        """Extract the gatekeeper API key from multiple possible headers.
+    def _extract_token(headers: dict[bytes, bytes]) -> str | None:
+        """Extract the Kolay IK API token from headers.
 
-        Checks in order of precedence:
-          1. X-API-Key: <key>
-          2. Authorization: Bearer <key>
-          3. Authorization: <key>  (plain, no scheme)
-
-        Returns (key_value, header_name) for debug logging.
-        Never logs the key itself — only which header was used.
+        1. X-Kolay-Token: <token>    (explicit, preferred)
+        2. Authorization: Bearer <token>  (Mistral/OpenAI standard)
         """
-        # 1. Explicit X-API-Key header (preferred)
-        x_api_key = headers.get(b"x-api-key", b"").decode().strip()
-        if x_api_key:
-            return x_api_key, "X-API-Key"
+        kolay = headers.get(b"x-kolay-token", b"").decode().strip()
+        if kolay:
+            return kolay
 
-        # 2. Authorization header (Bearer or plain)
-        auth_header = headers.get(b"authorization", b"").decode().strip()
-        if auth_header:
-            if auth_header.lower().startswith("bearer "):
-                return auth_header[7:].strip(), "Authorization: Bearer"
-            # Plain key (no scheme prefix)
-            return auth_header, "Authorization (plain)"
+        auth = headers.get(b"authorization", b"").decode().strip()
+        if auth.lower().startswith("bearer "):
+            return auth[7:].strip()
 
-        return None, None
-
-    @staticmethod
-    def _extract_kolay_token(headers: dict[bytes, bytes]) -> str | None:
-        """Extract the user's Kolay IK token from X-Kolay-Token header.
-
-        This is Layer 2 (Data Key) — separate from the gatekeeper.
-        Only reads the dedicated X-Kolay-Token header to avoid
-        ambiguity with the Authorization header used for Layer 1.
-        """
-        kolay_header = headers.get(b"x-kolay-token", b"").decode().strip()
-        return kolay_header or None
+        return None
 
     @staticmethod
     async def _send_json(send, status: int, body_dict: dict):
@@ -214,13 +178,11 @@ from kolay_cli.mcp_server import mcp  # noqa: E402
 
 @mcp.tool
 def validate_connection() -> dict:
-    """Check if the user has provided a valid Kolay İK API token.
+    """Check if the Kolay İK API token is configured and valid.
 
-    Call this tool FIRST before making any HR queries. It confirms that
-    the authentication chain (X-API-Key + X-Kolay-Token) is working
-    correctly and the token is accepted by the Kolay API.
-
-    Returns a status dict with {valid, message, token_type}.
+    Call this tool FIRST before making any HR queries.
+    Returns {valid, message} indicating whether the server can
+    reach the Kolay API with the current credentials.
     """
     from kolay_cli.security import resolve_token, validate_token
 
@@ -228,64 +190,54 @@ def validate_connection() -> dict:
     if not token:
         return {
             "valid": False,
-            "message": "No Kolay API token found in request headers.",
-            "hint": "Send your Kolay token via X-Kolay-Token or Authorization: Bearer header.",
+            "message": "No Kolay API token found.",
+            "hint": "Set KOLAY_API_TOKEN on the server, or send via X-Kolay-Token header.",
         }
 
     status = validate_token(token)
     if not status:
         return {
             "valid": False,
-            "message": f"Token validation failed: {status.reason}",
-            "hint": "Check that your token is correct and not expired.",
+            "message": f"Token invalid: {status.reason}",
         }
 
-    # Quick API ping to verify the token works end-to-end
     try:
         from kolay_cli.api.client import KolayClient
         client = KolayClient(token=token)
         result = client.post("v2/person/list", data={"page": 1, "limit": 1})
-        employee_count = result.get("data", {}).get("totalCount", "unknown")
+        count = result.get("data", {}).get("totalCount", "unknown")
         return {
             "valid": True,
-            "message": f"Token is valid. Connected to Kolay IK ({employee_count} employees).",
-            "token_type": "JWT" if "." in token else "opaque",
+            "message": f"Connected to Kolay IK ({count} employees).",
         }
     except Exception as e:
         return {
             "valid": False,
-            "message": f"Token accepted locally but API rejected it: {e}",
-            "hint": "The token may have been revoked. Generate a new one at app.kolayik.com.",
+            "message": f"API rejected token: {e}",
         }
 
 
 # ────────────────────────────────────────────────────────────────────
-# App Factory
+# App Factory + Startup
 # ────────────────────────────────────────────────────────────────────
 def create_proxy_app():
-    """Build the secured ASGI app with two-layer auth middleware."""
+    """Build the ASGI app with token injection middleware."""
     starlette_app = mcp.http_app()
-    return ProxyAuthMiddleware(starlette_app)
+    return KolayProxyMiddleware(starlette_app)
 
-
-# ── Enforce MCP_API_KEY — refuse to start without it ──
-api_key = os.environ.get("MCP_API_KEY")
-if not api_key:
-    print(
-        "\n❌ FATAL: MCP_API_KEY environment variable is not set.\n"
-        "   The server refuses to start without a gatekeeper key.\n"
-        "   Set it in your Railway dashboard: Settings → Variables → MCP_API_KEY\n"
-    )
-    sys.exit(1)
 
 host = "0.0.0.0"
 port = int(os.environ.get("PORT", 8080))
 app = create_proxy_app()
 
 if __name__ == "__main__":
-    print(f"\n🔌 Kolay IK MCP Proxy (Universal Stateless)")
-    print(f"   Endpoint:   http://{host}:{port}/mcp")
-    print(f"   Gatekeeper: ✔ enabled (X-API-Key)")
-    print(f"   Data Key:   X-Kolay-Token  or  Authorization: Bearer")
-    print(f"   Key hint:   {api_key[:4]}...{api_key[-4:]}\n")
+    api_key = os.environ.get("MCP_API_KEY")
+    kolay_token = os.environ.get("KOLAY_API_TOKEN")
+
+    _log(f"\n🔌 Kolay IK MCP Proxy (Universal Stateless)")
+    _log(f"   Endpoint:   http://{host}:{port}/mcp")
+    _log(f"   Gatekeeper: {'✔ enabled' if api_key else '✘ disabled (tools still protected by @require_auth)'}")
+    _log(f"   Kolay Token: {'✔ set via env' if kolay_token else '⚠ not set (clients must send X-Kolay-Token)'}")
+    _log("")
+
     uvicorn.run(app, host=host, port=port)
