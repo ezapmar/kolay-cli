@@ -843,7 +843,7 @@ wheels = [
 
 [[package]]
 name = "kolay-cli"
-version = "0.10.4a0"
+version = "0.10.5a0"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
