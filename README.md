@@ -127,8 +127,8 @@ graph TD
     A[Claude Desktop / Cursor] <-->|stdio| B[kolay-cli mcp]
     end
     subgraph "Server Mode (HTTP/SSE)"
-    C[Mistral Le Chat / ChatGPT] <-->|HTTP/SSE| D[Railway / ngrok]
-    D <-->|X-API-Key| E[kolay-cli mcp]
+    C[Mistral Le Chat / OpenAI] <-->|POST /mcp| D[Railway]
+    D <-->|"@require_auth"| E[kolay-cli mcp]
     end
 ```
 
@@ -163,35 +163,96 @@ The MCP server doesn't just pass raw API endpoints to the AI; it is designed wit
 * **Smart Diagnostics**: The `employee_health_check` tool enables the LLM to cross-reference an employee's upcoming leaves, excessive timelogs, and overdue training in a *single* call, preventing AI hallucinations and context drift.
 * **Guided Dashboards**: Don't know what to ask? Invoke the `manager_dashboard` prompt directly in your AI client to generate an instant morning briefing for your department.
 
-### Server Deployment (HTTP/SSE)
+### Server Deployment (Railway / Docker)
 
-If you want to expose your HR data to cloud-based AI agents (like ChatGPT, Mistral Le Chat, or custom orchestrators), you can deploy `kolay-cli` as an HTTP server.
+Deploy `kolay-cli` as a cloud MCP server so AI agents like Mistral Le Chat, ChatGPT, and OpenAI Desktop can access your HR data remotely.
 
-**1. Set an API Key:**
-To protect your data on public URLs (e.g., Railway, Render), configure a secret environment variable. If `MCP_API_KEY` is not set, the server runs without authentication (for local dev only).
+#### 1. Deploy to Railway (recommended)
 
-```bash
-export MCP_API_KEY="your-super-secret-key"
+1. Push the repo to GitHub
+2. Create a new Railway project → **Deploy from GitHub repo**
+3. Railway auto-detects `app.py` and builds with Nixpacks
+4. Add these **environment variables** in Railway → Settings → Variables:
+
+| Variable | Required | Value |
+|---|---|---|
+| `KOLAY_API_TOKEN` | ✅ | Your Kolay İK API token from [app.kolayik.com](https://app.kolayik.com/settings/developer-settings) |
+| `PYTHONUNBUFFERED` | ✅ | `1` (ensures logs appear immediately) |
+| `MCP_API_KEY` | Optional | Extra gatekeeper key for abuse prevention |
+
+5. Enable **Public Networking** in Railway → Settings → Networking
+6. Your MCP endpoint will be: `https://<your-app>.up.railway.app/mcp`
+
+#### 2. How Authentication Works
+
+```mermaid
+graph LR
+    A[AI Client] -->|POST /mcp| B[MCP Handshake ✔]
+    B --> C[Tool Call]
+    C --> D{"@require_auth"}
+    D -->|Token found| E[Kolay API]
+    D -->|No token| F[401 Error to AI]
 ```
 
-**2. Start the Server:**
+Security is at the **tool level**, not the HTTP level. This means:
+- The MCP session always establishes successfully (no 401 on handshake)
+- Every HR tool checks for a valid Kolay token before accessing data
+- The `validate_connection` tool lets AI agents verify credentials first
 
-```bash
-kolay mcp serve --transport http --port 8000
-```
-This starts the FastMCP server with raw ASGI middleware that intercepts all requests and ensures the `X-API-Key` header matches your secret.
-
-### Using with Mistral Le Chat
-
-[Le Chat](https://chat.mistral.ai) supports MCP through remote HTTP connectors. To connect your remote `kolay-cli` deployment:
+#### 3. Connect from Mistral Le Chat
 
 1. Go to [chat.mistral.ai/connections](https://chat.mistral.ai/connections)
 2. Click **Add custom connector**
-3. Enter your MCP server URL (e.g. `https://your-app.up.railway.app/mcp`)
-4. In the headers section, add your configured API key:
-   * **Header Name**: `X-API-Key`
-   * **Header Value**: `your-super-secret-key`
+3. Enter your MCP URL: `https://<your-app>.up.railway.app/mcp`
+4. Auth: Select **No Authentication** (tools handle it internally)
 5. Save and start chatting with your HR data!
+
+> The server uses `KOLAY_API_TOKEN` set on Railway. No headers needed from Mistral.
+
+#### 4. Connect from OpenAI Desktop
+
+Add to your `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "url": "https://<your-app>.up.railway.app/mcp"
+    }
+  }
+}
+```
+
+For multi-tenant (each user sends their own token):
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "url": "https://<your-app>.up.railway.app/mcp",
+      "headers": {
+        "X-Kolay-Token": "your-personal-kolay-token"
+      }
+    }
+  }
+}
+```
+
+#### 5. Test with curl
+
+```bash
+# List available tools (no auth needed for handshake)
+curl -X POST https://<your-app>.up.railway.app/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+### Using Locally (HTTP mode)
+
+```bash
+export KOLAY_API_TOKEN="your-token"
+kolay mcp serve --transport http --port 8000
+```
 
 ## Output Modes
 
@@ -200,3 +261,4 @@ This starts the FastMCP server with raw ASGI middleware that intercepts all requ
 | `--json` | Returns machine-readable JSON for prompts or scripts. |
 | `--yes` | Bypasses confirmation prompts for destructive actions. |
 | `--debug` | Logs HTTP traces to `~/.config/kolay/debug.log`. |
+
