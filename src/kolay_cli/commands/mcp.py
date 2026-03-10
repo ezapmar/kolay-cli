@@ -35,8 +35,16 @@ def serve(
         "--transport", "-t",
         help="Transport protocol: 'stdio' (default, for Claude Desktop / local) or 'http' (for remote / multi-client).",
     ),
-    host: str = typer.Option("127.0.0.1", "--host", help="Host for HTTP transport."),
-    port: int = typer.Option(8000, "--port", "-p", help="Port for HTTP transport."),
+    host: str = typer.Option(
+        "0.0.0.0" if "PORT" in __import__("os").environ else "127.0.0.1", 
+        "--host", 
+        help="Host for HTTP transport."
+    ),
+    port: int = typer.Option(
+        int(__import__("os").environ.get("PORT", 8000)), 
+        "--port", "-p", 
+        help="Port for HTTP transport."
+    ),
 ) -> None:
     """Start the Kolay IK MCP server.
 

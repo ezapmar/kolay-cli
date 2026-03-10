@@ -749,11 +749,14 @@ if __name__ == "__main__":
     import argparse
     import sys
 
+    # Railway/Heroku/Render typically provide a PORT env var
+    default_port = int(os.environ.get("PORT", 8000))
+
     parser = argparse.ArgumentParser(description="Kolay IK MCP server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
+    parser.add_argument("--host", default="0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
+    parser.add_argument("--port", type=int, default=default_port)
+    args = parser.parse_all_unknown() if hasattr(parser, 'parse_all_unknown') else parser.parse_args()
 
     if args.transport == "http":
         print(f"\n🔌 Kolay IK MCP server  http://{args.host}:{args.port}/mcp\n")
