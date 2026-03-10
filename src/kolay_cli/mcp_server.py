@@ -650,7 +650,7 @@ If totalCount exceeds 200, paginate until you have fetched every record.
 Scan every employee. Identify those whose `{target_field}` field matches or contains "{old_value}" (case-insensitive).
 Build an internal list of matches.
 
-**Step 3 — ⚠️ MANDATORY CONFIRMATION — DO NOT SKIP:**
+**Step 3 — MANDATORY CONFIRMATION — DO NOT SKIP:**
 STOP. Do NOT call any update tools yet.
 Present this Markdown table to the user:
 
@@ -659,11 +659,11 @@ Present this Markdown table to the user:
 (one row per matched employee)
 
 Then ask EXACTLY this question:
-"Do you confirm updating `{target_field}` for these **N** employees from \\"{old_value}\\" → \\"{new_value}\\"? (Yes / No)"
+"Do you confirm updating `{target_field}` for these **N** employees from \\"{old_value}\\" \\"{new_value}\\"? (Yes / No)"
 
 **Step 4 — Execute (only on explicit "Yes"):**
 • If the user responds with "Yes": loop through each matched employee and call `person_update_fields` with their ID and {{"{target_field}": "{new_value}"}}.
-  Confirm each update as it completes (e.g. "✅ Updated Ahmet Yılmaz").
+  Confirm each update as it completes (e.g. "Updated Ahmet Yılmaz").
 • If the user responds with anything other than "Yes": abort immediately and state "Operation cancelled. No changes were made."
 
 **Step 5 — Final Summary:**
@@ -710,20 +710,40 @@ class APIKeyMiddleware:
         self.api_key = os.environ.get("MCP_API_KEY")
 
     async def __call__(self, scope, receive, send):
-        # Only gate HTTP requests (not lifespan events)
-        if scope["type"] in ("http", "websocket") and self.api_key:
+        # Always check for Kolay Token in headers regardless of gatekeeper key
+        ctx_token = None
+        if scope["type"] == "http":
             headers = dict(scope.get("headers", []))
-            provided = headers.get(b"x-api-key", b"").decode()
+            # Check both X-Kolay-Token and Authorization (standard)
+            kolay_hdr = headers.get(b"x-kolay-token", b"").decode()
+            if not kolay_hdr:
+                auth_hdr = headers.get(b"authorization", b"").decode()
+                if auth_hdr.lower().startswith("bearer "):
+                    kolay_hdr = auth_hdr[7:].strip()
+            if kolay_hdr:
+                ctx_token = kolay_hdr
 
-            if provided != self.api_key:
-                if scope["type"] == "http":
-                    await self._send_401(send)
+        # Setup context for this request
+        from .security import KOLAY_TOKEN_CTX
+        token_reset = KOLAY_TOKEN_CTX.set(ctx_token)
+
+        try:
+            # Only gate HTTP requests (not lifespan events) with the master API Key if set
+            if scope["type"] in ("http", "websocket") and self.api_key:
+                headers = dict(scope.get("headers", []))
+                provided = headers.get(b"x-api-key", b"").decode()
+
+                if provided != self.api_key:
+                    if scope["type"] == "http":
+                        await self._send_401(send)
+                        return
+                    # For websockets, simply refuse the connection
+                    await send({"type": "websocket.close", "code": 4001})
                     return
-                # For websockets, simply refuse the connection
-                await send({"type": "websocket.close", "code": 4001})
-                return
 
-        await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+        finally:
+            KOLAY_TOKEN_CTX.reset(token_reset)
 
     @staticmethod
     async def _send_401(send):
@@ -759,7 +779,7 @@ if __name__ == "__main__":
     args = parser.parse_all_unknown() if hasattr(parser, 'parse_all_unknown') else parser.parse_args()
 
     if args.transport == "http":
-        print(f"\n🔌 Kolay IK MCP server  http://{args.host}:{args.port}/mcp\n")
+        print(f"\nKolay IK MCP server  http://{args.host}:{args.port}/mcp\n")
 
         # ── Secured HTTP launch ──
         import uvicorn
@@ -769,17 +789,17 @@ if __name__ == "__main__":
         # User ran `kolay-mcp` directly in a terminal — give them guidance
         print(
             "\n"
-            "  Kolay IK MCP Server\n"
+            " Kolay IK MCP Server\n"
             "\n"
-            "  This binary is for AI clients (Claude, Cursor, Gemini CLI).\n"
-            "  You probably want the CLI instead:  kolay --help\n"
+            " This binary is for AI clients (Claude, Cursor, Gemini CLI).\n"
+            " You probably want the CLI instead:  kolay --help\n"
             "\n"
-            "  To start manually:\n"
-            "    kolay mcp serve                        # STDIO (local)\n"
-            "    kolay mcp serve --transport http       # HTTP (network)\n"
+            " To start manually:\n"
+            " kolay mcp serve                        # STDIO (local)\n"
+            " kolay mcp serve --transport http       # HTTP (network)\n"
             "\n"
-            "  To configure Claude Desktop, add to config:\n"
-            '    { "mcpServers": { "kolay-ik": { "command": "kolay-mcp" } } }\n'
+            " To configure Claude Desktop, add to config:\n"
+            ' { "mcpServers": { "kolay-ik": { "command": "kolay-mcp" } } }\n'
         )
     else:
         mcp.run()

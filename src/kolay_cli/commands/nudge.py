@@ -41,7 +41,7 @@ def nudge_configure() -> None:
         json_output({"error": "configure is interactive only"})
         raise typer.Exit(1)
         
-    console.print("\n[bold]🧠 Behavioral Nudge Engine Configuration[/bold]\n")
+    console.print("\n[bold]Behavioral Nudge Engine Configuration[/bold]\n")
     
     style = typer.prompt("What is your preferred interaction style? (gentle, gamification, direct)", default="gentle")
     if style not in ["gentle", "gamification", "direct"]:
@@ -86,5 +86,5 @@ def nudge_sprint() -> None:
             print_streak(streak)
         return
         
-    console.print(f"\n[bold]⏱️  Starting your {prefs['sprint_duration']}-minute micro-sprint...[/bold]")
+    console.print(f"\n[bold]Starting your {prefs['sprint_duration']}-minute micro-sprint...[/bold]")
     sprint_prompt(pending, prefs["style"])

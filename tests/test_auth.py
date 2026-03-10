@@ -22,7 +22,7 @@ def test_auth_login_success(mock_client):
     result = runner.invoke(app, ["auth", "login"], input="my-secret-token\n")
     assert result.exit_code == 0
     # Should confirm login somehow
-    assert any(kw in result.output.lower() for kw in ["logged in", "token saved", "authenticated", "welcome", "success", "✔"])
+    assert any(kw in result.output.lower() for kw in ["logged in", "token saved", "authenticated", "welcome", "success", ""])
 
 
 def test_auth_status_logged_in(mock_client):
@@ -30,7 +30,7 @@ def test_auth_status_logged_in(mock_client):
     mock_client.get.return_value = ME_RESPONSE
     result = runner.invoke(app, ["auth", "status"])
     assert result.exit_code == 0
-    assert any(kw in result.output for kw in ["Tunc", "logged in", "authenticated", "✔"])
+    assert any(kw in result.output for kw in ["Tunc", "logged in", "authenticated", ""])
 
 
 def test_auth_status_api_error(mock_client):

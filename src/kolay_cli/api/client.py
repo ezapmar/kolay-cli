@@ -125,7 +125,7 @@ class KolayClient:
         if self.debug:
             safe_hdrs = _redact_headers(dict(self.session.headers))
             _log.debug(
-                "→ %s %s  headers=%s  params/body=%s",
+                "%s %s  headers=%s  params/body=%s",
                 method, url, safe_hdrs,
                 kwargs.get("params") or kwargs.get("json"),
             )
@@ -134,7 +134,7 @@ class KolayClient:
             response = self.session.request(method, url, timeout=30, **kwargs)
 
             if self.debug:
-                _log.debug("← %d  %s", response.status_code, response.text[:500])
+                _log.debug("%d  %s", response.status_code, response.text[:500])
 
             response.raise_for_status()
             return response.json() if response.content else {}

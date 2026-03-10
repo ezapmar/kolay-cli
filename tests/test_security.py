@@ -237,7 +237,7 @@ class TestJWTValidation:
     def test_malformed_jwt_header_treated_as_opaque(self):
         """S1: 3-part string with non-base64 middle treated as opaque (not an error)."""
         from kolay_cli.security import validate_token
-        # bad.!!!.sig — header '!!!' is not valid base64, so _is_jwt → False → opaque
+        # bad.!!!.sig — header '!!!' is not valid base64, so _is_jwt False opaque
         status = validate_token("bad.!!!.sig")
         assert status.valid is True  # opaque passthrough
 

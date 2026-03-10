@@ -7,8 +7,12 @@ import json
 import logging
 import os
 from typing import Any, Callable, TypeVar
+import contextvars
 
 _log = logging.getLogger(__name__)
+
+# Context variable to store request-specific token (for multi-tenant MCP)
+KOLAY_TOKEN_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("kolay_token", default=None)
 
 
 
@@ -207,6 +211,12 @@ def resolve_token() -> str | None:
 
 def _resolve_uncached() -> str | None:
     """Internal: perform the full token resolution without cache."""
+    # 0. Request context (multi-tenant MCP host)
+    ctx_token = KOLAY_TOKEN_CTX.get()
+    if ctx_token:
+        _log.debug("Token resolved from request context header")
+        return ctx_token
+
     # 1. Environment variable
     env_token = os.getenv("KOLAY_API_TOKEN")
     if env_token:
@@ -237,7 +247,7 @@ def resolve_token_with_source() -> tuple[str | None, str]:
         return resolve_token(), "environment variable"
     keyring_token = get_keyring_token()
     if keyring_token:
-        return keyring_token, "OS Keychain 🔐"
+        return keyring_token, "OS Keychain "
     file_token = _get_token_from_config_file()
     if file_token:
         return file_token, "config file"
@@ -278,7 +288,7 @@ def _migration_notice() -> None:
         try:
             from rich.console import Console
             Console(highlight=False).print(
-                "  [grey62]🔐 Token migrated from config file to OS Keychain  "
+                " [grey62]Token migrated from config file to OS Keychain  "
                 "(plaintext copy removed)[/grey62]"
             )
         except Exception:
@@ -351,18 +361,18 @@ def validate_token(token: str) -> TokenStatus:
     # from jwt import PyJWKClient
     # import jwt
     # try:
-    #     jwks_url = os.getenv("KOLAY_JWKS_URI", "https://your-idp.com/.well-known/jwks.json")
-    #     client = PyJWKClient(jwks_url)
-    #     signing_key = client.get_signing_key_from_jwt(token)
-    #     jwt.decode(
-    #         token,
-    #         signing_key.key,
-    #         algorithms=["RS256", "RS384", "RS512"],
-    #         audience=os.getenv("KOLAY_JWT_AUDIENCE", "kolay-mcp"),
-    #         issuer=os.getenv("KOLAY_JWT_ISSUER"),
-    #     )
+    # jwks_url = os.getenv("KOLAY_JWKS_URI", "https://your-idp.com/.well-known/jwks.json")
+    # client = PyJWKClient(jwks_url)
+    # signing_key = client.get_signing_key_from_jwt(token)
+    # jwt.decode(
+    # token,
+    # signing_key.key,
+    # algorithms=["RS256", "RS384", "RS512"],
+    # audience=os.getenv("KOLAY_JWT_AUDIENCE", "kolay-mcp"),
+    # issuer=os.getenv("KOLAY_JWT_ISSUER"),
+    # )
     # except jwt.InvalidTokenError as e:
-    #     return TokenStatus(False, f"JWT signature invalid: {e}")
+    # return TokenStatus(False, f"JWT signature invalid: {e}")
 
     return TokenStatus(True, "JWT is valid.")
 

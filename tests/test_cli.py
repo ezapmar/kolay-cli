@@ -4,8 +4,8 @@ CLI integration tests — the root `kolay` app entrypoint.
 Covers:
   - --version flag
   - Bare invocation (logo + help)
-  - Bare command-group invocation → no_command_help countdown
-  - Unknown command → typer error (exit 2)
+  - Bare command-group invocation no_command_help countdown
+  - Unknown command typer error (exit 2)
 """
 import pytest
 from typer.testing import CliRunner

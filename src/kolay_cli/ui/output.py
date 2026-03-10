@@ -43,7 +43,7 @@ def is_yes_mode() -> bool:
 def global_to_page_relative(global_row: int, *, page: int, limit: int) -> int:
     """Convert a global 1-based row number to a page-relative 1-based index.
 
-    Example: global row 21, page 2, limit 20  →  page-relative index 1.
+    Example: global row 21, page 2, limit 20  page-relative index 1.
     Returns the original value unchanged when page == 1 (no conversion needed).
     """
     if page <= 1:

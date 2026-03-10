@@ -82,7 +82,7 @@ def test_timelog_view(mock_client):
 
 
 def test_timelog_view_not_found(mock_client):
-    """Empty data dict → view renders heading with blank name, exit 0."""
+    """Empty data dict view renders heading with blank name, exit 0."""
     mock_client.get.return_value = {"data": {}}
     result = runner.invoke(app, ["timelog", "view", "nonexistent"])
     assert result.exit_code == 0
@@ -116,7 +116,7 @@ def test_timelog_delete_confirmed(mock_client):
 
 def test_timelog_delete_cancelled(mock_client):
     result = runner.invoke(app, ["timelog", "delete", "tl1"], input="n\n")
-    # typer.confirm abort=True raises Abort → exit 1 in test runner
+    # typer.confirm abort=True raises Abort exit 1 in test runner
     assert result.exit_code == 1
     mock_client.delete.assert_not_called()
 

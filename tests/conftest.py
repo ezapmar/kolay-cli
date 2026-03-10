@@ -40,7 +40,7 @@ def reset_token_cache():
 
 @pytest.fixture
 def runner():
-    """Typer CLI test runner (no colour → simple string assertions)."""
+    """Typer CLI test runner (no colour simple string assertions)."""
     return CliRunner()
 
 

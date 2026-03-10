@@ -26,7 +26,7 @@ def test_empty_query_returns_all():
 
 
 def test_whitespace_only_query_returns_all():
-    result = filter_items(PEOPLE, "   ", NAME_FNS)
+    result = filter_items(PEOPLE, " ", NAME_FNS)
     assert result == PEOPLE
 
 

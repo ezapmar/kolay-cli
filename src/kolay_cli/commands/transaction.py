@@ -61,7 +61,7 @@ def list_transactions(
         label="transactions",
     )
 
-    title = "\U0001f4b8 Transactions"
+    title = " Transactions"
     if filter:
         title += f" matching '{filter}'"
     console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
@@ -138,8 +138,8 @@ def view_transaction(transaction_id: str | None = typer.Argument(None, help="ID 
 
     p = data.get("person", {})
     pname = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else "Unknown"
-    console.print(f"\n[bold {PRIMARY}]💸 Transaction[/bold {PRIMARY}] [bold white]{pname}[/bold white] — {data.get('type', 'Record')}")
-    console.print(f"  {display_status(str(data.get('status', '')))}\n")
+    console.print(f"\n[bold {PRIMARY}]Transaction[/bold {PRIMARY}] [bold white]{pname}[/bold white] — {data.get('type', 'Record')}")
+    console.print(f" {display_status(str(data.get('status', '')))}\n")
     console.print(Panel(kv_table(data, exclude=["id", "person", "type", "status", "personId"]), border_style=PRIMARY, expand=False))
     console.print()
 
@@ -155,17 +155,17 @@ def create_transaction(
 ) -> None:
     """Create a new financial transaction (bonus, cut, or expense)."""
     from ..api.errors import APIError
-    console.print(f"\n[bold {PRIMARY}]💸 New Transaction[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]New Transaction[/bold {PRIMARY}]\n")
 
     if not person_id:
         person_id = pick_person()
     if not type:
-        console.print("  [bold white]Types:[/bold white] " + ", ".join(TRANSACTION_TYPES))
-        type = typer.prompt("  Pick a type", default="expense")
+        console.print(" [bold white]Types:[/bold white] " + ", ".join(TRANSACTION_TYPES))
+        type = typer.prompt(" Pick a type", default="expense")
     if amount is None:
-        amount = float(typer.prompt("  Amount"))
+        amount = float(typer.prompt(" Amount"))
     if amount < 0:
-        console.print("  [yellow]\u26a0\ufe0f Negative amount \u2014 did you mean a deduction (otherCut)?[/yellow]")
+        console.print(" [yellow] Negative amount \u2014 did you mean a deduction (otherCut)?[/yellow]")
     if date:
         date = validate_date(date)
     else:
@@ -186,22 +186,22 @@ def create_transaction(
             console.print()
             if "amount" in msg or "miktar" in msg or "tutar" in msg:
                 console.print(
-                    "  [bold yellow]💡 Tip:[/bold yellow] The amount may be invalid for this transaction type."
+                    " [bold yellow]Tip:[/bold yellow] The amount may be invalid for this transaction type."
                 )
             elif "date" in msg or "tarih" in msg:
                 console.print(
-                    "  [bold yellow]💡 Tip:[/bold yellow] The transaction date may be outside the allowed period."
+                    " [bold yellow]Tip:[/bold yellow] The transaction date may be outside the allowed period."
                 )
 
             console.print()
-            console.print(f"  [cyan]1[/cyan]  Try a different amount")
-            console.print(f"  [cyan]2[/cyan]  Try a different date")
-            console.print(f"  [cyan]3[/cyan]  Abort")
+            console.print(f" [cyan]1[/cyan]  Try a different amount")
+            console.print(f" [cyan]2[/cyan]  Try a different date")
+            console.print(f" [cyan]3[/cyan]  Abort")
             console.print()
 
-            choice = typer.prompt("  Choose an option", default="3").strip()
+            choice = typer.prompt(" Choose an option", default="3").strip()
             if choice == "1":
-                amount = float(typer.prompt("  New amount", default=str(amount)))
+                amount = float(typer.prompt(" New amount", default=str(amount)))
             elif choice == "2":
                 date = prompt_date("New date", default=date)
             else:
@@ -241,7 +241,7 @@ def delete_transaction(transaction_id: str | None = typer.Argument(None, help="I
         )
     except Exception:
         if not is_yes_mode():
-            typer.confirm("  Delete this transaction?", abort=True)
+            typer.confirm(" Delete this transaction?", abort=True)
 
     with api_call("Deleting transaction..."):
         svc.delete_transaction(transaction_id)

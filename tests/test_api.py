@@ -11,7 +11,7 @@ class TestSafeId:
         assert safe_id("abc123-XYZ_test") == "abc123-XYZ_test"
 
     def test_strips_whitespace(self):
-        assert safe_id("  abc123  ") == "abc123"
+        assert safe_id(" abc123  ") == "abc123"
 
     def test_empty_raises(self):
         with pytest.raises(APIError, match="cannot be empty"):
@@ -19,7 +19,7 @@ class TestSafeId:
 
     def test_whitespace_only_raises(self):
         with pytest.raises(APIError, match="cannot be empty"):
-            safe_id("   ")
+            safe_id(" ")
 
     def test_path_traversal_raises(self):
         with pytest.raises(APIError, match="illegal characters"):

@@ -70,13 +70,13 @@ def list_events(
     label_start = start or now.strftime("%Y-%m-%d")
     label_end = end or (now + timedelta(days=30)).strftime("%Y-%m-%d")
 
-    title = "📅 Calendar Events"
+    title = "Calendar Events"
     if search:
         title += f" matching '{search}'"
     if filter:
         title += f" filtered by '{filter}'"
 
-    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({label_start} → {label_end})[/grey62]\n")
+    console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}] [grey62]({label_start} {label_end})[/grey62]\n")
     table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
     table.add_column("#", style="grey62", width=4, justify="right")
     table.add_column("Title", style="bold white", min_width=24)
@@ -148,7 +148,7 @@ def view_event(event_id: str | None = typer.Argument(None, help="ID or row numbe
     title = data.get("title", "—")
     ev_start, ev_end = data.get("start", ""), data.get("end", "")
 
-    console.print(f"\n[bold {PRIMARY}]📅 Event[/bold {PRIMARY}] [bold white]{title}[/bold white]\n")
+    console.print(f"\n[bold {PRIMARY}]Event[/bold {PRIMARY}] [bold white]{title}[/bold white]\n")
     tbl = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
     tbl.add_column("Key", style="grey85", min_width=12)
     tbl.add_column("Value")
@@ -169,10 +169,10 @@ def create_event(
     comment: str | None = typer.Option(None, "--comment", "-c", help="Optional description"),
 ) -> None:
     """Create a new calendar event. Prompts for missing fields."""
-    console.print(f"\n[bold {PRIMARY}]📅 Create Calendar Event[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Create Calendar Event[/bold {PRIMARY}]\n")
 
     if not title:
-        title = typer.prompt("  Title")
+        title = typer.prompt(" Title")
     if start:
         start = validate_date(start, "%Y-%m-%d %H:%M:%S")
     else:
@@ -215,10 +215,10 @@ def update_event(
     if not any([title, start, end, comment]):
         with api_call("Fetching current event..."):
             cur = svc.view_event(event_id)
-        title = typer.prompt("  Title", default=cur.get("title", ""))
+        title = typer.prompt(" Title", default=cur.get("title", ""))
         start = prompt_date("Start", default=cur.get("start", ""), is_datetime=True)
         end = prompt_date("End", default=cur.get("end", ""), is_datetime=True)
-        comment = typer.prompt("  Comment", default=cur.get("comment") or "")
+        comment = typer.prompt(" Comment", default=cur.get("comment") or "")
 
     with api_call("Saving changes..."):
         svc.update_event(event_id, title=title, start=start, end=end, comment=comment)
@@ -238,7 +238,7 @@ def delete_event(event_id: str | None = typer.Argument(None, help="ID of the eve
 
     title = data.get("title", "this event")
     if not is_yes_mode():
-        typer.confirm(f"  Delete '{title}'?", abort=True)
+        typer.confirm(f" Delete '{title}'?", abort=True)
 
     with api_call("Deleting event..."):
         svc.delete_event(event_id)

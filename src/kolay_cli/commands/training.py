@@ -50,7 +50,7 @@ def list_trainings(
         label="trainings",
     )
 
-    title = "🎓 Training Catalogue"
+    title = "Training Catalogue"
     if search:
         title += f" matching '{search}'"
     if filter:
@@ -118,7 +118,7 @@ def view_training(training_id: str | None = typer.Argument(None, help="ID or row
         json_output(data)
         return
     name = data.get("name", "Training Details")
-    console.print(f"\n[bold {PRIMARY}]🎓 Training[/bold {PRIMARY}] [bold white]{name}[/bold white]\n")
+    console.print(f"\n[bold {PRIMARY}]Training[/bold {PRIMARY}] [bold white]{name}[/bold white]\n")
     console.print(Panel(kv_table(data, exclude=["id", "name"]), border_style=PRIMARY, expand=False))
     console.print()
 
@@ -130,18 +130,18 @@ def create_training(
     duration: str | None = typer.Option(None, "--duration", help="Duration in days"),
 ) -> None:
     """Add a new training to the company catalogue."""
-    console.print(f"\n[bold {PRIMARY}]🎓 Create Training[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Create Training[/bold {PRIMARY}]\n")
 
     if not name:
         if is_json_mode():
             require_arg(None, "name")
-        name = typer.prompt("  Name")
+        name = typer.prompt(" Name")
     if not description:
         if not is_json_mode():
-            description = typer.prompt("  Description (optional)", default="")
+            description = typer.prompt(" Description (optional)", default="")
     if not duration:
         if not is_json_mode():
-            duration = typer.prompt("  Duration in days (optional)", default="")
+            duration = typer.prompt(" Duration in days (optional)", default="")
 
     with api_call(f"Adding '{name}'..."):
         result = svc.create_training(name=name, description=description or "", duration=duration or "")
@@ -170,8 +170,8 @@ def update_training(
             cur = svc.view_training(training_id)
         if is_json_mode():
             require_arg(None, "name")
-        name = typer.prompt("  Name", default=cur.get("name", ""))
-        description = typer.prompt("  Description", default=cur.get("description") or "")
+        name = typer.prompt(" Name", default=cur.get("name", ""))
+        description = typer.prompt(" Description", default=cur.get("description") or "")
 
     with api_call("Saving changes..."):
         result = svc.update_training(training_id, name=name, description=description)
@@ -195,7 +195,7 @@ def delete_training(training_id: str | None = typer.Argument(None, help="ID of t
 
     name = data.get("name", "this training")
     if not is_yes_mode():
-        typer.confirm(f"  Delete '{name}' and all associated history?", abort=True)
+        typer.confirm(f" Delete '{name}' and all associated history?", abort=True)
 
     with api_call("Deleting training..."):
         result = svc.delete_training(training_id)

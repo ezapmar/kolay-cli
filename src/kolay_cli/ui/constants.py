@@ -5,29 +5,29 @@ from __future__ import annotations
 
 
 # ── Brand palette ─────────────────────────────────────────────
-PRIMARY_DARK = "#162A4C"  # Brand primary — too dark for terminals
-PRIMARY = "#376BFB"       # Brand secondary — main terminal colour
-ACCENT = "#8B9EFD"        # Blue 400 — secondary data
-SHADE = "#0E4AC4"         # Blue 900 — dark emphasis
+PRIMARY_DARK = "#162A4C" # Brand primary — too dark for terminals
+PRIMARY = "#376BFB" # Brand secondary — main terminal colour
+ACCENT = "#8B9EFD" # Blue 400 — secondary data
+SHADE = "#0E4AC4" # Blue 900 — dark emphasis
 
-SUCCESS = "#278C3D"       # Cheer 600 — success, active
-SUCCESS_SOFT = "#D7FEDC"  # Cheer 50
+SUCCESS = "#278C3D" # Cheer 600 — success, active
+SUCCESS_SOFT = "#D7FEDC" # Cheer 50
 
-WARNING = "#F9A623"       # Orange 300 — pending, warnings
-WARNING_DARK = "#A36B13"  # Orange 600
+WARNING = "#F9A623" # Orange 300 — pending, warnings
+WARNING_DARK = "#A36B13" # Orange 600
 
-ERROR = "#E62729"         # Red 600 — errors, rejected
-ERROR_SOFT = "#FDEFEF"    # Red 50
+ERROR = "#E62729" # Red 600 — errors, rejected
+ERROR_SOFT = "#FDEFEF" # Red 50
 
 
 STATUS_STYLES: dict[str, str] = {
-    "active":    f"[{SUCCESS}]● Active[/{SUCCESS}]",
-    "inactive":  f"[{ERROR}]○ Inactive[/{ERROR}]",
-    "approved":  f"[{SUCCESS}]✔ Approved[/{SUCCESS}]",
-    "waiting":   f"[{WARNING}]⏳ Waiting[/{WARNING}]",
-    "rejected":  f"[{ERROR}]✘ Rejected[/{ERROR}]",
+    "active":    f"[{SUCCESS}]* Active[/{SUCCESS}]",
+    "inactive":  f"[{ERROR}]o Inactive[/{ERROR}]",
+    "approved":  f"[{SUCCESS}]Approved[/{SUCCESS}]",
+    "waiting":   f"[{WARNING}]Waiting[/{WARNING}]",
+    "rejected":  f"[{ERROR}]Rejected[/{ERROR}]",
     "cancelled": "[grey62]⊘ Cancelled[/grey62]",
-    "pending":   f"[{WARNING}]⏳ Pending[/{WARNING}]",
+    "pending":   f"[{WARNING}]Pending[/{WARNING}]",
 }
 
 
@@ -114,5 +114,5 @@ KOLAY_LOGO = f"""
 
 KOLAY_LOGO_COMPACT = (
     f"\n[bold {PRIMARY}]  ██ Kolay IK CLI[/bold {PRIMARY}]"
-    f"  [grey50]Unofficial CLI for Kolay HR — type a command or run [bold]kolay --help[/bold][/grey50]\n"
+    f" [grey50]Unofficial CLI for Kolay HR — type a command or run [bold]kolay --help[/bold][/grey50]\n"
 )

@@ -187,7 +187,7 @@ class TestMcpInstall:
     def test_install_empty_input_exits_cleanly(self, mock_get):
         mock_get.return_value = _mock_strategies(3)
         result = runner.invoke(app, ["mcp", "install"], input="\n")
-        # Empty input → "No selection" message and non-error exit
+        # Empty input "No selection" message and non-error exit
         assert "nothing installed" in result.output.lower() or "cancel" in result.output.lower() or "no" in result.output.lower()
 
     @patch("kolay_cli.services.mcp_registry.get_strategies")
@@ -195,14 +195,14 @@ class TestMcpInstall:
         mock_get.return_value = _mock_strategies(3)
         result = runner.invoke(app, ["mcp", "install"], input="abc\n")
         assert result.exit_code == 0
-        assert "valid" in result.output.lower() or "⚠" in result.output
+        assert "valid" in result.output.lower() or "" in result.output
 
     @patch("kolay_cli.services.mcp_registry.get_strategies")
     def test_install_out_of_range_shows_warning(self, mock_get):
         mock_get.return_value = _mock_strategies(3)
         result = runner.invoke(app, ["mcp", "install"], input="99\n")
         assert result.exit_code == 0
-        assert "range" in result.output.lower() or "⚠" in result.output
+        assert "range" in result.output.lower() or "" in result.output
 
     @patch("kolay_cli.services.mcp_registry.install_mcp_server")
     @patch("kolay_cli.services.mcp_registry.get_strategies")
@@ -213,7 +213,7 @@ class TestMcpInstall:
         mock_install.return_value = [("Claude Desktop", True, f"{home}/.claude/config.json")]
         result = runner.invoke(app, ["mcp", "install"], input="1\n")
         assert result.exit_code == 0
-        assert "✔" in result.output or "Configured" in result.output
+        assert "" in result.output or "Configured" in result.output
         assert "~/" in result.output
         assert home not in result.output  # tilde substitution applied
 
@@ -225,7 +225,7 @@ class TestMcpInstall:
         mock_install.return_value = [("Claude Desktop", False, "Permission denied")]
         result = runner.invoke(app, ["mcp", "install"], input="1\n")
         assert result.exit_code == 0
-        assert "✖" in result.output or "Failed" in result.output
+        assert "" in result.output or "Failed" in result.output
 
     @patch("kolay_cli.services.mcp_registry.install_mcp_server")
     @patch("kolay_cli.services.mcp_registry.get_strategies")

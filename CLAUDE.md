@@ -5,7 +5,7 @@
 - Always use `--json` when reading data. Parse the JSON, never scrape Rich tables.
 - Always use `--yes` on destructive commands (delete, terminate).
 - Check exit codes: 0=ok, 2=bad input, 3=not found, 4=reauth needed, 5=conflict.
-- If exit code 4 → run `kolay auth login` before retrying.
+- If exit code 4 run `kolay auth login` before retrying.
 - Never log or echo API tokens. Use `kolay config show` to verify auth state.
 
 ## Discovery

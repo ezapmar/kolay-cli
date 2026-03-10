@@ -65,8 +65,8 @@ class TestRedactHeaders:
         """Original dict is not mutated."""
         original = {"Authorization": "Bearer real-token"}
         result = _redact_headers(original)
-        assert original["Authorization"] == "Bearer real-token"  # unchanged
-        assert result["Authorization"] == "Bearer [REDACTED]"     # copy is redacted
+        assert original["Authorization"] == "Bearer real-token" # unchanged
+        assert result["Authorization"] == "Bearer [REDACTED]" # copy is redacted
 
     def test_opaque_non_bearer_auth_redacted(self):
         """A non-JWT opaque token (still 'Bearer <opaque>') is also redacted."""

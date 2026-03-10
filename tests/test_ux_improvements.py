@@ -89,12 +89,12 @@ class TestDoctorJsonCleanOutput:
 
     def _run_doctor_json(self) -> dict:
         """Run kolay doctor --json and return the parsed output dict."""
-        with patch("kolay_cli.commands.doctor._check_path", return_value=("[bold #57CC99]✔[/bold #57CC99]", "kolay is on your PATH")):
-            with patch("kolay_cli.commands.doctor._check_config_file", return_value=("[bold #57CC99]✔[/bold #57CC99]", "Config file found  [grey62]~/.config/kolay/config.yaml[/grey62]")):
-                with patch("kolay_cli.commands.doctor._check_token", return_value=("[bold #57CC99]✔[/bold #57CC99]", "API token configured  [grey62](source: OS Keychain 🔐)[/grey62]")):
-                    with patch("kolay_cli.commands.doctor._check_api", return_value=("[bold #57CC99]✔[/bold #57CC99]", "API connected  [grey62]→ Test User[/grey62]")):
-                        with patch("kolay_cli.commands.doctor._check_python", return_value=("[bold #57CC99]✔[/bold #57CC99]", "Python 3.12.0")):
-                            with patch("kolay_cli.commands.doctor._check_shell_completion", return_value=("[bold #FFD93D]⚠[/bold #FFD93D]", "Shell completion not detected\n       Run [bold]kolay --install-completion zsh[/bold]")):
+        with patch("kolay_cli.commands.doctor._check_path", return_value=("[bold #57CC99][/bold #57CC99]", "kolay is on your PATH")):
+            with patch("kolay_cli.commands.doctor._check_config_file", return_value=("[bold #57CC99][/bold #57CC99]", "Config file found  [grey62]~/.config/kolay/config.yaml[/grey62]")):
+                with patch("kolay_cli.commands.doctor._check_token", return_value=("[bold #57CC99][/bold #57CC99]", "API token configured  [grey62](source: OS Keychain )[/grey62]")):
+                    with patch("kolay_cli.commands.doctor._check_api", return_value=("[bold #57CC99][/bold #57CC99]", "API connected  [grey62]Test User[/grey62]")):
+                        with patch("kolay_cli.commands.doctor._check_python", return_value=("[bold #57CC99][/bold #57CC99]", "Python 3.12.0")):
+                            with patch("kolay_cli.commands.doctor._check_shell_completion", return_value=("[bold #FFD93D][/bold #FFD93D]", "Shell completion not detected\n       Run [bold]kolay --install-completion zsh[/bold]")):
                                 result = runner.invoke(app, ["--json", "doctor"])
         # Extract JSON from output (may have other lines before)
         for line in result.output.strip().splitlines():

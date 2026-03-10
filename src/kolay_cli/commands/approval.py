@@ -40,7 +40,7 @@ def list_approval_processes(
         label="approval processes",
     )
 
-    title = "⚖️ Approval Processes"
+    title = "Approval Processes"
     if filter:
         title += f" matching '{filter}'"
     console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")

@@ -56,9 +56,9 @@ class Config:
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value with environment variable precedence.
 
-        For ``api_token`` specifically, the full resolution chain (env →
-        keyring → config file) is handled by :func:`get_api_token` below.
-        All other keys use env → config file.
+        For ``api_token`` specifically, the full resolution chain (env 
+        keyring config file) is handled by :func:`get_api_token` below.
+        All other keys use env config file.
 
         Args:
             key: The configuration key (e.g., 'api_token').
@@ -113,7 +113,7 @@ class Config:
 
     @property
     def api_token(self) -> str | None:
-        """The API token — resolved via env → keyring → config file."""
+        """The API token — resolved via env keyring config file."""
         from .security import resolve_token
         return resolve_token()
 
@@ -133,7 +133,7 @@ _config_instance = Config()
 
 
 def get_api_token() -> str | None:
-    """Resolve the API token via env → keyring → config file."""
+    """Resolve the API token via env keyring config file."""
     from .security import resolve_token
     return resolve_token()
 

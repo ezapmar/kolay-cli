@@ -75,7 +75,7 @@ def show_unit_tree(
             label="units",
         )
 
-        console.print(f"\n[bold {PRIMARY}]🏢 Units matching '{filter}'[/bold {PRIMARY}]\n")
+        console.print(f"\n[bold {PRIMARY}]Units matching '{filter}'[/bold {PRIMARY}]\n")
         tbl = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
         tbl.add_column("#", style="grey62", justify="right", width=4)
         tbl.add_column("Name", style="bold white", min_width=24)
@@ -87,7 +87,7 @@ def show_unit_tree(
         return
 
     # ── Normal tree mode ─────────────────────────────────────────────────────
-    console.print(f"\n[bold {PRIMARY}]🏢 Organisational Unit Tree[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Organisational Unit Tree[/bold {PRIMARY}]\n")
     root = Tree(f"[bold {PRIMARY}]Company[/bold {PRIMARY}]")
     for node in nodes:
         _render_unit_tree(node, root)
@@ -107,7 +107,7 @@ def create_unit_item(
     
     If no ID or names are provided, fetches the tree and lets you pick.
     """
-    console.print(f"\n[bold {PRIMARY}]🏢 Create Unit Item[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Create Unit Item[/bold {PRIMARY}]\n")
 
     if not unit_id or not unit_name:
         with api_call("Fetching unit tree..."):
@@ -139,22 +139,22 @@ def create_unit_item(
         console.print(tbl)
         console.print()
 
-        raw = typer.prompt("  Pick a unit (# or ID)")
+        raw = typer.prompt(" Pick a unit (# or ID)")
         try:
             idx = int(raw) - 1
             if 0 <= idx < len(units_flat):
                 unit_id, unit_name = units_flat[idx]["id"], units_flat[idx]["name"]
-                console.print(f"  [{PRIMARY}]→ Adding to [bold]{unit_name}[/bold][/{PRIMARY}]\n")
+                console.print(f" [{PRIMARY}]Adding to [bold]{unit_name}[/bold][/{PRIMARY}]\n")
             else:
                 unit_id = raw
         except ValueError:
             unit_id = raw
 
         if not unit_name:
-            unit_name = typer.prompt("  Confirm unit name (e.g. Location)")
+            unit_name = typer.prompt(" Confirm unit name (e.g. Location)")
 
     if not item_name:
-        item_name = typer.prompt(f"  New item name for '{unit_name}'")
+        item_name = typer.prompt(f" New item name for '{unit_name}'")
 
     with api_call(f"Adding '{item_name}' to {unit_name}..."):
         svc.create_unit_item(

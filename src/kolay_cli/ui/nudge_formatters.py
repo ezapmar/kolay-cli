@@ -12,14 +12,14 @@ def print_nudge_card(pending: list[dict[str, Any]], style: str) -> None:
     count = len(pending)
     top_item = pending[0]
     
-    title = "[bold]🧠 AI Coach Suggestion[/bold]"
+    title = "[bold]AI Coach Suggestion[/bold]"
     
     if count > 10:
         # Overwhelmed state
         message = (
             f"You have {count} items pending. That's a lot of cognitive load! "
             f"Let's ignore {count-1} of them right now and just focus on one quick win:\n\n"
-            f"[bold {ACCENT}]▶ {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
+            f"[bold {ACCENT}]> {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
             f"Run [bold]kolay nudge sprint[/bold] to knock a few out in 5 minutes."
         )
     else:
@@ -28,13 +28,13 @@ def print_nudge_card(pending: list[dict[str, Any]], style: str) -> None:
             message = (
                 f"You're almost caught up! Only {count} items left to clear your queue.\n\n"
                 f"Next up for EXP:\n"
-                f"[bold {ACCENT}]▶ {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
+                f"[bold {ACCENT}]> {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
                 f"Approve this item using [bold]kolay {top_item['type']} view {top_item['id']}[/bold]"
             )
         elif style == "direct":
             message = (
                 f"{count} pending. Top priority:\n\n"
-                f"[bold {ACCENT}]▶ {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
+                f"[bold {ACCENT}]> {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
                 f"Action: [bold]kolay {top_item['type']} view {top_item['id']}[/bold]"
             )
         else:
@@ -42,7 +42,7 @@ def print_nudge_card(pending: list[dict[str, Any]], style: str) -> None:
             message = (
                 f"You have {count} items pending when you have a moment.\n"
                 f"Here is the most recent one to look at:\n\n"
-                f"[bold {ACCENT}]▶ {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
+                f"[bold {ACCENT}]> {top_item['title']}[/bold {ACCENT}] — {top_item['detail']}\n\n"
                 f"You can handle it with: [bold]kolay {top_item['type']} view {top_item['id']}[/bold]"
             )
 
@@ -64,8 +64,8 @@ def print_celebration(style: str) -> None:
     ]
     if style == "gamification":
         messages = [
-            "🏆 Level up! Zero pending items.",
-            "🔥 Queue completely cleared! +100 Productivity EXP."
+            "Level up! Zero pending items.",
+            "Queue completely cleared! +100 Productivity EXP."
         ]
     elif style == "direct":
         messages = [
@@ -73,14 +73,14 @@ def print_celebration(style: str) -> None:
         ]
         
     msg = random.choice(messages)
-    console.print(f"\n[bold {SUCCESS}]✨ {msg}[/bold {SUCCESS}]")
+    console.print(f"\n[bold {SUCCESS}]{msg}[/bold {SUCCESS}]")
 
 def print_streak(count: int) -> None:
     """Display gamification streak."""
     if count >= 3:
-        console.print(f"[{WARNING}]🔥 You are on a {count}-day streak of keeping your queue clean! Keep it alive![/{WARNING}]\n")
+        console.print(f"[{WARNING}]You are on a {count}-day streak of keeping your queue clean! Keep it alive![/{WARNING}]\n")
     else:
-        console.print(f"[{SUCCESS}]🌱 Streak started! Day {count}.[/{SUCCESS}]\n")
+        console.print(f"[{SUCCESS}]Streak started! Day {count}.[/{SUCCESS}]\n")
 
 def sprint_prompt(pending: list[dict[str, Any]], style: str) -> None:
     """Show items one by one for a micro-sprint."""
@@ -101,7 +101,7 @@ def print_cross_service_nudge(pending: list[dict[str, Any]], source: str) -> Non
     
     count = len(other_pending)
     console.print(
-        f"\n[{WARNING}]🧠 Coach's Nudge:[/{WARNING}] "
+        f"\n[{WARNING}]Coach's Nudge:[/{WARNING}] "
         f"You have {count} pending items in other areas (like a {other_pending[0]['title']}). "
         f"Clear them in 5 mins with [bold]kolay nudge sprint[/bold]!"
     )

@@ -23,7 +23,7 @@ class TestDoctor:
     @patch("kolay_cli.security.validate_token")
     @patch("kolay_cli.commands.doctor.CONFIG_FILE_YAML")
     def test_doctor_all_pass(self, mock_yaml, mock_validate, mock_keyring, mock_resolve, mock_shutil, mock_client):
-        """All checks pass → output contains 'All clear'."""
+        """All checks pass output contains 'All clear'."""
         mock_shutil.which.return_value = "/usr/local/bin/kolay"
         mock_yaml.exists.return_value = True
         mock_yaml.__str__ = lambda _: "/fake/config.yaml"
@@ -40,7 +40,7 @@ class TestDoctor:
     @patch("kolay_cli.commands.doctor.CONFIG_FILE_JSON")
     @patch("kolay_cli.commands.doctor.CONFIG_FILE_YAML")
     def test_doctor_no_token(self, mock_yaml, mock_json, mock_resolve, mock_shutil):
-        """No token configured → output shows fail marker for token."""
+        """No token configured output shows fail marker for token."""
         mock_shutil.which.return_value = "/usr/local/bin/kolay"
         mock_yaml.exists.return_value = False
         mock_json.exists.return_value = False
@@ -54,7 +54,7 @@ class TestDoctor:
     @patch("kolay_cli.commands.doctor.CONFIG_FILE_JSON")
     @patch("kolay_cli.commands.doctor.CONFIG_FILE_YAML")
     def test_doctor_not_on_path(self, mock_yaml, mock_json, mock_resolve, mock_shutil):
-        """Binary not on PATH → output shows fail marker."""
+        """Binary not on PATH output shows fail marker."""
         mock_shutil.which.return_value = None
         mock_yaml.exists.return_value = False
         mock_json.exists.return_value = False

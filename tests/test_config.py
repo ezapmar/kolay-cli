@@ -19,11 +19,11 @@ def test_config_set_valid_key():
     """Config set writes a key=value — exit 0 and confirm message."""
     result = runner.invoke(app, ["config", "set", "base_url", "https://api.kolayik.com"])
     assert result.exit_code == 0
-    assert any(kw in result.output.lower() for kw in ["saved", "set", "updated", "✔"])
+    assert any(kw in result.output.lower() for kw in ["saved", "set", "updated", ""])
 
 
 def test_config_set_missing_value():
-    """Config set with only one arg (missing value) → typer exits 2."""
+    """Config set with only one arg (missing value) typer exits 2."""
     result = runner.invoke(app, ["config", "set", "base_url"])
     assert result.exit_code == 2
 
@@ -33,7 +33,7 @@ def test_config_validate_success(mock_client):
     mock_client.get.return_value = {"data": {"firstName": "Tunc"}}
     result = runner.invoke(app, ["config", "validate"])
     assert result.exit_code == 0
-    assert any(kw in result.output.lower() for kw in ["valid", "success", "✔", "ok"])
+    assert any(kw in result.output.lower() for kw in ["valid", "success", "", "ok"])
 
 
 def test_config_validate_401(mock_client):

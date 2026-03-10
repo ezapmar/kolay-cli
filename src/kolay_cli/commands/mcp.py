@@ -21,7 +21,7 @@ def _hint(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         # Issue #7: surface the most useful next step before the countdown
         console.print(
-            f"\n[bold {_PRIMARY}]💡 New here?[/bold {_PRIMARY}]  "
+            f"\n[bold {_PRIMARY}]New here?[/bold {_PRIMARY}]  "
             f"Run [bold]kolay mcp install[/bold] to connect your AI client.\n"
         )
     from ..ui import no_command_help
@@ -71,7 +71,7 @@ def serve(
     except ImportError:
         console.print(
             "\n[bold red]fastmcp is not installed.[/bold red]\n"
-            f"  Install it with: [bold {_PRIMARY}]pip install 'kolay-cli[mcp]'[/bold {_PRIMARY}]\n"
+            f" Install it with: [bold {_PRIMARY}]pip install 'kolay-cli[mcp]'[/bold {_PRIMARY}]\n"
         )
         raise typer.Exit(1)
 
@@ -79,9 +79,9 @@ def serve(
         from ..mcp_server import create_secured_http_app
         import uvicorn
 
-        api_key_status = "[green]✔ enabled[/green]" if __import__("os").environ.get("MCP_API_KEY") else "[yellow]⚠ disabled[/yellow] (set MCP_API_KEY to secure)"
+        api_key_status = "[green]enabled[/green]" if __import__("os").environ.get("MCP_API_KEY") else "[yellow]disabled[/yellow] (set MCP_API_KEY to secure)"
         console.print(
-            f"\n[bold {_PRIMARY}]🔌 Kolay IK MCP server[/bold {_PRIMARY}]  "
+            f"\n[bold {_PRIMARY}]Kolay IK MCP server[/bold {_PRIMARY}]  "
             f"[grey62]http://{host}:{port}/mcp[/grey62]"
             f"\n   Auth: {api_key_status}\n"
         )
@@ -94,13 +94,13 @@ def serve(
 
 @app.command(name="tools")
 def list_tools() -> None:
-    """List all available MCP tools on the server."""  # Issue #8: consistent verb
+    """List all available MCP tools on the server.""" # Issue #8: consistent verb
     try:
         from ..mcp_server import mcp
     except ImportError:
         console.print(
             "\n[bold red]fastmcp is not installed.[/bold red]\n"
-            f"  Install it with: [bold {_PRIMARY}]pip install 'kolay-cli[mcp]'[/bold {_PRIMARY}]\n"
+            f" Install it with: [bold {_PRIMARY}]pip install 'kolay-cli[mcp]'[/bold {_PRIMARY}]\n"
         )
         raise typer.Exit(1)
 
@@ -120,7 +120,7 @@ def list_tools() -> None:
         desc = (tool.description or "").split("\n")[0][:80]
         table.add_row(str(i), tool.name, desc)
 
-    console.print(f"\n[bold {_PRIMARY}]🔧 Kolay IK MCP Tools[/bold {_PRIMARY}] [grey62]({len(tools)} registered)[/grey62]\n")
+    console.print(f"\n[bold {_PRIMARY}]Kolay IK MCP Tools[/bold {_PRIMARY}] [grey62]({len(tools)} registered)[/grey62]\n")
     console.print(table)
     console.print()
 
@@ -154,7 +154,7 @@ def install(
 
     strategies = get_strategies()
 
-    console.print(f"\n[bold {_PRIMARY}]🔌 Kolay IK MCP Server Installer[/bold {_PRIMARY}]\n")
+    console.print(f"\n[bold {_PRIMARY}]Kolay IK MCP Server Installer[/bold {_PRIMARY}]\n")
 
 
     if not yes:
@@ -175,20 +175,20 @@ def install(
 
         # Issue #3: visually distinct hint block
         console.print()
-        console.print(f"  [grey62]Numbers separated by commas → [bold white]1,3[/bold white]   "
-                      f"All at once → [bold white]a[/bold white]   "
-                      f"Cancel → [bold white]Enter[/bold white][/grey62]")
+        console.print(f" [grey62]Numbers separated by commas [bold white]1,3[/bold white]   "
+                      f"All at once [bold white]a[/bold white]   "
+                      f"Cancel [bold white]Enter[/bold white][/grey62]")
         console.print()
 
         # Issue #4: context-anchored prompt label
-        raw = typer.prompt("  Install which client(s)?")
+        raw = typer.prompt(" Install which client(s)?")
         raw = raw.strip().lower()
 
         # Issue #5: newline before warnings so they never share a line with the prompt
         console.print()
 
         if not raw:
-            console.print("  [grey62]No selection — nothing installed.[/grey62]\n")
+            console.print(" [grey62]No selection — nothing installed.[/grey62]\n")
             raise typer.Exit(0)
 
         if raw in ("a", "all", "*"):
@@ -203,15 +203,15 @@ def install(
                     if 0 <= idx < len(strategies):
                         chosen_indices.append(idx)
                     else:
-                        warnings.append(f"  [yellow]⚠  {token!r} is out of range (1–{len(strategies)})[/yellow]")
+                        warnings.append(f" [yellow]{token!r} is out of range (1–{len(strategies)})[/yellow]")
                 elif token:
-                    warnings.append(f"  [yellow]⚠  {token!r} is not a valid number — skipped[/yellow]")
+                    warnings.append(f" [yellow]{token!r} is not a valid number — skipped[/yellow]")
 
             for w in warnings:
                 console.print(w)
 
             if not chosen_indices:
-                console.print("  [yellow]No valid selection — nothing installed.[/yellow]\n")
+                console.print(" [yellow]No valid selection — nothing installed.[/yellow]\n")
                 raise typer.Exit(0)
 
             selected_names = [strategies[i].name for i in chosen_indices]
@@ -225,27 +225,27 @@ def install(
     for client_name, success, msg in results:
         if success:
             # Issue #6: show ~/… path instead of /Users/…
-            console.print(f"  [green]✔[/green] [bold]{client_name}[/bold]: Configured.")
-            console.print(f"      [grey62]→ {_tilde(msg)}[/grey62]")
+            console.print(f" [green][/green] [bold]{client_name}[/bold]: Configured.")
+            console.print(f" [grey62]{_tilde(msg)}[/grey62]")
             success_count += 1
         else:
             if "Unsupported platform" in msg or "not determinable" in msg:
-                console.print(f"  [grey50]○[/grey50] [bold grey62]{client_name}[/bold grey62]: Skipped ({msg})")
+                console.print(f" [grey50]o[/grey50] [bold grey62]{client_name}[/bold grey62]: Skipped ({msg})")
             else:
-                console.print(f"  [red]✖[/red] [bold]{client_name}[/bold]: Failed.")
-                console.print(f"      [red dim]→ {msg}[/red dim]")
+                console.print(f" [red][/red] [bold]{client_name}[/bold]: Failed.")
+                console.print(f" [red dim]{msg}[/red dim]")
 
     console.print()
     if success_count > 0:
-        console.print(f"[green]✅ {success_count} client(s) configured.[/green] Restart your client(s) to apply.\n")
+        console.print(f"[green]{success_count} client(s) configured.[/green] Restart your client(s) to apply.\n")
     else:
-        console.print(f"[yellow]⚠️  Nothing was configured.[/yellow]")
-        console.print(f"   Manual config → command: [bold]{cmd}[/bold]   args: {json.dumps(args)}\n")
+        console.print(f"[yellow]Nothing was configured.[/yellow]")
+        console.print(f" Manual config command: [bold]{cmd}[/bold]   args: {json.dumps(args)}\n")
 
 
 @app.command(name="clients")
 def list_clients() -> None:
-    """List supported AI client integrations and their config paths."""  # Issue #8: consistent verb
+    """List supported AI client integrations and their config paths.""" # Issue #8: consistent verb
     from rich.table import Table
     from ..services.mcp_registry import get_strategies
 
@@ -266,6 +266,6 @@ def list_clients() -> None:
         path_str = _tilde(str(p)) if p else "n/a"
         table.add_row(str(i), s.name, path_str)
 
-    console.print(f"\n[bold {_PRIMARY}]🔗 Supported MCP Clients[/bold {_PRIMARY}] [grey62]({len(strategies)} total)[/grey62]\n")
+    console.print(f"\n[bold {_PRIMARY}]Supported MCP Clients[/bold {_PRIMARY}] [grey62]({len(strategies)} total)[/grey62]\n")
     console.print(table)
     console.print()

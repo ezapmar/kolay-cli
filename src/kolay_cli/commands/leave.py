@@ -53,7 +53,7 @@ def list_leaves(
         label="leave records",
     )
 
-    title = f"\U0001f3d6\ufe0f {status.title()} Leave Records"
+    title = f" {status.title()} Leave Records"
     if filter:
         title += f" matching '{filter}'"
     console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
@@ -140,8 +140,8 @@ def view_leave(leave_id: str | None = typer.Argument(None, help="ID or row numbe
 
     p = data.get("person", {})
     ltype = data.get("leaveType", {})
-    console.print(f"\n[bold {PRIMARY}]🏖️ Leave Record[/bold {PRIMARY}] [bold white]{p.get('name', 'Unknown')}[/bold white] — {ltype.get('name', 'Leave')}")
-    console.print(f"  {display_status(str(data.get('status', '')))}\n")
+    console.print(f"\n[bold {PRIMARY}]Leave Record[/bold {PRIMARY}] [bold white]{p.get('name', 'Unknown')}[/bold white] — {ltype.get('name', 'Leave')}")
+    console.print(f" {display_status(str(data.get('status', '')))}\n")
     console.print(Panel(kv_table(data, exclude=["id", "person", "leaveType", "status", "personId", "leaveTypeId"]), border_style=PRIMARY, expand=False))
     console.print()
 
@@ -157,7 +157,7 @@ def create_leave(
     """Create a new leave request. Prompts for missing details interactively."""
     from ..api.errors import APIError
     from datetime import datetime as _dt
-    console.print(f"\n[bold {PRIMARY}]🏖️ Create Leave Request[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Create Leave Request[/bold {PRIMARY}]\n")
 
     if not person_id:
         person_id = pick_person()
@@ -176,14 +176,14 @@ def create_leave(
         console.print(f"\n  [bold white]Available Leave Types:[/bold white]")
         for i, t in enumerate(types, 1):
             l_obj = t.get("leaveType", {})
-            console.print(f"  [{PRIMARY}]{i}[/{PRIMARY}]: {l_obj.get('name')}  [grey62]({t.get('unused', 0)} days left)[/grey62]")
+            console.print(f" [{PRIMARY}]{i}[/{PRIMARY}]: {l_obj.get('name')}  [grey62]({t.get('unused', 0)} days left)[/grey62]")
         try:
             idx = int(typer.prompt("\n  Pick a leave type (#)", default="1")) - 1
             selected = types[idx]
             leave_type_id = str(selected.get("leaveTypeId", ""))
             sel_name = selected.get("leaveType", {}).get("name", "Unknown")
             sel_remaining = selected.get("unused", "?")
-            console.print(f"  [{PRIMARY}]→ Selected: {sel_name}[/{PRIMARY}]\n")
+            console.print(f" [{PRIMARY}]Selected: {sel_name}[/{PRIMARY}]\n")
         except (ValueError, IndexError):
             print_error("Invalid selection.")
             return
@@ -226,23 +226,23 @@ def create_leave(
             console.print()
             if "bakiye" in msg_lower or "balance" in msg_lower or "gün" in msg_lower or "insufficient" in msg_lower:
                 console.print(
-                    f"  [bold yellow]💡 Tip:[/bold yellow] Insufficient leave balance for [bold]{sel_name}[/bold].\n"
-                    f"  Remaining: [bold]{sel_remaining}[/bold] days.\n"
-                    "  Check the requested date range and try again."
+                    f" [bold yellow]Tip:[/bold yellow] Insufficient leave balance for [bold]{sel_name}[/bold].\n"
+                    f" Remaining: [bold]{sel_remaining}[/bold] days.\n"
+                    " Check the requested date range and try again."
                 )
             elif "üst üste" in msg_lower or "overlap" in msg_lower or "dates" in msg_lower:
                 console.print(
-                    f"  [bold yellow]💡 Tip:[/bold yellow] The requested dates overlap with an existing leave request.\n"
-                    "  Check your current leave records: [bold]kolay leave list[/bold]"
+                    f" [bold yellow]Tip:[/bold yellow] The requested dates overlap with an existing leave request.\n"
+                    " Check your current leave records: [bold]kolay leave list[/bold]"
                 )
 
             console.print()
-            console.print(f"  [cyan]1[/cyan]  Try different dates")
-            console.print(f"  [cyan]2[/cyan]  Check leave balance for this employee")
-            console.print(f"  [cyan]3[/cyan]  Abort")
+            console.print(f" [cyan]1[/cyan]  Try different dates")
+            console.print(f" [cyan]2[/cyan]  Check leave balance for this employee")
+            console.print(f" [cyan]3[/cyan]  Abort")
             console.print()
 
-            choice = typer.prompt("  Choose an option", default="3").strip()
+            choice = typer.prompt(" Choose an option", default="3").strip()
             if choice == "1":
                 start_date = prompt_date("New start date", default=start_date)
                 end_date = prompt_date("New end date", default=end_date)
@@ -255,13 +255,13 @@ def create_leave(
                     for b in balances:
                         ltype = (b.get("leaveType") or {}).get("name", "—")
                         console.print(
-                            f"  [grey85]{ltype}[/grey85]:  "
+                            f" [grey85]{ltype}[/grey85]:  "
                             f"[orange1]{b.get('used', 0)} used[/orange1]  "
                             f"[bold green]{b.get('unused', 0)} remaining[/bold green]"
                         )
                     console.print()
                 else:
-                    console.print("  [grey62]No balance info found.[/grey62]\n")
+                    console.print(" [grey62]No balance info found.[/grey62]\n")
                 # Loop again after showing balances
             else:
                 console.print("\n  [grey62]Aborted.[/grey62]\n")

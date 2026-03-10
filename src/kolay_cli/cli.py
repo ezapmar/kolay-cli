@@ -91,7 +91,7 @@ def main(
 
     if ctx.invoked_subcommand is None:
         if not is_json_mode():
-            # No sub-command → show logo then the help panel
+            # No sub-command show logo then the help panel
             console.print(_LOGO, no_wrap=True, crop=False)
 
             # First-run detection: nudge the user towards `kolay setup`
@@ -99,8 +99,8 @@ def main(
             from .security import is_first_run
             if is_first_run() and not CONFIG_FILE_YAML.exists() and not CONFIG_FILE_JSON.exists():
                 console.print(
-                    f"  [bold {_PRIMARY}]👋  Looks like your first time here![/bold {_PRIMARY}]\n"
-                    f"  Run [bold]kolay setup[/bold] to authenticate and get started in under a minute.\n"
+                    f" [bold {_PRIMARY}]Looks like your first time here![/bold {_PRIMARY}]\n"
+                    f" Run [bold]kolay setup[/bold] to authenticate and get started in under a minute.\n"
                 )
             else:
                 console.print(ctx.get_help())
@@ -112,7 +112,7 @@ def main(
                         pending = nudge_svc.analyze_pending_work()
                         if pending:
                             console.print(
-                                f"\n  [{WARNING}]💡 Coach's Tip:[/{WARNING}] "
+                                f"\n  [{WARNING}]Coach's Tip:[/{WARNING}] "
                                 f"You have [bold]{len(pending)}[/bold] pending items to review. "
                                 f"Run [bold]kolay nudge status[/bold] to see your top priority."
                             )
@@ -142,7 +142,7 @@ def _enable_debug_logging() -> None:
     from .api.client import KolayClient
     KolayClient.debug = True
 
-    console.print(f"[grey62]  Debug logging enabled → {log_file}[/grey62]")
+    console.print(f"[grey62]  Debug logging enabled {log_file}[/grey62]")
 
 
 if __name__ == "__main__":

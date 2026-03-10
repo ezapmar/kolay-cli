@@ -57,8 +57,8 @@ def config_show() -> None:
     console.print()
 
     if not token_raw:
-        console.print(f"  [{ERROR}]No API token set.[/{ERROR}]")
-        console.print(f"  [grey62]Run [bold]kolay auth login[/bold] to authenticate.[/grey62]\n")
+        console.print(f" [{ERROR}]No API token set.[/{ERROR}]")
+        console.print(f" [grey62]Run [bold]kolay auth login[/bold] to authenticate.[/grey62]\n")
 
 
 @app.command(name="set")
@@ -109,7 +109,7 @@ def config_validate() -> None:
         Panel(
             f"[{SUCCESS}]Token is valid![/{SUCCESS}]\n\n"
             f"[bold white]{first} {last}[/bold white]  [grey62]{email}[/grey62]",
-            title=f"[{SUCCESS}]✔ Authenticated[/{SUCCESS}]",
+            title=f"[{SUCCESS}]Authenticated[/{SUCCESS}]",
             border_style=SUCCESS,
             expand=False,
             padding=(1, 2),

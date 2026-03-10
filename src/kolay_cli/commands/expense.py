@@ -41,7 +41,7 @@ def list_categories(
         label="expense categories",
     )
 
-    title_hdr = "🧾 Expense Categories"
+    title_hdr = "Expense Categories"
     if filter:
         title_hdr += f" matching '{filter}'"
     console.print(f"\n[bold {PRIMARY}]{title_hdr}[/bold {PRIMARY}]\n")

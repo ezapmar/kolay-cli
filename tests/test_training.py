@@ -99,6 +99,6 @@ def test_training_delete_confirmed(mock_client):
 def test_training_delete_cancelled(mock_client):
     mock_client.get.return_value = TRAINING_VIEW_RESPONSE
     result = runner.invoke(app, ["training", "delete", "tr1"], input="n\n")
-    # typer.confirm with abort=True raises Abort → exit code 1 in test runner
+    # typer.confirm with abort=True raises Abort exit code 1 in test runner
     assert result.exit_code == 1
     mock_client.delete.assert_not_called()

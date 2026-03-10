@@ -63,7 +63,7 @@ def list_timelogs(
         label="timelog records",
     )
 
-    title = f"\u23f1\ufe0f Timelog Records"
+    title = f" Timelog Records"
     if filter:
         title += f" matching '{filter}'"
     console.print(f"\n[bold {PRIMARY}]{title}[/bold {PRIMARY}]\n")
@@ -153,8 +153,8 @@ def view_timelog(timelog_id: str | None = typer.Argument(None, help="ID or row n
         return
     p = data.get("person", {})
     pname = f"{p.get('firstName', '')} {p.get('lastName', '')}".strip() if isinstance(p, dict) else "Unknown"
-    console.print(f"\n[bold {PRIMARY}]⏱️ Timelog[/bold {PRIMARY}] [bold white]{pname}[/bold white] — {data.get('type', 'Work')}")
-    console.print(f"  {display_status(str(data.get('status', '')))}\n")
+    console.print(f"\n[bold {PRIMARY}]Timelog[/bold {PRIMARY}] [bold white]{pname}[/bold white] — {data.get('type', 'Work')}")
+    console.print(f" {display_status(str(data.get('status', '')))}\n")
     console.print(Panel(kv_table(data, exclude=["id", "person", "type", "status", "personId"]), border_style=PRIMARY, expand=False))
     console.print()
 
@@ -169,7 +169,7 @@ def create_timelog(
 ) -> None:
     """Submit a new timelog entry for approval."""
     from ..api.errors import APIError
-    console.print(f"\n[bold {PRIMARY}]⏱️ Create Timelog Entry[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Create Timelog Entry[/bold {PRIMARY}]\n")
 
     require_arg(person_id, "person-id")
     if not person_id:
@@ -210,20 +210,20 @@ def create_timelog(
             console.print()
             if "\xfcst \xfcste" in msg_lower or "overlap" in msg_lower or "conflict" in msg_lower:
                 console.print(
-                    "  [bold yellow]💡 Tip:[/bold yellow] These hours overlap with an existing timelog entry.\n"
-                    "  Check your existing entries: [bold]kolay timelog list[/bold]"
+                    " [bold yellow]Tip:[/bold yellow] These hours overlap with an existing timelog entry.\n"
+                    " Check your existing entries: [bold]kolay timelog list[/bold]"
                 )
             elif "s\xfcre" in msg_lower or "duration" in msg_lower or "end" in msg_lower:
                 console.print(
-                    "  [bold yellow]💡 Tip:[/bold yellow] The end time must be after the start time."
+                    " [bold yellow]Tip:[/bold yellow] The end time must be after the start time."
                 )
 
             console.print()
-            console.print(f"  [cyan]1[/cyan]  Try different times")
-            console.print(f"  [cyan]2[/cyan]  Abort")
+            console.print(f" [cyan]1[/cyan]  Try different times")
+            console.print(f" [cyan]2[/cyan]  Abort")
             console.print()
 
-            choice = typer.prompt("  Choose an option", default="2").strip()
+            choice = typer.prompt(" Choose an option", default="2").strip()
             if choice == "1":
                 start = None  # reset so the loop re-prompts
                 end = None
@@ -249,7 +249,7 @@ def delete_timelog(timelog_id: str | None = typer.Argument(None, help="ID of the
         tl_type = str(tl_data.get("type") or "—")
         start = fmt_datetime(tl_data.get("startDate"))
         end = fmt_datetime(tl_data.get("endDate"))
-        period = f"{start} → {end}"
+        period = f"{start} {end}"
 
         confirm_destructive_action(
             action="Delete timelog record",
@@ -263,7 +263,7 @@ def delete_timelog(timelog_id: str | None = typer.Argument(None, help="ID of the
     except Exception:
         # Fallback if fetch fails — still confirm with whatever we have
         if not is_yes_mode():
-            typer.confirm("  Delete this timelog record?", abort=True)
+            typer.confirm(" Delete this timelog record?", abort=True)
 
     with api_call("Deleting timelog..."):
         result = svc.delete_timelog(timelog_id)

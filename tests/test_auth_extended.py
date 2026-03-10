@@ -4,14 +4,14 @@ tests/test_auth_extended.py — Extended tests for commands/auth.py
 Covers the previously uncovered branches (lines 47-52, 63-67, 91-96, 105,
 115-116, 126-130, 140-141, 147-150, 165-166):
 
-  - login: happy path (token stored → API verifies → rich panel shown)
+  - login: happy path (token stored API verifies rich panel shown)
   - login: happy path in --json mode (returns JSON, no panel)
   - login: stored but verification failed (SystemExit path)
   - login: stored but verification failed in --json mode
-  - logout: keyring cleared → success message
-  - logout: nothing stored → "already logged out" message
+  - logout: keyring cleared success message
+  - logout: nothing stored "already logged out" message
   - logout: --json mode
-  - status: no token → error
+  - status: no token error
   - status: token invalid (local validation fails)
   - status: API verification fails (SystemExit path)
   - status: --json mode authenticated
@@ -86,7 +86,7 @@ class TestAuthLogin:
         assert data["token_storage"] == "config_file"
 
     def test_login_verification_failed_human_mode(self, mock_client):
-        """Token saved but API call raises SystemExit → graceful fallback message."""
+        """Token saved but API call raises SystemExit graceful fallback message."""
         mock_client.get.side_effect = SystemExit(1)
         with _patch_store(saved_to_keyring=True):
             result = runner.invoke(app, ["auth", "login", "--token", "tok123"])
@@ -150,7 +150,7 @@ class TestAuthStatus:
         assert data["authenticated"] is False
 
     def test_status_invalid_token_local(self):
-        """Local token validation fails (expired/malformed) → error before API call."""
+        """Local token validation fails (expired/malformed) error before API call."""
         with _patch_resolve(), _patch_validate(valid=False, reason="Token expired."):
             result = runner.invoke(app, ["auth", "status"])
         assert result.exit_code == 0

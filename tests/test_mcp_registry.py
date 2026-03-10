@@ -7,10 +7,10 @@ Covers:
   - ZedStrategy schema (uses "context_servers" with nested path/args)
   - inject_server happy path: creates file + correct JSON written
   - inject_server: merges into existing config without destroying other keys
-  - inject_server: malformed JSON → aborts with error (destructive-write guard)
-  - inject_server: path not determinable → (False, "Unsupported platform")
-  - inject_server: OS permission error → (False, human error message)
-  - _read_config: nonexistent file → empty dict (creates fresh)
+  - inject_server: malformed JSON aborts with error (destructive-write guard)
+  - inject_server: path not determinable (False, "Unsupported platform")
+  - inject_server: OS permission error (False, human error message)
+  - _read_config: nonexistent file empty dict (creates fresh)
   - install_mcp_server: selected filter passes only chosen clients
   - install_mcp_server: selected=None installs all
   - get_strategies: returns 7 strategies with unique names
@@ -56,7 +56,7 @@ class TestGetStrategies:
             assert s.description, f"Strategy {s.name} has empty description"
 
 
-# ── Base schema (_set_server → mcpServers) ─────────────────────────────────────
+# ── Base schema (_set_server mcpServers) ─────────────────────────────────────
 
 class TestBaseSchema:
     def test_set_server_creates_mcp_servers_key(self):
@@ -218,7 +218,7 @@ class TestDestructiveWriteGuard:
         assert config_file.read_text() == "{this is not valid json!!!"
 
     def test_permission_error_returns_false(self):
-        """OS write error → graceful (False, message), no exception raised."""
+        """OS write error graceful (False, message), no exception raised."""
         # /root/... is guaranteed to be non-writable on macOS/Linux CI
         bad_path = Path("/root/cannot_create_this_dir/config.json")
         s = ClaudeDesktopStrategy()
@@ -240,7 +240,7 @@ class TestDestructiveWriteGuard:
 
 class TestInstallMCPServer:
     def test_selected_none_calls_all_strategies(self, tmp_path, monkeypatch):
-        """selected=None → all strategies are attempted."""
+        """selected=None all strategies are attempted."""
         from kolay_cli.services import mcp_registry
 
         calls = []

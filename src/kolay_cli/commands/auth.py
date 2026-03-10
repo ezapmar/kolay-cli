@@ -35,7 +35,7 @@ def _perform_login(token: str, _console: "Console | None" = None) -> None:  # ty
     _con = _console or console
 
     saved_to_keyring = store_token(token)
-    storage_label = "OS Keychain 🔐" if saved_to_keyring else "config file (keyring unavailable)"
+    storage_label = "OS Keychain " if saved_to_keyring else "config file (keyring unavailable)"
 
     try:
         with api_call("Verifying token..."):
@@ -55,18 +55,18 @@ def _perform_login(token: str, _console: "Console | None" = None) -> None:  # ty
                 f"[{SUCCESS}]Authenticated successfully![/{SUCCESS}]\n\n"
                 f"[bold white]{name}[/bold white]\n\n"
                 f"[grey62]Token saved to: {storage_label}[/grey62]",
-                title=f"[{SUCCESS}]✔ Logged In[/{SUCCESS}]",
+                title=f"[{SUCCESS}]Logged In[/{SUCCESS}]",
                 border_style=SUCCESS, expand=False, padding=(1, 2)
             )
         )
-        _con.print(f"  [grey62]💡 Run [bold]kolay doctor[/bold] to verify your full setup.[/grey62]\n")
+        _con.print(f" [grey62]Run [bold]kolay doctor[/bold] to verify your full setup.[/grey62]\n")
     except SystemExit:
         if is_json_mode():
             json_output({"status": "error", "message": "Token saved but verification failed."})
             return
         _con.print(
             f"[grey62]  Token saved to {storage_label}, but verification failed.\n"
-            f"  Run [bold]kolay config validate[/bold] to retry.[/grey62]\n"
+            f" Run [bold]kolay config validate[/bold] to retry.[/grey62]\n"
         )
 
 
@@ -96,10 +96,10 @@ def logout() -> None:
         return
 
     if removed_keyring or removed_file:
-        console.print(f"\n[{SUCCESS}]●[/{SUCCESS}] Logged out successfully.\n")
+        console.print(f"\n[{SUCCESS}]*[/{SUCCESS}] Logged out successfully.\n")
         if removed_keyring:
-            console.print(f"  [grey62]✔ Removed from OS Keychain[/grey62]")
-        console.print(f"  [grey62]✔ Config file cleaned[/grey62]")
+            console.print(f" [grey62]Removed from OS Keychain[/grey62]")
+        console.print(f" [grey62]Config file cleaned[/grey62]")
         console.print()
     else:
         console.print(f"\n[grey62]  No stored token found — already logged out.[/grey62]\n")
@@ -140,7 +140,7 @@ def status() -> None:
             json_output({"authenticated": True, "name": name, "email": email, "token_source": token_source})
             return
         console.print(
-            f"\n[{SUCCESS}]●[/{SUCCESS}] Logged in as [bold white]{name}[/bold white]  "
+            f"\n[{SUCCESS}]*[/{SUCCESS}] Logged in as [bold white]{name}[/bold white]  "
             f"[grey62]{email}[/grey62]  [grey50](token: {token_source})[/grey50]\n"
         )
     except SystemExit:
@@ -148,8 +148,8 @@ def status() -> None:
             json_output({"authenticated": False, "message": "Token exists but API verification failed."})
             return
         console.print(
-            f"\n[{ERROR}]●[/{ERROR}] Token exists but API verification failed.\n"
-            f"  [grey62]Run [bold]kolay auth login[/bold] to refresh.[/grey62]\n"
+            f"\n[{ERROR}]*[/{ERROR}] Token exists but API verification failed.\n"
+            f" [grey62]Run [bold]kolay auth login[/bold] to refresh.[/grey62]\n"
         )
 
 

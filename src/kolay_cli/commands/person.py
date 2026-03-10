@@ -63,7 +63,7 @@ def list_people(
         label="employees",
     )
 
-    title = f"👥 {status.title()} Employees"
+    title = f"{status.title()} Employees"
     if search:
         title += f" matching '{search}'"
     if filter:
@@ -111,7 +111,7 @@ def _resolve_person_id(value: str, *, status: str = "active", limit: int = 50) -
 
     Honours the last-listed page: if the user ran ``kolay person list --page 2``
     (seeing rows 21–40), then types ``kolay person view 21``, this correctly
-    fetches page 2 and resolves the page-relative index (1) → item 1 of page 2.
+    fetches page 2 and resolves the page-relative index (1) item 1 of page 2.
     Falls back to page 1 when no recent state is found.
     """
     if not value.isdigit():
@@ -149,8 +149,8 @@ def view_person(person_id: str | None = typer.Argument(None, help="ID or row num
     st = data.get("status", "")
     email = data.get("workEmail") or data.get("email") or "—"
 
-    console.print(f"\n[bold {PRIMARY}]👤 Employee Profile[/bold {PRIMARY}] [bold white]{fname} {lname}[/bold white]")
-    console.print(f"  {display_status(st)}  [grey62]{email}[/grey62]\n")
+    console.print(f"\n[bold {PRIMARY}]Employee Profile[/bold {PRIMARY}] [bold white]{fname} {lname}[/bold white]")
+    console.print(f" {display_status(st)}  [grey62]{email}[/grey62]\n")
 
     SECTIONS = {
         "Identity": ["tckn", "birthDate", "gender", "maritalStatus", "bloodType"],
@@ -176,7 +176,7 @@ def view_person(person_id: str | None = typer.Argument(None, help="ID or row num
     # Display Unit Details if available
     units = data.get("units", [])
     if units:
-        console.print("\n[bold magenta]🏢 Organisational Units[/bold magenta]")
+        console.print("\n[bold magenta]Organisational Units[/bold magenta]")
         u_tbl = Table(header_style="bold magenta", border_style="magenta", box=None, show_edge=False)
         u_tbl.add_column("Type", style="grey62")
         u_tbl.add_column("Item", style="bold white")
@@ -235,7 +235,7 @@ def view_leave_status(
             fmt_num(item.get("unused", 0))
         )
 
-    console.print(f"\n[bold {PRIMARY}]🏖️ Leave Balances[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Leave Balances[/bold {PRIMARY}]\n")
     console.print(table)
     console.print()
 
@@ -284,7 +284,7 @@ def terminate_person(
             require_arg(None, "reason")
         console.print("\n[bold white]  Termination reasons:[/bold white]")
         for code, desc in svc.REASON_CODES.items():
-            console.print(f"  [cyan]{code}[/cyan] : {desc}")
+            console.print(f" [cyan]{code}[/cyan] : {desc}")
         reason = typer.prompt("\n  Enter reason code", type=str)
 
     # 3.3: Show full termination details before confirming — reason code has
@@ -333,23 +333,23 @@ def _handle_terminate_error(
     console.print()
     if has_pending:
         console.print(
-            f"  [bold yellow]💡 Tip:[/bold yellow] [bold]{display_name}[/bold] has pending "
+            f" [bold yellow]Tip:[/bold yellow] [bold]{display_name}[/bold] has pending "
             "requests that must be resolved before termination.\n"
-            "  Approve, reject, or delete them, then try again."
+            " Approve, reject, or delete them, then try again."
         )
     else:
         console.print(
-            "  [bold yellow]💡 What would you like to do?[/bold yellow]"
+            " [bold yellow]What would you like to do?[/bold yellow]"
         )
 
     console.print()
-    console.print(f"  [cyan]1[/cyan]  Show pending leave requests for {display_name}")
-    console.print(f"  [cyan]2[/cyan]  Show pending timelog requests for {display_name}")
-    console.print(f"  [cyan]3[/cyan]  Pick a different employee to terminate")
-    console.print(f"  [cyan]4[/cyan]  Abort")
+    console.print(f" [cyan]1[/cyan]  Show pending leave requests for {display_name}")
+    console.print(f" [cyan]2[/cyan]  Show pending timelog requests for {display_name}")
+    console.print(f" [cyan]3[/cyan]  Pick a different employee to terminate")
+    console.print(f" [cyan]4[/cyan]  Abort")
     console.print()
 
-    choice = typer.prompt("  Choose an option", default="4").strip()
+    choice = typer.prompt(" Choose an option", default="4").strip()
 
     if choice == "1":
         # Show pending leaves for this person
@@ -377,7 +377,7 @@ def _handle_terminate_error(
                     )
                 console.print(tbl)
             console.print(
-                f"\n  [grey62]→ Run [bold]kolay leave list --person-id {person_id} --status waiting[/bold] "
+                f"\n  [grey62]Run [bold]kolay leave list --person-id {person_id} --status waiting[/bold] "
                 "to manage them.[/grey62]\n"
             )
         except Exception:
@@ -410,7 +410,7 @@ def _handle_terminate_error(
                     )
                 console.print(tbl)
             console.print(
-                f"\n  [grey62]→ Run [bold]kolay timelog list --person-id {person_id} --status waiting[/bold] "
+                f"\n  [grey62]Run [bold]kolay timelog list --person-id {person_id} --status waiting[/bold] "
                 "to manage them.[/grey62]\n"
             )
         except Exception:
@@ -490,7 +490,7 @@ def view_summary(person_id: str | None = typer.Argument(None, help="ID of the pe
     fname = data.get("firstName", "")
     lname = data.get("lastName", "")
     
-    console.print(f"\n[bold {PRIMARY}]📄 Employee Summary[/bold {PRIMARY}] [bold white]{fname} {lname}[/bold white]\n")
+    console.print(f"\n[bold {PRIMARY}]Employee Summary[/bold {PRIMARY}] [bold white]{fname} {lname}[/bold white]\n")
     tbl = kv_table(data, exclude=["id", "firstName", "lastName", "status", "dataList"])
     console.print(Panel(tbl, border_style=PRIMARY, expand=False))
     
@@ -516,13 +516,13 @@ def create_person(
 ) -> None:
     """Create a new employee record. Prompts for missing required fields."""
     from ..api.errors import APIError
-    console.print(f"\n[bold {PRIMARY}]👤 Create Employee[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Create Employee[/bold {PRIMARY}]\n")
     if not first_name:
-        first_name = typer.prompt("  First name")
+        first_name = typer.prompt(" First name")
     if not last_name:
-        last_name = typer.prompt("  Last name")
+        last_name = typer.prompt(" Last name")
     if not email:
-        email = typer.prompt("  Work email")
+        email = typer.prompt(" Work email")
     if employment_start:
         employment_start = validate_date(employment_start, "%Y-%m-%d")
     else:
@@ -543,15 +543,15 @@ def create_person(
             msg = getattr(exc, "message", "").lower()
             if "email" in msg or "duplicate" in msg or status == 409:
                 console.print(
-                    f"\n  [bold yellow]💡 Tip:[/bold yellow] An employee with the email "
+                    f"\n  [bold yellow]Tip:[/bold yellow] An employee with the email "
                     f"[bold]{email}[/bold] may already exist.\n"
                 )
                 from rich.prompt import Prompt
                 choice = Prompt.ask(
-                    "  [bold]How would you like to proceed?[/bold]\n"
-                    "  [1] Search for existing employee\n"
-                    "  [2] Try a different email\n"
-                    "  [3] Abort",
+                    " [bold]How would you like to proceed?[/bold]\n"
+                    " [1] Search for existing employee\n"
+                    " [2] Try a different email\n"
+                    " [3] Abort",
                     choices=["1", "2", "3"],
                     default="1"
                 )
@@ -590,7 +590,7 @@ def bulk_view_people(
             print_empty("employees", hint="Check the IDs and try again.")
             return
 
-        console.print(f"\n[bold {PRIMARY}]👥 Bulk Employees View[/bold {PRIMARY}]\n")
+        console.print(f"\n[bold {PRIMARY}]Bulk Employees View[/bold {PRIMARY}]\n")
         table = Table(header_style=f"bold {PRIMARY}", border_style=PRIMARY, box=None, show_edge=False)
         table.add_column("Name", style="bold white", min_width=22)
         table.add_column("Email", style="grey85")
@@ -629,7 +629,7 @@ def show_available_fields() -> None:
         req = "[red]Yes[/red]" if field.get("required") else "[grey62]No[/grey62]"
         table.add_row(str(i), token, field_label, field.get("type", "—"), req)
 
-    console.print(f"\n[bold {PRIMARY}]📋 Available Custom Fields[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Available Custom Fields[/bold {PRIMARY}]\n")
     console.print(table)
     console.print()
 
@@ -658,14 +658,14 @@ def rehire_person(
         msg = getattr(exc, "message", "").lower()
         if "active" in msg or "aktif" in msg or "already" in msg:
             console.print(
-                "\n  [bold yellow]💡 Tip:[/bold yellow] This employee may already be active.\n"
-                f"  Run [bold]kolay person view {person_id}[/bold] to check their current status.\n"
+                "\n  [bold yellow]Tip:[/bold yellow] This employee may already be active.\n"
+                f" Run [bold]kolay person view {person_id}[/bold] to check their current status.\n"
             )
         else:
             console.print(
-                "\n  [bold yellow]💡 Tip:[/bold yellow] Check that this employee is actually "
+                "\n  [bold yellow]Tip:[/bold yellow] Check that this employee is actually "
                 "in a terminated state before rehiring.\n"
-                f"  Run [bold]kolay person view {person_id}[/bold] to inspect their profile.\n"
+                f" Run [bold]kolay person view {person_id}[/bold] to inspect their profile.\n"
             )
         raise typer.Exit(exc.exit_code if hasattr(exc, "exit_code") else 1)
 
@@ -694,7 +694,7 @@ def list_person_files(person_id: str | None = typer.Argument(None, help="ID of t
         folder = f.get("folderName") or "—"
         table.add_row(str(i), name, folder, short_id(str(f.get("id", ""))))
 
-    console.print(f"\n[bold {PRIMARY}]📁 Employee Files[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Employee Files[/bold {PRIMARY}]\n")
     console.print(table)
     console.print()
 
@@ -836,7 +836,7 @@ def list_person_trainings(person_id: str | None = typer.Argument(None, help="ID 
             short_id(str(pt.get("id", "")))
         )
 
-    console.print(f"\n[bold {PRIMARY}]🎓 Training Assignments[/bold {PRIMARY}]\n")
+    console.print(f"\n[bold {PRIMARY}]Training Assignments[/bold {PRIMARY}]\n")
     console.print(table)
     console.print()
 
@@ -895,7 +895,7 @@ def delete_person_training(
         person_training_id = pick_person_training()
 
     if not is_yes_mode():
-        typer.confirm(f"  Delete assignment {person_training_id}?", abort=True)
+        typer.confirm(f" Delete assignment {person_training_id}?", abort=True)
 
     with api_call("Deleting assignment..."):
         svc.delete_training(person_training_id)

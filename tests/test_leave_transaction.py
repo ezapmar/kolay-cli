@@ -80,7 +80,7 @@ def test_leave_view(mock_client):
 
 
 def test_leave_view_not_found(mock_client):
-    """Empty data → view renders headings, exits cleanly without error."""
+    """Empty data view renders headings, exits cleanly without error."""
     mock_client.get.return_value = {"data": {}}
     result = runner.invoke(app, ["leave", "view", "badid"])
     assert result.exit_code == 0
@@ -192,6 +192,6 @@ def test_transaction_delete_confirmed(mock_client):
 
 def test_transaction_delete_cancelled(mock_client):
     result = runner.invoke(app, ["transaction", "delete", "tx1"], input="n\n")
-    # typer.confirm abort=True → exit code 1 in test runner
+    # typer.confirm abort=True exit code 1 in test runner
     assert result.exit_code == 1
     mock_client.delete.assert_not_called()

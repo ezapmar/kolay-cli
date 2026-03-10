@@ -7,9 +7,9 @@ OpenAI Desktop, Claude, etc.) to complete the protocol handshake before
 any authentication is checked.
 
 Token resolution (in priority order):
-  1. X-Kolay-Token header   → per-request token from client
-  2. Authorization: Bearer   → Mistral/OpenAI sends token this way
-  3. KOLAY_API_TOKEN env var → single-tenant fallback (Railway config)
+  1. X-Kolay-Token header   per-request token from client
+  2. Authorization: Bearer   Mistral/OpenAI sends token this way
+  3. KOLAY_API_TOKEN env var single-tenant fallback (Railway config)
 
 The server is entirely stateless. Per-request tokens live only in a
 ContextVar for the duration of the ASGI call and are immediately discarded.
@@ -91,9 +91,9 @@ class KolayProxyMiddleware:
             if not path.startswith("/.well-known"):
                 x_api_key = headers.get(b"x-api-key", b"").decode().strip()
                 if x_api_key and x_api_key == self.api_key:
-                    _log(f"[auth] Gatekeeper: ✔ key matched via X-API-Key")
+                    _log(f"[auth] Gatekeeper: key matched via X-API-Key")
                 elif x_api_key:
-                    _log(f"[auth] Gatekeeper: ✘ key mismatch (len={len(x_api_key)} vs expected={len(self.api_key)})")
+                    _log(f"[auth] Gatekeeper: key mismatch (len={len(x_api_key)} vs expected={len(self.api_key)})")
                     await self._send_json(send, 401, {
                         "error": "Unauthorized",
                         "message": "Invalid X-API-Key.",
@@ -142,8 +142,8 @@ class KolayProxyMiddleware:
     def _extract_token(headers: dict[bytes, bytes]) -> str | None:
         """Extract the Kolay IK API token from headers.
 
-        1. X-Kolay-Token: <token>    (explicit, preferred)
-        2. Authorization: Bearer <token>  (Mistral/OpenAI standard)
+        1. X-Kolay-Token: <token> (explicit, preferred)
+        2. Authorization: Bearer <token> (Mistral/OpenAI standard)
         """
         kolay = headers.get(b"x-kolay-token", b"").decode().strip()
         if kolay:
@@ -234,10 +234,10 @@ if __name__ == "__main__":
     api_key = os.environ.get("MCP_API_KEY")
     kolay_token = os.environ.get("KOLAY_API_TOKEN")
 
-    _log(f"\n🔌 Kolay IK MCP Proxy (Universal Stateless)")
-    _log(f"   Endpoint:   http://{host}:{port}/mcp")
-    _log(f"   Gatekeeper: {'✔ enabled' if api_key else '✘ disabled (tools still protected by @require_auth)'}")
-    _log(f"   Kolay Token: {'✔ set via env' if kolay_token else '⚠ not set (clients must send X-Kolay-Token)'}")
+    _log(f"\nKolay IK MCP Proxy (Universal Stateless)")
+    _log(f" Endpoint:   http://{host}:{port}/mcp")
+    _log(f" Gatekeeper: {'enabled' if api_key else 'disabled (tools still protected by @require_auth)'}")
+    _log(f" Kolay Token: {'set via env' if kolay_token else 'not set (clients must send X-Kolay-Token)'}")
     _log("")
 
     uvicorn.run(app, host=host, port=port)

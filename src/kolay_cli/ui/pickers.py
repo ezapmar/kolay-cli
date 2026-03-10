@@ -72,7 +72,7 @@ def _base_pick(
 
     if search_keys:
         query = _typer.prompt(
-            f"  Filter {prompt.lower()}s (leave blank for all)",
+            f" Filter {prompt.lower()}s (leave blank for all)",
             default="",
         )
         if query.strip():
@@ -91,7 +91,7 @@ def _base_pick(
         if answer not in ("y", "yes"):
             break
         new_limit = current_limit * 2
-        console.print(f"  [grey62]Fetching up to {new_limit}…[/grey62]")
+        console.print(f" [grey62]Fetching up to {new_limit}…[/grey62]")
         try:
             with console.status(f"[{PRIMARY}]Loading more...[/{PRIMARY}]", spinner="dots"):
                 more = fetch_more_fn(client, new_limit)
@@ -99,22 +99,22 @@ def _base_pick(
                 items = more
                 current_limit = new_limit
             else:
-                console.print("  [grey62]No additional records found.[/grey62]")
+                console.print(" [grey62]No additional records found.[/grey62]")
                 break
         except APIError as exc:
-            console.print(f"  [grey62]Couldn't load more: {exc}[/grey62]")
+            console.print(f" [grey62]Couldn't load more: {exc}[/grey62]")
             break
 
     console.print(table_factory(items))
     console.print()
 
-    raw = _typer.prompt(f"  Pick a {prompt.lower()} (# or ID)")
+    raw = _typer.prompt(f" Pick a {prompt.lower()} (# or ID)")
 
     try:
         idx = int(raw.strip()) - 1
         if 0 <= idx < len(items):
             chosen = items[idx]
-            console.print(f"  [{PRIMARY}]→ {confirm_fn(chosen)}[/{PRIMARY}]\n")
+            console.print(f" [{PRIMARY}]{confirm_fn(chosen)}[/{PRIMARY}]\n")
             return str(chosen.get("id", ""))
         # out of range — treat as raw ID
         return raw.strip()
@@ -125,7 +125,7 @@ def _base_pick(
 def print_error_inline(msg: str) -> None:
     """Lightweight inline error for use inside pickers."""
     from .constants import ERROR
-    console.print(f"[{ERROR}]  ✘ {msg}[/{ERROR}]")
+    console.print(f"[{ERROR}]  {msg}[/{ERROR}]")
 
 
 def _prompt_or_abort(prompt: str) -> str:
@@ -135,10 +135,10 @@ def _prompt_or_abort(prompt: str) -> str:
     auth or network error — the user can paste an ID or press Enter to quit.
     """
     console.print(
-        f"  [grey62]Enter the {prompt.lower()} ID manually, or press [bold]Enter[/bold] "
+        f" [grey62]Enter the {prompt.lower()} ID manually, or press [bold]Enter[/bold] "
         "to abort.[/grey62]"
     )
-    value = _typer.prompt(f"  {prompt} ID", default="").strip()
+    value = _typer.prompt(f" {prompt} ID", default="").strip()
     if not value:
         console.print(f"\n  [grey62]Aborted — no {prompt.lower()} ID provided.[/grey62]\n")
         raise _typer.Exit(4)
@@ -441,7 +441,7 @@ def pick_person_training(client: KolayClient | None = None, person_id: str | Non
         try:
             client = _Client()
         except APIError:
-            return _typer.prompt("  Training assignment ID")
+            return _typer.prompt(" Training assignment ID")
 
     if not person_id:
         person_id = pick_person(client)
@@ -486,7 +486,7 @@ def pick_person_file(client: KolayClient | None = None, person_id: str | None = 
         try:
             client = _Client()
         except APIError:
-            return _typer.prompt("  Item ID")
+            return _typer.prompt(" Item ID")
 
     if not person_id:
         person_id = pick_person(client)

@@ -60,7 +60,7 @@ def test_person_view(mock_client):
 
 
 def test_person_view_not_found(mock_client):
-    """Empty data → renders cleanly, exit 0."""
+    """Empty data renders cleanly, exit 0."""
     mock_client.get.return_value = {"data": {}}
     result = runner.invoke(app, ["person", "view", "a0000000000000000000000000000000"])
     assert result.exit_code == 0
@@ -93,7 +93,7 @@ def test_person_bulk_view(mock_client):
 
 
 def test_person_bulk_view_empty_input(mock_client):
-    result = runner.invoke(app, ["person", "bulk-view", "   "])
+    result = runner.invoke(app, ["person", "bulk-view", " "])
     assert result.exit_code == 1
 
 
@@ -197,7 +197,7 @@ def test_person_update_training(mock_client):
 
 def test_person_update_training_no_fields(mock_client):
     result = runner.invoke(app, ["person", "update-training", "ptid1"])
-    # No status/dates provided → prints an error panel, exits 0 (error handled gracefully)
+    # No status/dates provided prints an error panel, exits 0 (error handled gracefully)
     assert result.exit_code in (0, 1)
 
 

@@ -2,16 +2,16 @@
 tests/test_coverage_boost.py — Targeted tests to raise < 70% coverage modules.
 
 Targets:
-  - commands/schema.py        (was 25%)  → _opt_entry, _walk, export_schema, _get_version
-  - commands/unit.py          (was 62%)  → create-item interactive + flags, json mode
-  - commands/person.py        (was 64%)  → terminate, update, create, bulk-view, fields,
+  - commands/schema.py        (was 25%)  _opt_entry, _walk, export_schema, _get_version
+  - commands/unit.py          (was 62%)  create-item interactive + flags, json mode
+  - commands/person.py        (was 64%)  terminate, update, create, bulk-view, fields,
                                            rehire, list-files, delete-file, delete-folder,
                                            leave-status, summary, assign-training,
                                            update-training, delete-training, upload-file errors
-  - ui/output.py              (was 67%)  → resolve_row (invalid row, over range), require_arg,
+  - ui/output.py              (was 67%)  resolve_row (invalid row, over range), require_arg,
                                            json_output with stderr_msg, json_error with hints,
                                            KOLAY_OUTPUT=json env var, is_yes_mode
-  - ui/pickers.py             (was 8%)   → module imports without crashing (structural only;
+  - ui/pickers.py             (was 8%)   module imports without crashing (structural only;
                                            TTY-dependent internals skip gracefully)
 """
 from __future__ import annotations
@@ -144,7 +144,7 @@ class TestUnitExtended:
         assert "Backend" in result.output
 
     def test_unit_create_item_interactive_picker_and_name(self, mock_client):
-        """Interactive path: no flags → shows picker, prompts for unit/name."""
+        """Interactive path: no flags shows picker, prompts for unit/name."""
         mock_client.get.return_value = {"data": UNIT_TREE_DATA}
         mock_client.post.return_value = {"data": {"id": "new1"}}
         result = runner.invoke(

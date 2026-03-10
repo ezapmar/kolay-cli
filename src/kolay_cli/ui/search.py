@@ -49,12 +49,12 @@ def filter_items(
 
     if found:
         console.print(
-            f"  [grey62]Showing {found} of {total} {label} matching "
+            f" [grey62]Showing {found} of {total} {label} matching "
             f"[bold]{query}[/bold][grey62].[/grey62]\n"
         )
     else:
         console.print(
-            f"  [grey62]No {label} matched [bold]{query}[/bold][grey62]. "
+            f" [grey62]No {label} matched [bold]{query}[/bold][grey62]. "
             f"Showing all {total}.[/grey62]\n"
         )
         return items  # fallback — show everything rather than a blank screen

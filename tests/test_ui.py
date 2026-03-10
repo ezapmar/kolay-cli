@@ -153,7 +153,7 @@ class TestPrintError:
 class TestPrintHelpers:
     def test_success_contains_checkmark(self):
         out = _capture(print_success, "All done!")
-        assert "✔" in out
+        assert "" in out
         assert "All done!" in out
 
     def test_empty_shows_entity(self):

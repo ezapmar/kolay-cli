@@ -9,8 +9,8 @@ Covered:
   - Normal row-number selection (index in range)
   - Raw ID passthrough (ValueError path in _base_pick)
   - Out-of-range row number (treated as raw ID)
-  - Empty list → manual ID prompt
-  - API error during fetch → manual ID prompt
+  - Empty list manual ID prompt
+  - API error during fetch manual ID prompt
   - Search / filter path (search_keys non-empty)
   - print_error_inline
   - Each public picker make_table is exercised via the CLI path
@@ -174,7 +174,7 @@ class TestBasePick:
                 confirm_fn=lambda p: f"Selected {p['id']}",
                 search_keys=[lambda p: f"{p.get('firstName', '')} {p.get('lastName', '')}"],
             )
-        # After filtering on "alice", only Alice is left → row 1 → p1
+        # After filtering on "alice", only Alice is left row 1 p1
         assert result == "a0000000000000000000000000000000"
 
     def test_none_client_creates_one(self):
@@ -189,7 +189,7 @@ class TestBasePick:
                     client=None,
                     quips=["Fetching…"],
                     prompt="Item",
-                    fetch_fn=lambda c: [],  # returns empty → manual fallback
+                    fetch_fn=lambda c: [],  # returns empty manual fallback
                     table_factory=lambda items: Table(),
                     confirm_fn=lambda p: "",
                     search_keys=None,
@@ -213,7 +213,7 @@ class TestPickerViaCLI:
     We patch pick_* directly to avoid a real TTY dependency."""
 
     def test_pick_person_row_1_via_cli(self, mock_client):
-        """person view with no ID triggers pick_person → returns p1."""
+        """person view with no ID triggers pick_person returns p1."""
         mock_client.get.return_value = {
             "data": {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith",
                      "status": "active", "workEmail": "a@co.com"}
@@ -224,7 +224,7 @@ class TestPickerViaCLI:
         assert "Alice" in result.output
 
     def test_pick_person_view_json_mode(self, mock_client):
-        """person view --json with explicit ID → JSON output (picker not triggered)."""
+        """person view --json with explicit ID JSON output (picker not triggered)."""
         import json
         mock_client.get.return_value = {
             "data": {"id": "a0000000000000000000000000000000", "firstName": "Alice", "lastName": "Smith",

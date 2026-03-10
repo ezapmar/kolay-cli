@@ -1,15 +1,13 @@
-# Disclaimer and Legal Notice (Alpha Release)
+# Disclaimer (Alpha)
 
-1. **Unofficial Lab Application:** This project is an independent "lab/R&D" application. It is not an official product or service of Kolay İK. **Kolay Yazılım A.Ş.** cannot be held responsible for any data loss, system errors, or damages arising from the use of this software.
-2. **Token and Data Security:** The creation and secure storage of API tokens are entirely the user's responsibility. Please follow Kolay İK's official instructions and security guidelines when generating tokens to prevent unauthorized access.
-3. **Operational Risks:** Please use the tools and operations performed via the MCP and CLI carefully. Write/update actions and bulk operations can cause permanent changes or damage to your live HR data. 
-4. **Early Development Stage (Alpha):** This application is currently in its **Alpha** stage and is under active development. It may contain unexpected bugs. You can submit any bug reports, feedback, or feature requests via the GitHub [Issues](https://github.com/ezapmar/kolay-cli/issues) page.
+1. **Unofficial project.** This is an independent lab application, not a Kolay IK product. Kolay Yazilim A.S. is not responsible for any data loss or issues caused by this software.
+2. **Your token, your responsibility.** Generate tokens at [app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings) and keep them safe.
+3. **Write operations are real.** Every create, update, delete, and terminate action modifies live HR data. There is no sandbox.
+4. **Alpha software.** Expect bugs. Report them at [GitHub Issues](https://github.com/ezapmar/kolay-cli/issues).
 
 ---
 
 # kolay-cli
-
-An unofficial AI-powered Command Line Interface and MCP Server for Kolay İK.
 
 ```
                ███████████████████████
@@ -32,233 +30,325 @@ An unofficial AI-powered Command Line Interface and MCP Server for Kolay İK.
                 █████████████████████                                                                   ███ 
 ```
 
-**kolay-cli** allows you to manage your HR tasks, employee records, and company workflows directly from your terminal. It provides lightweight access to the Kolay İK API and serves as a local [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for AI assistants like Claude and Cursor.
+CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves, timelogs, trainings, and payroll from your terminal or through any AI assistant that supports MCP.
 
-## Key Features
-
-*   **Natural Language HR**: Use the built-in MCP server to talk to your HR data using AI.
-*   **Complete Resource Management**: Manage People, Leaves, Timelogs, Trainings, and Finance.
-*   **Secure by Design**: API tokens are stored in your OS Keychain (macOS, Windows, Linux).
-*   **CLI First UX**: Interactive ID pickers, human-readable tables, and guided setup.
-*   **Developer Friendly**: Full JSON output mode for automation and scripting.
-*   **Health Diagnostics**: Built-in `doctor` command to verify connectivity and credentials.
-
-## Installation
-
-Install via `pipx` (recommended) to keep dependencies isolated:
+## Install
 
 ```bash
+# recommended (isolated environment)
 pipx install kolay-cli
-```
 
-Or via `pip`:
-
-```bash
+# or plain pip
 pip install kolay-cli
 ```
 
-## Quickstart
+This gives you two commands:
 
-### 1. Authenticate
-Configure your session by providing your Kolay API token. You can generate a token at [app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings).
+| Command | Purpose |
+|---|---|
+| `kolay` | Interactive CLI for terminal use |
+| `kolay-mcp` | MCP server binary (used by AI clients) |
+
+## Setup
 
 ```bash
+# guided first-time setup (token + config in one step)
+kolay setup
+
+# or authenticate manually
 kolay auth login
 ```
 
-### 2. Verify Health
-Ensure your connection is healthy and authorized.
+You need a Kolay IK API token. Generate one at:
+[app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings)
+
+Verify everything works:
 
 ```bash
 kolay doctor
 ```
 
-### 3. Start Managing
-List your colleagues or create a leave request.
+## CLI Usage
+
+Commands follow a `kolay <resource> <action>` pattern.
+
+### People
 
 ```bash
-# List top 10 employees
-kolay person list --limit 10
+# list active employees (default: 20 per page)
+kolay person list
 
-# Create an annual leave request
-kolay leave create --type annual --start 2026-03-01 --end 2026-03-03
+# list with a limit
+kolay person list --limit 50
+
+# search by name
+kolay person list --search "Ahmet"
+
+# view a specific employee (interactive picker if no ID given)
+kolay person view
+kolay person view abc123def456
+
+# create a new employee
+kolay person create --first-name "Ayse" --last-name "Yilmaz" \
+  --email "ayse@company.com" --start-date 2026-04-01
+
+# terminate an employee
+kolay person terminate abc123def456 --date 2026-03-31 --reason 03
 ```
 
-### 🎨 Behavioral Nudge Engine
-
-**kolay-cli** isn't just a tool; it's a personal productivity coach. It uses a built-in **Behavioral Nudge Engine** to distill your overwhelming HR tasks into actionable, time-boxed bursts.
-
-#### How it Works:
-```mermaid
-graph LR
-    A[API Data] --> B{Nudge Engine}
-    B -->|Calculate| C[Next Action]
-    B -->|Context| D[Safety Thresholds]
-    C --> E[Console Nudge]
-    D --> E
-    E --> F[User Focus]
-```
-
-*   **Contextual Intelligence**: Nudges appear only when relevant (e.g., after listing leaves, it reminds you of pending approvals).
-*   **Safety Thresholds**: Prevents "alert fatigue" by intelligently throttling notifications based on your interaction history.
-*   **Gamification**: Track your "Consistency Streak" by clearing nudges daily.
-
-Configure your coach:
-```bash
-kolay nudge configure
-```
-
-Ready to crush some tasks? Start a focused micro-sprint:
-```bash
-kolay nudge sprint
-```
-
-*The Coach says: "You have 5 pending items in other areas. Clear them in 5 mins with `kolay nudge sprint`!"*
-
-## MCP Server Integration
-
-Turn your AI assistant into an HR expert. `kolay-cli` exposes its full functionality as an MCP server.
-
-### 🔌 Connection Architecture
-
-```mermaid
-graph TD
-    subgraph "Local Mode (stdio)"
-    A[Claude Desktop / Cursor] <-->|stdio| B[kolay-cli mcp]
-    end
-    subgraph "Server Mode (HTTP/SSE)"
-    C[Mistral Le Chat / OpenAI] <-->|POST /mcp| D[Railway]
-    D <-->|"@require_auth"| E[kolay-cli mcp]
-    end
-```
-
-`kolay-cli` facilitates these interactions seamlessly:
-
-### Local Clients (stdio)
-For clients running on your machine, use the automated installer:
+### Leaves
 
 ```bash
-kolay mcp install
+# list approved leaves
+kolay leave list
+
+# list pending leaves for a specific person
+kolay leave list --status waiting --person-id abc123def456
+
+# create a leave request
+kolay leave create --person-id abc123def456 --type-id <leave-type-uuid> \
+  --start 2026-04-10 --end 2026-04-12
+
+# cancel a leave
+kolay leave cancel <leave-id>
 ```
 
-This writes the configuration into the correct file for each client. Supported local clients:
+### Timelogs
 
-| Client | Config Path |
+```bash
+# list recent timelogs
+kolay timelog list
+
+# create an overtime entry
+kolay timelog create --person-id abc123def456 \
+  --start "2026-03-10 18:00:00" --end "2026-03-10 21:00:00" --type overtime
+
+# delete a timelog
+kolay timelog delete <timelog-id>
+```
+
+### Trainings
+
+```bash
+# list training catalogue
+kolay training list
+
+# assign a training to an employee
+kolay training assign --person-id abc123def456 --training-id <training-uuid>
+```
+
+### Transactions (Payroll)
+
+```bash
+# list all transactions
+kolay transaction list
+
+# create a bonus
+kolay transaction create --person-id abc123def456 \
+  --type bonus --amount 5000 --date 2026-03-01
+```
+
+### Other Resources
+
+```bash
+kolay calendar list                       # company calendar events
+kolay unit tree                           # organisational chart
+kolay approval list                       # approval workflows
+kolay expense list                        # expense records
+```
+
+## Output Modes
+
+| Flag | What it does |
 |---|---|
-| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| **Cursor** (global) | `~/.cursor/mcp.json` |
-| **Cursor** (project) | `.cursor/mcp.json` in your working directory |
-| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` |
-| **Gemini CLI** | `~/.gemini/settings.json` |
-| **VS Code** (Copilot) | User-level `mcp.json` |
-| **Zed** | `~/.config/zed/settings.json` |
+| `--json` | Machine-readable JSON output (for scripts and AI agents) |
+| `--yes` | Skip confirmation prompts on destructive actions |
+| `--debug` | Log HTTP traces to `~/.config/kolay/debug.log` |
 
-Restart your client after running `kolay mcp install` to activate the connection.
+```bash
+# pipe JSON output to jq
+kolay --json person list --limit 5 | jq '.items[].firstName'
 
-### 🧠 UX-Driven AI Intelligence
-The MCP server doesn't just pass raw API endpoints to the AI; it is designed with **human-in-the-loop UX** to increase reliability and trust:
-
-* **Intent Catchers**: If you ask Claude, *"I'm feeling sick, take tomorrow off"*, the AI uses a semantic `request_time_off` tool that automatically translates human dates into strict `YYYY-MM-DD` API dates.
-* **Safety Dry-Runs**: Before the AI creates a leave request, it automatically runs `analyze_leave_impact` to calculate your projected balance and present you with a safety confirmation before committing destructive actions.
-* **Smart Diagnostics**: The `employee_health_check` tool enables the LLM to cross-reference an employee's upcoming leaves, excessive timelogs, and overdue training in a *single* call, preventing AI hallucinations and context drift.
-* **Guided Dashboards**: Don't know what to ask? Invoke the `manager_dashboard` prompt directly in your AI client to generate an instant morning briefing for your department.
-
-### Server Deployment (Railway / Docker)
-
-Deploy `kolay-cli` as a cloud MCP server so AI agents like Mistral Le Chat, ChatGPT, and OpenAI Desktop can access your HR data remotely.
-
-#### 1. Deploy to Railway (recommended)
-
-1. Push the repo to GitHub
-2. Create a new Railway project → **Deploy from GitHub repo**
-3. Railway auto-detects `app.py` and builds with Nixpacks
-4. Add these **environment variables** in Railway → Settings → Variables:
-
-| Variable | Required | Value |
-|---|---|---|
-| `KOLAY_API_TOKEN` | ✅ | Your Kolay İK API token from [app.kolayik.com](https://app.kolayik.com/settings/developer-settings) |
-| `PYTHONUNBUFFERED` | ✅ | `1` (ensures logs appear immediately) |
-| `MCP_API_KEY` | Optional | Extra gatekeeper key for abuse prevention |
-
-5. Enable **Public Networking** in Railway → Settings → Networking
-6. Your MCP endpoint will be: `https://<your-app>.up.railway.app/mcp`
-
-#### 2. How Authentication Works
-
-```mermaid
-graph LR
-    A[AI Client] -->|POST /mcp| B[MCP Handshake ✔]
-    B --> C[Tool Call]
-    C --> D{"@require_auth"}
-    D -->|Token found| E[Kolay API]
-    D -->|No token| F[401 Error to AI]
+# delete without confirmation prompt
+kolay --yes timelog delete <id>
 ```
 
-Security is at the **tool level**, not the HTTP level. This means:
-- The MCP session always establishes successfully (no 401 on handshake)
-- Every HR tool checks for a valid Kolay token before accessing data
-- The `validate_connection` tool lets AI agents verify credentials first
+## MCP Server (AI Integration)
 
-#### 3. Connect from Mistral Le Chat
+`kolay-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server. Any MCP-compatible AI client can manage your HR data through natural language.
 
-1. Go to [chat.mistral.ai/connections](https://chat.mistral.ai/connections)
-2. Click **Add custom connector**
-3. Enter your MCP URL: `https://<your-app>.up.railway.app/mcp`
-4. Auth: Select **No Authentication** (tools handle it internally)
-5. Save and start chatting with your HR data!
+### Option 1: Use the Public Server (no deployment needed)
 
-> The server uses `KOLAY_API_TOKEN` set on Railway. No headers needed from Mistral.
+A shared multi-tenant endpoint is available at:
 
-#### 4. Connect from OpenAI Desktop
+```
+https://kolay.up.railway.app/mcp
+```
 
-Add to your `mcp_config.json`:
+Each user sends their own Kolay IK token via the `X-Kolay-Token` header. No tokens are stored on the server; they are used only for the duration of each request.
+
+**Connect from any MCP client** by setting the URL and passing your token:
 
 ```json
 {
   "mcpServers": {
     "kolay-ik": {
-      "url": "https://<your-app>.up.railway.app/mcp"
-    }
-  }
-}
-```
-
-For multi-tenant (each user sends their own token):
-
-```json
-{
-  "mcpServers": {
-    "kolay-ik": {
-      "url": "https://<your-app>.up.railway.app/mcp",
+      "url": "https://kolay.up.railway.app/mcp",
       "headers": {
-        "X-Kolay-Token": "your-personal-kolay-token"
+        "X-Kolay-Token": "YOUR_KOLAY_API_TOKEN"
       }
     }
   }
 }
 ```
 
-#### 5. Test with curl
+### Option 2: Local Mode (stdio)
+
+For AI clients running on your machine (Claude Desktop, Cursor, etc.), the automated installer writes the correct config for you:
 
 ```bash
-# List available tools (no auth needed for handshake)
-curl -X POST https://<your-app>.up.railway.app/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+kolay mcp install
 ```
 
-### Using Locally (HTTP mode)
+Restart your AI client after running this. Supported clients:
+
+| Client | Config Location |
+|---|---|
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Cursor (global) | `~/.cursor/mcp.json` |
+| Cursor (project) | `.cursor/mcp.json` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+| Gemini CLI | `~/.gemini/settings.json` |
+| VS Code (Copilot) | User-level `mcp.json` |
+| Zed | `~/.config/zed/settings.json` |
+
+### Option 3: Self-Host (Railway / Docker)
+
+Deploy your own private instance for full control.
+
+1. Push the repo to GitHub
+2. Create a Railway project -> **Deploy from GitHub repo**
+3. Set environment variables in Railway:
+
+| Variable | Description |
+|---|---|
+| `KOLAY_API_TOKEN` | Your Kolay IK API token (single-tenant mode) |
+| `PYTHONUNBUFFERED` | `1` |
+| `MCP_API_KEY` | Optional gateway key for abuse prevention |
+
+4. Enable public networking in Railway settings
+5. Your endpoint: `https://<your-app>.up.railway.app/mcp`
+
+Or run locally in HTTP mode:
 
 ```bash
 export KOLAY_API_TOKEN="your-token"
 kolay mcp serve --transport http --port 8000
 ```
 
-## Output Modes
+### How Authentication Works
 
-| Flag | Description |
+```
+AI Client --> POST /mcp --> MCP Handshake (always succeeds)
+                                |
+                           Tool Call
+                                |
+                         @require_auth checks token
+                           /           \
+                     token found     no token
+                          |              |
+                     Kolay API     401 error to AI
+```
+
+The MCP session always connects successfully. Authentication happens at the **tool level** -- every HR tool checks for a valid token before accessing data. This means AI clients can discover available tools before authenticating.
+
+Token resolution order:
+1. `X-Kolay-Token` header (per-request, multi-tenant)
+2. `Authorization: Bearer <token>` header
+3. `KOLAY_API_TOKEN` environment variable (single-tenant fallback)
+
+### Available MCP Tools
+
+The server exposes these tools to AI clients:
+
+| Tool | Description |
 |---|---|
-| `--json` | Returns machine-readable JSON for prompts or scripts. |
-| `--yes` | Bypasses confirmation prompts for destructive actions. |
-| `--debug` | Logs HTTP traces to `~/.config/kolay/debug.log`. |
+| `validate_connection` | Check if credentials are working |
+| `person_list`, `person_view`, `person_summary` | Read employee data |
+| `person_create`, `person_update`, `person_terminate` | Write employee data |
+| `leave_list`, `leave_view`, `leave_create`, `leave_cancel` | Manage leaves |
+| `request_time_off` | Natural language leave creation |
+| `analyze_leave_impact` | Dry-run balance check before booking leave |
+| `timelog_list`, `timelog_create`, `timelog_delete` | Manage timelogs |
+| `training_list`, `training_create`, `person_assign_training` | Manage trainings |
+| `transaction_list`, `transaction_create`, `transaction_delete` | Manage payroll |
+| `calendar_list`, `calendar_create`, `calendar_update` | Manage events |
+| `unit_tree` | View organisational structure |
+| `employee_health_check` | Cross-reference leaves, timelogs, and trainings in one call |
 
+### MCP Prompts
+
+Built-in prompts guide the AI through complex multi-step workflows:
+
+| Prompt | What it does |
+|---|---|
+| `employee_snapshot` | Full profile + leave balance report for one employee |
+| `burnout_analyzer` | Scan a department for burnout risk based on unused annual leave |
+| `onboarding_plan` | Generate welcome email, IT checklist, and meeting schedule for a new hire |
+| `offboarding_plan` | Calculate leave payout, handover checklist, and exit interview questions |
+| `bulk_update_assistant` | Safe bulk data cleanup with mandatory human confirmation |
+| `manager_dashboard` | Morning briefing for a department manager |
+
+### Connect from Mistral Le Chat
+
+1. Go to [chat.mistral.ai/connections](https://chat.mistral.ai/connections)
+2. Add a custom connector with URL: `https://kolay.up.railway.app/mcp`
+3. Auth: select **No Authentication** (tools handle it via the server's `KOLAY_API_TOKEN`)
+4. Start chatting
+
+### Test with curl
+
+```bash
+# discover available tools
+curl -X POST https://kolay.up.railway.app/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+## Project Structure
+
+```
+src/kolay_cli/
+  cli.py              # entry point, global flags
+  mcp_server.py       # FastMCP server with all tools and prompts
+  security.py         # token storage, validation, @require_auth
+  api/
+    client.py         # HTTP client (requests + retry)
+    errors.py         # APIError + exit codes
+  commands/           # one module per resource group
+    person.py, leave.py, timelog.py, training.py,
+    transaction.py, calendar.py, unit.py, approval.py, ...
+  services/           # business logic (used by both CLI and MCP)
+  ui/
+    formatters.py     # Rich tables, spinners
+    output.py         # JSON mode
+    pickers.py        # interactive ID selection
+    search.py         # client-side filtering
+```
+
+## Development
+
+```bash
+# install with test dependencies
+pip install -e ".[test,dev]"
+
+# run tests
+pytest tests/ -v
+
+# or using uv
+uv run --extra test pytest tests/ -v
+```
+
+## License
+
+MIT

@@ -147,7 +147,7 @@ def test_calendar_delete_confirmed(mock_client):
 def test_calendar_delete_cancelled(mock_client):
     mock_client.get.return_value = EVENT_VIEW_RESPONSE
     result = runner.invoke(app, ["calendar", "delete", "ev1"], input="n\n")
-    # typer abort → exit 1
+    # typer abort exit 1
     assert result.exit_code == 1
     mock_client.delete.assert_not_called()
 

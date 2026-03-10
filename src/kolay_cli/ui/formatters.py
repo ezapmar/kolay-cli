@@ -79,7 +79,7 @@ def no_command_help(ctx: "typer.Context") -> None:  # type: ignore[name-defined]
     name = ctx.info_name or "this command"
     console.print(
         f"\n[bold {PRIMARY}]kolay {name}[/bold {PRIMARY}] needs a sub-command.\n"
-        f"  Try: [bold]kolay {name} --help[/bold]\n"
+        f" Try: [bold]kolay {name} --help[/bold]\n"
     )
     console.print(ctx.get_help())
     raise typer.Exit(0)
@@ -99,10 +99,10 @@ def print_next_steps(steps: list[tuple[str, str]]) -> None:
     if is_json_mode():
         return
     parts = "".join(
-        f"  [bold white]{cmd}[/bold white]  [grey50]{desc}[/grey50]\n"
+        f" [bold white]{cmd}[/bold white]  [grey50]{desc}[/grey50]\n"
         for cmd, desc in steps
     )
-    console.print(f"  [grey50]💡 Next steps:[/grey50]\n{parts}")
+    console.print(f" [grey50]Next steps:[/grey50]\n{parts}")
 
 
 def print_pagination_footer(
@@ -154,20 +154,20 @@ def print_pagination_footer(
                 flags = f"{extra_flags} {flags}"
             next_cmd = f"{command} {flags}"
             console.print(
-                f"  [grey50]{page_str}  ·  Showing {range_str}  ·  "
+                f" [grey50]{page_str}  ·  Showing {range_str}  ·  "
                 f"Next: [bold white]{next_cmd}[/bold white][/grey50]"
             )
         else:
             # Last page reached
             if total_pages > 1:
                 console.print(
-                    f"  [grey50]{page_str}  ·  Showing {range_str}  ·  "
-                    f"[{PRIMARY_}]All caught up ✓[/{PRIMARY_}][/grey50]"
+                    f" [grey50]{page_str}  ·  Showing {range_str}  ·  "
+                    f"[{PRIMARY_}]All caught up [/{PRIMARY_}][/grey50]"
                 )
             else:
                 # Single page, show count
                 console.print(
-                    f"  [grey50]Showing {shown} of {total} records[/grey50]"
+                    f" [grey50]Showing {shown} of {total} records[/grey50]"
                 )
     else:
         # ── Limit-only mode (e.g. leave list) ───────────────────────────────
@@ -176,12 +176,12 @@ def print_pagination_footer(
             if extra_flags:
                 flags = f"{extra_flags} {flags}"
             console.print(
-                f"  [grey50]Showing {shown} of {total} records  ·  "
+                f" [grey50]Showing {shown} of {total} records  ·  "
                 f"More available: [bold white]{command} {flags}[/bold white][/grey50]"
             )
         else:
             console.print(
-                f"  [grey50]Showing {shown} of {total} records[/grey50]"
+                f" [grey50]Showing {shown} of {total} records[/grey50]"
             )
     console.print()
 
@@ -212,14 +212,14 @@ def confirm_destructive_action(
         return
 
     console.print()
-    console.print(f"  [bold red]⚠  {action}[/bold red]")
+    console.print(f" [bold red]{action}[/bold red]")
     for lbl, val in details:
-        console.print(f"  [grey62]  {lbl}:[/grey62] [bold white]{val}[/bold white]")
+        console.print(f" [grey62]  {lbl}:[/grey62] [bold white]{val}[/bold white]")
     if warning:
-        console.print(f"  [red]  ⚠  {warning}[/red]")
+        console.print(f" [red]  {warning}[/red]")
     console.print()
 
-    confirmed = _typer.confirm("  Confirm?", default=False)
+    confirmed = _typer.confirm(" Confirm?", default=False)
     if not confirmed:
         console.print("\n  [grey62]Aborted — no changes made.[/grey62]\n")
         raise _typer.Exit(1)
@@ -234,7 +234,7 @@ def print_irreversible_warning() -> None:
     if is_json_mode():
         return
     console.print(
-        "  [grey50]💡 This action cannot be undone from the CLI. "
+        " [grey50]This action cannot be undone from the CLI. "
         "Contact your Kolay admin if you need to restore.[/grey50]\n"
     )
 
@@ -281,7 +281,7 @@ def prompt_date(prompt_text: str, default: str | None = None, is_datetime: bool 
         try:
             return datetime.strptime(val, fmt).strftime(fmt)
         except ValueError:
-            console.print(f"  [red]Invalid format. Please use {hint}.[/red]")
+            console.print(f" [red]Invalid format. Please use {hint}.[/red]")
 
 
 def fmt_datetime(dt: str | None, fallback: str = "—") -> str:
@@ -331,7 +331,7 @@ def label(key: str) -> str:
 
 _WITTY_STATUS = {401, 403, 429, 500, 502, 503}
 
-# Status-code → border colour (softer tones so it doesn't look like a crash)
+# Status-code border colour (softer tones so it doesn't look like a crash)
 _WITTY_BORDER: dict[int, str] = {
     401: WARNING,   # orange — oops, identity issue
     403: WARNING,   # orange — permission, not a crash
@@ -394,7 +394,7 @@ def print_success(msg: str) -> None:
     """
     from .output import is_json_mode
     if not is_json_mode():
-        console.print(f"\n[bold {SUCCESS}]  \u2714[/bold {SUCCESS}] {msg}\n")
+        console.print(f"\n {msg}\n")
 
 
 def print_fetching(msg: str) -> None:
@@ -419,7 +419,7 @@ def print_empty(entity: str, hint: str | None = None) -> None:
     if not is_json_mode():
         console.print(f"\n[grey62]  No {entity} found.[/grey62]")
         if hint:
-            console.print(f"  [grey62]\u2192 {hint}[/grey62]")
+            console.print(f" [grey62] {hint}[/grey62]")
         console.print()
 
 
