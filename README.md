@@ -138,30 +138,35 @@ The MCP server doesn't just pass raw API endpoints to the AI; it is designed wit
 * **Smart Diagnostics**: The `employee_health_check` tool enables the LLM to cross-reference an employee's upcoming leaves, excessive timelogs, and overdue training in a *single* call, preventing AI hallucinations and context drift.
 * **Guided Dashboards**: Don't know what to ask? Invoke the `manager_dashboard` prompt directly in your AI client to generate an instant morning briefing for your department.
 
-### Mistral Le Chat (remote)
+### Server Deployment (HTTP/SSE)
 
-[Le Chat](https://chat.mistral.ai) supports MCP through remote HTTP connectors. To connect kolay-cli:
+If you want to expose your HR data to cloud-based AI agents (like ChatGPT, Mistral Le Chat, or custom orchestrators), you can deploy `kolay-cli` as an HTTP server.
 
-**1. Start the MCP server in HTTP mode:**
+**1. Set an API Key:**
+To protect your data on public URLs (e.g., Railway, Render), configure a secret environment variable. If `MCP_API_KEY` is not set, the server runs without authentication (for local dev only).
+
+```bash
+export MCP_API_KEY="your-super-secret-key"
+```
+
+**2. Start the Server:**
 
 ```bash
 kolay mcp serve --transport http --port 8000
 ```
+This starts the FastMCP server with raw ASGI middleware that intercepts all requests and ensures the `X-API-Key` header matches your secret.
 
-This starts the server at `http://localhost:8000/mcp`. If you want to expose it to the internet (for Le Chat cloud access), deploy it on a server with a public IP or use a tunnel like [ngrok](https://ngrok.com):
+### Using with Mistral Le Chat
 
-```bash
-ngrok http 8000
-```
-
-**2. Add the connector in Le Chat:**
+[Le Chat](https://chat.mistral.ai) supports MCP through remote HTTP connectors. To connect your remote `kolay-cli` deployment:
 
 1. Go to [chat.mistral.ai/connections](https://chat.mistral.ai/connections)
 2. Click **Add custom connector**
-3. Enter your MCP server URL (e.g. `https://your-ngrok-url.ngrok.io/mcp`)
-4. Save and start chatting with your HR data
-
-> **Note:** The HTTP endpoint does not include authentication by default. When exposing your MCP server to the internet, use a reverse proxy with HTTPS and token-based access control.
+3. Enter your MCP server URL (e.g. `https://your-app.up.railway.app/mcp`)
+4. In the headers section, add your configured API key:
+   * **Header Name**: `X-API-Key`
+   * **Header Value**: `your-super-secret-key`
+5. Save and start chatting with your HR data!
 
 ## Output Modes
 
