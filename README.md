@@ -1,13 +1,5 @@
-# Disclaimer (Alpha)
 
-1. **Unofficial project.** This is an independent lab application, not a Kolay IK product. Kolay Yazilim A.S. is not responsible for any data loss or issues caused by this software.
-2. **Your token, your responsibility.** Generate tokens at [app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings) and keep them safe.
-3. **Write operations are real.** Every create, update, delete, and terminate action modifies live HR data. There is no sandbox.
-4. **Alpha software.** Expect bugs. Report them at [GitHub Issues](https://github.com/ezapmar/kolay-cli/issues).
-
----
-
-# kolay-cli
+# CLI and MCP server for Kolay IK
 
 ```
                ███████████████████████
@@ -31,6 +23,17 @@
 ```
 
 CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves, timelogs, trainings, and payroll from your terminal or through any AI assistant that supports MCP.
+
+---
+
+# Disclaimer (Alpha)
+
+1. **Unofficial project.** This is an independent lab application, not a Kolay IK product. Kolay Yazilim A.S. is not responsible for any data loss or issues caused by this software.
+2. **Your token, your responsibility.** Generate tokens at [app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings) and keep them safe.
+3. **Write operations are real.** Every create, update, delete, and terminate action modifies live HR data. There is no sandbox.
+4. **Alpha software.** Expect bugs. Report them at [GitHub Issues](https://github.com/ezapmar/kolay-cli/issues).
+
+---
 
 ## Install
 
@@ -177,6 +180,16 @@ kolay --yes timelog delete <id>
 
 `kolay-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server. Any MCP-compatible AI client can manage your HR data through natural language.
 
+### Quick Start — Which setup is right for me?
+
+| I want to… | Method | Time |
+|---|---|---|
+| Use with ChatGPT, Le Chat, or any web AI | [Public Server (Option 1)](#option-1-use-the-public-server-no-deployment-needed) | 2 min |
+| Use with Claude Desktop, Cursor, Gemini CLI | [Local Mode (Option 2)](#option-2-local-mode-stdio) | 1 min |
+| Full control, own hosting | [Self-Host (Option 3)](#option-3-self-host-railway--docker) | 15 min |
+
+---
+
 ### Option 1: Use the Public Server (no deployment needed)
 
 A shared multi-tenant endpoint is available at:
@@ -246,6 +259,203 @@ export KOLAY_API_TOKEN="your-token"
 kolay mcp serve --transport http --port 8000
 ```
 
+---
+
+### Connect from AI Clients (Step-by-Step)
+
+#### ChatGPT (OpenAI)
+
+ChatGPT supports remote MCP servers via **Developer Mode** (available on Plus, Pro, Enterprise, and Edu plans).
+
+1. Open [chatgpt.com](https://chatgpt.com) and click your profile icon → **Settings**
+2. Navigate to **Developer** → **MCP Servers** (or **Connectors / Apps**)
+3. Click **Add MCP Server**
+4. Enter the following:
+   - **Name**: `Kolay IK`
+   - **URL**: `https://kolay.up.railway.app/mcp`
+5. If prompted for authentication, choose **Custom Headers** and add:
+   - Header: `X-Kolay-Token`
+   - Value: your Kolay IK API token
+6. Click **Save** and start a new conversation
+
+> **Note:** If your deployment uses a `KOLAY_API_TOKEN` environment variable (single-tenant), you can skip the custom header — the server already has your token.
+
+Now ask ChatGPT something like:
+
+```
+List all active employees
+```
+
+#### Mistral Le Chat
+
+1. Open [chat.mistral.ai](https://chat.mistral.ai) and go to **Intelligence** → **Connectors** (or [chat.mistral.ai/connections](https://chat.mistral.ai/connections))
+2. Click **Add Connector** → **Custom MCP Connector**
+3. Fill in:
+   - **Name**: `Kolay IK`
+   - **URL**: `https://kolay.up.railway.app/mcp`
+   - **Description** *(optional)*: HR management tools for Kolay IK
+4. For authentication, select:
+   - **No Authentication** — if the server has `KOLAY_API_TOKEN` set (single-tenant)
+   - **HTTP Bearer Token** — enter your Kolay IK API token if using multi-tenant mode
+5. Click **Connect**
+6. In any chat, make sure the Kolay IK connector is enabled (toggle it on in the connectors panel)
+
+Now ask Le Chat:
+
+```
+Who are the employees in the engineering department?
+```
+
+> **Tip:** Le Chat auto-detects available tools from the MCP server. You don't need to configure individual tools.
+
+#### Claude Desktop
+
+**Automatic (recommended):**
+
+```bash
+kolay mcp install
+```
+
+This writes the correct config to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows). Restart Claude Desktop.
+
+**Manual:**
+
+1. Open Claude Desktop → **Settings** → **Developer** → **Edit Config**
+2. Add the following to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "command": "kolay-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+3. Save and restart Claude Desktop
+4. You should see "kolay-ik" in the MCP servers list (🔌 icon)
+
+**Remote mode (no local install):**
+
+1. In Claude Desktop → **Settings** → **Connectors** → **Add custom connector**
+2. Enter URL: `https://kolay.up.railway.app/mcp`
+3. Optionally add your `X-Kolay-Token` in the URL as a query parameter or configure the Authorization header
+
+#### Cursor
+
+**Automatic:**
+
+```bash
+kolay mcp install
+```
+
+**Manual (global):** Edit `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "command": "kolay-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+**Manual (project-level):** Create `.cursor/mcp.json` in your project root with the same content.
+
+Restart Cursor after saving.
+
+#### Gemini CLI
+
+**Automatic:**
+
+```bash
+kolay mcp install
+```
+
+**Manual:** Edit `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "command": "kolay-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+#### VS Code (GitHub Copilot)
+
+1. Open VS Code → **Settings** (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)")
+2. Add to `mcp.servers`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "kolay-ik": {
+        "command": "kolay-mcp",
+        "args": []
+      }
+    }
+  }
+}
+```
+
+3. Alternatively, use the remote URL via the MCP extension settings
+
+#### Windsurf
+
+**Automatic:**
+
+```bash
+kolay mcp install
+```
+
+**Manual:** Edit `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "command": "kolay-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+#### Zed
+
+Edit `~/.config/zed/settings.json` and add under `"context_servers"`:
+
+```json
+{
+  "context_servers": {
+    "kolay-ik": {
+      "command": {
+        "path": "kolay-mcp",
+        "args": []
+      }
+    }
+  }
+}
+```
+
+#### Any Other MCP Client
+
+Any client that supports the MCP standard can connect using either:
+
+- **Remote (HTTP/SSE):** Point to `https://kolay.up.railway.app/mcp` with an `X-Kolay-Token` header
+- **Local (stdio):** Run the `kolay-mcp` binary (installed with `pip install kolay-cli`)
+
+---
+
 ### How Authentication Works
 
 ```
@@ -260,12 +470,14 @@ AI Client --> POST /mcp --> MCP Handshake (always succeeds)
                      Kolay API     401 error to AI
 ```
 
-The MCP session always connects successfully. Authentication happens at the **tool level** -- every HR tool checks for a valid token before accessing data. This means AI clients can discover available tools before authenticating.
+The MCP session always connects successfully. Authentication happens at the **tool level** — every HR tool checks for a valid token before accessing data. This means AI clients can discover available tools before authenticating.
 
 Token resolution order:
 1. `X-Kolay-Token` header (per-request, multi-tenant)
 2. `Authorization: Bearer <token>` header
 3. `KOLAY_API_TOKEN` environment variable (single-tenant fallback)
+
+---
 
 ### Available MCP Tools
 
@@ -275,15 +487,19 @@ The server exposes these tools to AI clients:
 |---|---|
 | `validate_connection` | Check if credentials are working |
 | `person_list`, `person_view`, `person_summary` | Read employee data |
+| `person_leave_status` | View leave balances for an employee |
 | `person_create`, `person_update`, `person_terminate` | Write employee data |
+| `person_rehire`, `person_update_fields` | Rehire or patch arbitrary fields |
 | `leave_list`, `leave_view`, `leave_create`, `leave_cancel` | Manage leaves |
 | `request_time_off` | Natural language leave creation |
 | `analyze_leave_impact` | Dry-run balance check before booking leave |
-| `timelog_list`, `timelog_create`, `timelog_delete` | Manage timelogs |
-| `training_list`, `training_create`, `person_assign_training` | Manage trainings |
-| `transaction_list`, `transaction_create`, `transaction_delete` | Manage payroll |
-| `calendar_list`, `calendar_create`, `calendar_update` | Manage events |
+| `timelog_list`, `timelog_view`, `timelog_create`, `timelog_delete` | Manage timelogs |
+| `training_list`, `training_view`, `training_create`, `training_delete` | Training catalogue |
+| `person_assign_training`, `person_list_trainings`, `person_update_training` | Training assignments |
+| `transaction_list`, `transaction_view`, `transaction_create`, `transaction_delete` | Manage payroll |
+| `calendar_list`, `calendar_view`, `calendar_create`, `calendar_update`, `calendar_delete` | Manage events |
 | `unit_tree` | View organisational structure |
+| `approval_list` | View approval workflows |
 | `employee_health_check` | Cross-reference leaves, timelogs, and trainings in one call |
 
 ### MCP Prompts
@@ -298,13 +514,127 @@ Built-in prompts guide the AI through complex multi-step workflows:
 | `offboarding_plan` | Calculate leave payout, handover checklist, and exit interview questions |
 | `bulk_update_assistant` | Safe bulk data cleanup with mandatory human confirmation |
 | `manager_dashboard` | Morning briefing for a department manager |
+| `hr_capabilities` | Guided prompt explaining all available Kolay HR AI features |
 
-### Connect from Mistral Le Chat
+---
 
-1. Go to [chat.mistral.ai/connections](https://chat.mistral.ai/connections)
-2. Add a custom connector with URL: `https://kolay.up.railway.app/mcp`
-3. Auth: select **No Authentication** (tools handle it via the server's `KOLAY_API_TOKEN`)
-4. Start chatting
+### Usage Examples (AI Conversations)
+
+Here are real-world examples of what you can ask any AI assistant connected to Kolay MCP:
+
+#### Listing Employees
+
+```
+You: Show me all active employees
+AI:  → calls person_list(status="active", limit=20)
+     Found 47 employees. Here are the first 20:
+     1. Ayşe Yılmaz — Engineering — ayse@company.com
+     2. Mehmet Demir — Marketing — mehmet@company.com
+     ...
+```
+
+#### Searching for Someone
+
+```
+You: Find the employee named Ahmet
+AI:  → calls person_list(search="Ahmet")
+     Found 2 matches:
+     1. Ahmet Kaya (ID: abc123) — Engineering
+     2. Ahmet Yıldız (ID: def456) — Sales
+```
+
+#### Viewing an Employee Profile
+
+```
+You: Show me Ayşe Yılmaz's full profile
+AI:  → calls person_view(person_id="Ayşe Yılmaz")
+     Name: Ayşe Yılmaz
+     Department: Engineering
+     Start Date: 2023-01-15
+     Email: ayse@company.com
+     Phone: +90 555 123 4567
+     ...
+```
+
+#### Checking Leave Balances
+
+```
+You: How many days of annual leave does Mehmet have left?
+AI:  → calls person_leave_status(person_id="Mehmet Demir")
+     Annual Leave: 8.5 days remaining (out of 14)
+     Sick Leave: 10 days remaining
+     ...
+```
+
+#### Requesting Time Off
+
+```
+You: I want to take next Monday and Tuesday off as annual leave
+AI:  → calls analyze_leave_impact(person_id="...", leave_type_id="...", requested_days=2)
+     You have 8.5 days remaining. After this request: 6.5 days.
+     Shall I go ahead and submit this?
+You: Yes
+AI:  → calls request_time_off(person_id="...", leave_type_id="...",
+         start_date="2026-03-16", end_date="2026-03-17")
+     ✅ Leave request submitted for March 16–17.
+```
+
+#### Listing Pending Leaves
+
+```
+You: Show me all pending leave requests
+AI:  → calls leave_list(status="waiting")
+     3 pending requests:
+     1. Ayşe Yılmaz — Annual Leave — Mar 20–22
+     2. Mehmet Demir — Sick Leave — Mar 18
+     3. Zeynep Kara — Annual Leave — Apr 1–5
+```
+
+#### Creating a New Employee
+
+```
+You: Add a new employee: Ali Veli, ali@company.com, starting April 1st
+AI:  ⚠️ This will create a real employee record. Confirm?
+You: Yes
+AI:  → calls person_create(first_name="Ali", last_name="Veli",
+         email="ali@company.com", employment_start="2026-04-01")
+     ✅ Employee created: Ali Veli (ID: ghi789)
+```
+
+#### Employee Health Check
+
+```
+You: Give me a quick health check on Ayşe Yılmaz
+AI:  → calls employee_health_check(person_id="Ayşe Yılmaz")
+     📋 Upcoming leaves: Annual Leave Mar 20–22
+     ⏱️ Recent timelogs: 42h this week (8h overtime)
+     📚 Training: "AWS Security" — completed
+```
+
+#### Organisation Chart
+
+```
+You: Show me the company org chart
+AI:  → calls unit_tree()
+     🏢 Acme Corp
+     ├── 🏗️ Engineering (12 people)
+     │   ├── Backend Team (5)
+     │   └── Frontend Team (4)
+     ├── 📈 Marketing (8 people)
+     └── 💰 Finance (5 people)
+```
+
+#### Manager Morning Briefing (using prompt)
+
+```
+You: Give me a morning briefing for the Engineering department
+AI:  → uses manager_dashboard prompt
+     📊 Engineering Department — Morning Briefing
+     • 2 people on leave today (Ayşe, Mehmet)
+     • 1 pending leave request to approve
+     • 3 overtime entries logged yesterday
+     • Training "Cloud Security 101" starts next week (4 enrolled)
+```
 
 ### Test with curl
 
