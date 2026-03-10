@@ -265,26 +265,41 @@ kolay mcp serve --transport http --port 8000
 
 #### ChatGPT (OpenAI)
 
-ChatGPT supports remote MCP servers via **Developer Mode** (available on Plus, Pro, Enterprise, and Edu plans).
+ChatGPT supports remote MCP servers as **Apps** (formerly called "connectors"). Available on all plans including Plus, Pro, Business, Enterprise, and Education. Requires **Developer Mode** to add custom servers.
 
-1. Open [chatgpt.com](https://chatgpt.com) and click your profile icon → **Settings**
-2. Navigate to **Developer** → **MCP Servers** (or **Connectors / Apps**)
-3. Click **Add MCP Server**
-4. Enter the following:
-   - **Name**: `Kolay IK`
-   - **URL**: `https://kolay.up.railway.app/mcp`
-5. If prompted for authentication, choose **Custom Headers** and add:
-   - Header: `X-Kolay-Token`
-   - Value: your Kolay IK API token
-6. Click **Save** and start a new conversation
+> **Important:** ChatGPT connects to *remote* MCP servers only — it cannot run local stdio servers. Your MCP server must be reachable over HTTPS.
 
-> **Note:** If your deployment uses a `KOLAY_API_TOKEN` environment variable (single-tenant), you can skip the custom header — the server already has your token.
+**Step 1 — Enable Developer Mode:**
 
-Now ask ChatGPT something like:
+1. Open [chatgpt.com](https://chatgpt.com) → click your profile icon → **Settings**
+2. Go to **Apps & Connectors** → scroll to **Advanced settings** (bottom of the page)
+3. Toggle **Developer mode** ON
+4. You should now see a **Create** button at the top of the Apps & Connectors page
 
-```
-List all active employees
-```
+**Step 2 — Create the connector:**
+
+1. In **Settings → Apps & Connectors**, click **Create**
+2. Fill in the connector details:
+   - **Connector name**: `Kolay IK`
+   - **Description**: `HR management — employees, leaves, timelogs, trainings, payroll`
+   - **Connector URL**: `https://kolay.up.railway.app/mcp`
+3. Click **Create**
+4. If the connection succeeds, you'll see a list of tools the server advertises
+
+> **Authentication note:** ChatGPT Apps support OAuth 2.1 for user-level auth. For Kolay IK, the simplest approach is to deploy with `KOLAY_API_TOKEN` set as an environment variable on the server (single-tenant mode), which requires no user-side auth setup. If you need per-user tokens, see the [self-host option](#option-3-self-host-railway--docker).
+
+**Step 3 — Use it in a conversation:**
+
+1. Open a **new chat** in ChatGPT
+2. Click the **+** button near the message composer, then click **More**
+3. Select **Kolay IK** from the list of available tools
+4. Ask a question like `"Show me all active employees"`
+
+ChatGPT will display tool-call payloads so you can confirm inputs and outputs. Write operations require manual confirmation.
+
+> **Tip:** After updating your MCP server, refresh the connector metadata: go to **Settings → Apps & Connectors**, click into your connector, and choose **Refresh**.
+
+📖 *Full docs: [developers.openai.com/apps-sdk/deploy/connect-chatgpt](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt)*
 
 #### Mistral Le Chat
 
