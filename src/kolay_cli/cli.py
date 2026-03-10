@@ -9,7 +9,7 @@ from . import __version__
 from .commands import (
     auth, person, leave, transaction, calendar,
     timelog, training, unit, expense, approval, schema,
-    doctor, setup,
+    doctor, setup, nudge,
 )
 from .commands import config as config_cmd  # avoid shadowing built-in
 from .commands import mcp as mcp_cmd
@@ -39,6 +39,7 @@ app.add_typer(calendar.app,     name="calendar",    rich_help_panel="Workflows")
 app.add_typer(unit.app,         name="unit",        rich_help_panel="Organisation")
 app.add_typer(setup.app,        name="setup",       rich_help_panel="Getting Started")
 app.add_typer(doctor.app,       name="doctor",      rich_help_panel="Getting Started")
+app.add_typer(nudge.app,        name="nudge",       rich_help_panel="Productivity")
 app.add_typer(mcp_cmd.app,      name="mcp",         rich_help_panel="Agent / Dev")
 app.add_typer(schema.app,       name="schema",      rich_help_panel="Agent / Dev", hidden=True)
 
@@ -103,6 +104,21 @@ def main(
                 )
             else:
                 console.print(ctx.get_help())
+
+                # Behavioral Nudge: Contextual bare-command hint
+                try:
+                    from .services import nudge as nudge_svc
+                    if not nudge_svc.should_throttle_bare_command():
+                        pending = nudge_svc.analyze_pending_work()
+                        if pending:
+                            console.print(
+                                f"\n  [{WARNING}]💡 Coach's Tip:[/{WARNING}] "
+                                f"You have [bold]{len(pending)}[/bold] pending items to review. "
+                                f"Run [bold]kolay nudge status[/bold] to see your top priority."
+                            )
+                        nudge_svc.record_bare_nudge_shown()
+                except Exception:
+                    pass
 
 
 def _enable_debug_logging() -> None:

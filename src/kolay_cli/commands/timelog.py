@@ -106,6 +106,16 @@ def list_timelogs(
         ("kolay timelog list --status waiting", "See pending approvals"),
     ])
 
+    if not is_json_mode():
+        try:
+            from ..services import nudge as nudge_svc
+            from ..ui.nudge_formatters import print_cross_service_nudge
+            pending = nudge_svc.analyze_pending_work()
+            if pending:
+                print_cross_service_nudge(pending, "timelog")
+        except Exception:
+            pass
+
 
 def _resolve_timelog_id(value: str, *, limit: int = 50) -> str:
     """Resolve row number from `kolay timelog list` to a real timelog UUID.

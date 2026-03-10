@@ -95,6 +95,16 @@ def list_leaves(
         ("kolay leave list --status waiting", "See pending approvals"),
     ])
 
+    if not is_json_mode():
+        try:
+            from ..services import nudge as nudge_svc
+            from ..ui.nudge_formatters import print_cross_service_nudge
+            pending = nudge_svc.analyze_pending_work()
+            if pending:
+                print_cross_service_nudge(pending, "leave")
+        except Exception:
+            pass
+
 
 def _resolve_leave_id(value: str, *, status: str = "approved", limit: int = 50) -> str:
     """Resolve row number from `kolay leave list` to a real leave UUID.

@@ -84,6 +84,26 @@ kolay person list --limit 10
 kolay leave create --type annual --start 2026-03-01 --end 2026-03-03
 ```
 
+### 4. Enhance Productivity with Behavioral Nudges
+
+**kolay-cli** includes an intelligent Behavioral Nudge Engine functioning as your personal productivity coach. Instead of overwhelming you with a massive backlog, it distills your tasks into actionable, time-boxed bursts.
+
+Configure your personalized interaction style:
+
+```bash
+kolay nudge configure
+```
+
+You can choose your cadence (daily, weekly), preferred style (gentle, direct, gamification), and your sprint lengths.
+
+Ready to crush some tasks? Start a focused micro-sprint:
+
+```bash
+kolay nudge sprint
+```
+
+*The Coach says: "You have 5 pending items in other areas. Clear them in 5 mins with `kolay nudge sprint`!"*
+
 ## MCP Server Integration
 
 Turn your AI assistant into an HR expert. `kolay-cli` exposes its full functionality as an MCP server.

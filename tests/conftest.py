@@ -65,7 +65,7 @@ def mock_client(monkeypatch):
     cmd_modules = [
         "person", "leave", "transaction", "calendar",
         "timelog", "training", "unit", "expense",
-        "approval", "auth",
+        "approval", "auth", "nudge"
     ]
     for mod in cmd_modules:
         try:
@@ -76,10 +76,13 @@ def mock_client(monkeypatch):
     # Patch KolayClient in service modules (the new single source of truth)
     svc_modules = [
         "person", "leave", "timelog", "training", "transaction",
-        "calendar", "unit", "approval", "expense",
+        "calendar", "unit", "approval", "expense", "nudge"
     ]
     for mod in svc_modules:
-        monkeypatch.setattr(f"kolay_cli.services.{mod}.KolayClient", _patch)
+        try:
+            monkeypatch.setattr(f"kolay_cli.services.{mod}.KolayClient", _patch)
+        except AttributeError:
+            pass
 
     # Also patch at the API-client level so config validate() gets the mock too
     monkeypatch.setattr("kolay_cli.api.client.KolayClient.__init__",
