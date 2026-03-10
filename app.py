@@ -75,13 +75,17 @@ class ProxyAuthMiddleware:
 
         # ── Layer 1: Gatekeeper ──
         if self.api_key:
-            provided_key = headers.get(b"x-api-key", b"").decode()
+            provided_key, header_name = self._extract_api_key(headers)
+            if provided_key:
+                print(f"[auth] Login attempt with header: {header_name}")
+
             if provided_key != self.api_key:
                 if scope["type"] == "http":
                     await self._send_json(send, 401, {
                         "error": "Unauthorized",
-                        "message": "Missing or invalid X-API-Key header.",
-                        "hint": "Add the X-API-Key header with your server's MCP_API_KEY value.",
+                        "message": "Missing or invalid API key.",
+                        "hint": "Send your key via X-API-Key header or Authorization: Bearer <key>.",
+                        "tried_header": header_name or "none",
                     })
                     return
                 await send({"type": "websocket.close", "code": 4001})
@@ -130,19 +134,42 @@ class ProxyAuthMiddleware:
         await self.app(scope, receive, send)
 
     @staticmethod
-    def _extract_kolay_token(headers: dict[bytes, bytes]) -> str | None:
-        """Extract the Kolay token from X-Kolay-Token or Authorization: Bearer."""
-        # Prefer explicit X-Kolay-Token header
-        kolay_header = headers.get(b"x-kolay-token", b"").decode().strip()
-        if kolay_header:
-            return kolay_header
+    def _extract_api_key(headers: dict[bytes, bytes]) -> tuple[str | None, str | None]:
+        """Extract the gatekeeper API key from multiple possible headers.
 
-        # Fall back to Authorization: Bearer <token>
+        Checks in order of precedence:
+          1. X-API-Key: <key>
+          2. Authorization: Bearer <key>
+          3. Authorization: <key>  (plain, no scheme)
+
+        Returns (key_value, header_name) for debug logging.
+        Never logs the key itself — only which header was used.
+        """
+        # 1. Explicit X-API-Key header (preferred)
+        x_api_key = headers.get(b"x-api-key", b"").decode().strip()
+        if x_api_key:
+            return x_api_key, "X-API-Key"
+
+        # 2. Authorization header (Bearer or plain)
         auth_header = headers.get(b"authorization", b"").decode().strip()
-        if auth_header.lower().startswith("bearer "):
-            return auth_header[7:].strip()
+        if auth_header:
+            if auth_header.lower().startswith("bearer "):
+                return auth_header[7:].strip(), "Authorization: Bearer"
+            # Plain key (no scheme prefix)
+            return auth_header, "Authorization (plain)"
 
-        return None
+        return None, None
+
+    @staticmethod
+    def _extract_kolay_token(headers: dict[bytes, bytes]) -> str | None:
+        """Extract the user's Kolay IK token from X-Kolay-Token header.
+
+        This is Layer 2 (Data Key) — separate from the gatekeeper.
+        Only reads the dedicated X-Kolay-Token header to avoid
+        ambiguity with the Authorization header used for Layer 1.
+        """
+        kolay_header = headers.get(b"x-kolay-token", b"").decode().strip()
+        return kolay_header or None
 
     @staticmethod
     async def _send_json(send, status: int, body_dict: dict):
