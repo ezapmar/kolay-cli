@@ -153,6 +153,34 @@ def person_update_fields(
     return person_svc.update_person_fields(person_id, update_fields)
 
 
+@mcp.tool
+@require_auth
+def employee_health_check(person_id: str) -> dict[str, Any]:
+    """Unified cross-reference diagnostic tool.
+    Returns an employee's upcoming leaves, recent timelogs, and training history in a single call.
+    Helps prevent fragmented tool calls that hit rate limits or context windows.
+    person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
+    from datetime import date
+    
+    # 1. Base Info
+    p_info = person_svc.view_person(person_id)
+    
+    # 2. Upcoming Leaves (only future approved leaves)
+    today_str = date.today().isoformat()
+    leaves = leave_svc.list_leaves(status="approved", person_id=person_id, start=today_str, limit=5)
+    
+    # 3. Recent Timelogs
+    timelogs_res = timelog_svc.list_timelogs(person_id=person_id, limit=5)
+    
+    # 4. Training
+    trainings = person_svc.list_trainings(person_id)
+
+    return {
+        "employee": p_info,
+        "upcoming_leaves": leaves,
+        "recent_timelogs": timelogs_res.get("items", []),
+        "training_assignments": trainings
+    }
 
 
 
@@ -207,6 +235,47 @@ def leave_create(
 def leave_cancel(leave_id: str) -> dict[str, Any]:
     """[DESTRUCTIVE] Cancel a leave request. Only 'waiting' or 'approved' leaves can be cancelled. leave_id: UUID from leave_list."""
     return leave_svc.cancel_leave(leave_id)
+
+@mcp.tool
+@require_auth
+def request_time_off(
+    person_id: str,
+    leave_type_id: str,
+    start_date: str,
+    end_date: str,
+    comment: str = "",
+) -> dict[str, Any]:
+    """[WRITE] Semantic alias for booking a holiday, taking time off, or reporting sick leave.
+    LLM instructions: Always use this when a user asks for time off in natural language.
+    Convert their natural dates (e.g. 'next Friday') to YYYY-MM-DD format before calling this.
+    person_id: Employee ID (UUID from person_list).
+    leave_type_id: UUID of the leave type (e.g. Annual Leave)."""
+    return leave_svc.create_leave(
+        person_id=person_id, leave_type_id=leave_type_id,
+        start_date=start_date, end_date=end_date, comment=comment,
+    )
+
+
+@mcp.tool
+@require_auth
+def analyze_leave_impact(person_id: str, leave_type_id: str, requested_days: float) -> dict[str, Any]:
+    """[DRY-RUN] Calculates how a requested leave will affect the user's future balance before actually creating it.
+    LLM instructions: Always run this before `leave_create` or `request_time_off` to ensure the user has enough balance and to ask for explicit confirmation from the user (gaining user trust)."""
+    balances = person_svc.leave_status(person_id)
+    for b in balances:
+        if str(b.get("leaveTypeId", "")) == str(leave_type_id):
+            current_unused = b.get("unused", 0)
+            new_unused = current_unused - requested_days
+            return {
+                "safe_to_proceed": new_unused >= 0,
+                "leave_type": b.get("leaveType", {}).get("name", "Unknown"),
+                "current_unused_days": current_unused,
+                "requested_days": requested_days,
+                "projected_unused_days": new_unused,
+                "warning": "Insufficient balance!" if new_unused < 0 else None
+            }
+    return {"error": True, "message": "Leave type balance not found for this user."}
+
 
 
 
@@ -600,7 +669,26 @@ Then ask EXACTLY this question:
 **Step 5 — Final Summary:**
 Present a concise summary: total scanned, total updated (or 0 if cancelled), any errors."""
 
+@mcp.prompt()
+def hr_capabilities() -> str:
+    """Guided prompt explaining exactly what the Kolay HR AI can do for the user."""
+    return """Act as a helpful HR Assistant. 
+List the top things you can do for the user regarding their Kolay IK data. 
+Categorize the capabilities (e.g., Time Off & Leaves, Work Hours & Timelogs, Team Directory, Training, Expenses).
+Keep it very brief, punchy, and use emojis. Offer to help them with one of these right now."""
 
+
+@mcp.prompt()
+def manager_dashboard(department_name: str) -> str:
+    """Guided prompt generating a morning briefing for a department manager."""
+    return f"""Act as an Executive HR Assistant.
+Generate a morning briefing for the manager of the `{department_name}` department.
+Use `person_list` to fetch the employees in this department.
+For those employees, cross-reference their data:
+1) Who is on leave today or upcoming this week? (Use `leave_list`)
+2) Does anyone have pending approvals? (Use `approval_list` or check status='waiting')
+3) Is there any overdue mandatory training?
+Output a very succinct, highly readable dashboard-style summary."""
 
 
 if __name__ == "__main__":

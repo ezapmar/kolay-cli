@@ -130,6 +130,14 @@ This writes the configuration into the correct file for each client. Supported l
 
 Restart your client after running `kolay mcp install` to activate the connection.
 
+### 🧠 UX-Driven AI Intelligence
+The MCP server doesn't just pass raw API endpoints to the AI; it is designed with **human-in-the-loop UX** to increase reliability and trust:
+
+* **Intent Catchers**: If you ask Claude, *"I'm feeling sick, take tomorrow off"*, the AI uses a semantic `request_time_off` tool that automatically translates human dates into strict `YYYY-MM-DD` API dates.
+* **Safety Dry-Runs**: Before the AI creates a leave request, it automatically runs `analyze_leave_impact` to calculate your projected balance and present you with a safety confirmation before committing destructive actions.
+* **Smart Diagnostics**: The `employee_health_check` tool enables the LLM to cross-reference an employee's upcoming leaves, excessive timelogs, and overdue training in a *single* call, preventing AI hallucinations and context drift.
+* **Guided Dashboards**: Don't know what to ask? Invoke the `manager_dashboard` prompt directly in your AI client to generate an instant morning briefing for your department.
+
 ### Mistral Le Chat (remote)
 
 [Le Chat](https://chat.mistral.ai) supports MCP through remote HTTP connectors. To connect kolay-cli:
