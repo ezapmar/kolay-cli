@@ -63,28 +63,48 @@ class ProxyAuthMiddleware:
 
     def __init__(self, app):
         self.app = app
-        self.api_key = os.environ.get("MCP_API_KEY")
+        # Strip potential whitespace from the env var to avoid invisible mismatches
+        raw_key = os.environ.get("MCP_API_KEY")
+        self.api_key = raw_key.strip() if raw_key else None
 
     async def __call__(self, scope, receive, send):
-        # Only gate HTTP requests (not lifespan events)
+        # 1. Allow lifespan events (startup/shutdown)
         if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        # 2. Allow discovery paths to pass (Mistral/Google often check these)
+        path = scope.get("path", "")
+        if path.startswith("/.well-known"):
             await self.app(scope, receive, send)
             return
 
         headers = dict(scope.get("headers", []))
 
-        # ── Layer 1: Gatekeeper ──
+        # 3. Layer 1: Gatekeeper
         if self.api_key:
             provided_key, header_name = self._extract_api_key(headers)
-            if provided_key:
-                print(f"[auth] Login attempt with header: {header_name}")
 
-            if provided_key != self.api_key:
+            if provided_key == self.api_key:
+                if provided_key:
+                    print(f"[auth] Success: key matched via {header_name}")
+            else:
+                # Key mismatch or missing
                 if scope["type"] == "http":
+                    # Debug logging for the mismatch (safe, no full keys)
+                    if not provided_key:
+                        print(f"[auth] Failure: no api key found in headers for path {path}")
+                    else:
+                        print(
+                            f"[auth] Mismatch: header={header_name} "
+                            f"len(got)={len(provided_key)} len(expected)={len(self.api_key)} "
+                            f"hint={provided_key[:2]}...{provided_key[-2:]}"
+                        )
+
                     await self._send_json(send, 401, {
                         "error": "Unauthorized",
                         "message": "Missing or invalid API key.",
-                        "hint": "Send your key via X-API-Key header or Authorization: Bearer <key>.",
+                        "hint": "Check your MCP_API_KEY in Railway vs. your Mistral connector headers.",
                         "tried_header": header_name or "none",
                     })
                     return
