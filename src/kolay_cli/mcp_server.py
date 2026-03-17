@@ -20,6 +20,7 @@ from .services import calendar as calendar_svc
 from .services import unit as unit_svc
 from .services import approval as approval_svc
 from .services import hr_analytics as hr_analytics_svc
+from .services import payroll as payroll_svc
 from .ui.search import filter_items_silent
 
 
@@ -563,6 +564,34 @@ def transaction_delete(transaction_id: str) -> dict[str, Any]:
     """[DESTRUCTIVE] Permanently delete a transaction record. Cannot be undone."""
     return transaction_svc.delete_transaction(transaction_id)
 
+
+@mcp.tool
+@require_auth
+def payroll_sheet_view(
+    payroll_id: str,
+    search: str | None = None,
+    status: list[str] | None = None,
+    salary_period: list[str] | None = None,
+    filter: str | None = None,
+) -> dict[str, Any]:
+    """View payroll sheet (Çarşaf Bordro) for a payroll run. Returns the full payroll data as JSON. payroll_id: UUID of the payroll run. search= filter by employee name, status= e.g. ['ended','active'], salary_period= e.g. ['monthly']. filter= client-side substring match on employee names in results. Required scope: payroll-sheet:view."""
+    result = payroll_svc.view_payroll_sheet(
+        payroll_id,
+        search=search,
+        status=status,
+        salary_period=salary_period,
+    )
+    if filter and isinstance(result, dict):
+        items = result.get("items", [])
+        if items:
+            result["items"] = filter_items_silent(
+                items, filter,
+                [
+                    lambda row: f"{(row.get('person') or row.get('employee') or {}).get('firstName', '')} {(row.get('person') or row.get('employee') or {}).get('lastName', '')}",
+                    lambda row: (row.get('person') or row.get('employee') or {}).get('name', ''),
+                ],
+            )
+    return result
 
 
 

@@ -65,7 +65,7 @@ def mock_client(monkeypatch):
     cmd_modules = [
         "person", "leave", "transaction", "calendar",
         "timelog", "training", "unit", "expense",
-        "approval", "auth", "nudge"
+        "approval", "auth", "nudge", "payroll",
     ]
     for mod in cmd_modules:
         try:
@@ -76,7 +76,7 @@ def mock_client(monkeypatch):
     # Patch KolayClient in service modules (the new single source of truth)
     svc_modules = [
         "person", "leave", "timelog", "training", "transaction",
-        "calendar", "unit", "approval", "expense", "nudge"
+        "calendar", "unit", "approval", "expense", "nudge", "payroll",
     ]
     for mod in svc_modules:
         try:

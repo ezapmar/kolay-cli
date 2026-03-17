@@ -32,6 +32,7 @@ kolay
 ├── transaction list │ view │ create │ delete
 ├── calendar list │ view │ create │ update │ delete
 ├── expense  list
+├── payroll  view
 ├── approval list
 └── unit     tree │ create-item
 ```

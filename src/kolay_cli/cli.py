@@ -9,7 +9,7 @@ from . import __version__
 from .commands import (
     auth, person, leave, transaction, calendar,
     timelog, training, unit, expense, approval, schema,
-    doctor, setup, nudge,
+    doctor, setup, nudge, payroll,
 )
 from .commands import config as config_cmd  # avoid shadowing built-in
 from .commands import mcp as mcp_cmd
@@ -34,6 +34,7 @@ app.add_typer(timelog.app,      name="timelog",      rich_help_panel="People")
 app.add_typer(training.app,     name="training",    rich_help_panel="People")
 app.add_typer(transaction.app,  name="transaction", rich_help_panel="Finance")
 app.add_typer(expense.app,      name="expense",     rich_help_panel="Finance")
+app.add_typer(payroll.app,      name="payroll",     rich_help_panel="Finance")
 app.add_typer(approval.app,     name="approval",    rich_help_panel="Workflows")
 app.add_typer(calendar.app,     name="calendar",    rich_help_panel="Workflows")
 app.add_typer(unit.app,         name="unit",        rich_help_panel="Organisation")

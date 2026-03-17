@@ -8,9 +8,9 @@ Used by both CLI commands (commands/) and MCP tools (mcp_server.py).
 """
 from __future__ import annotations
 
-from . import person, leave, timelog, training, transaction, calendar, unit, approval, expense, nudge
+from . import person, leave, timelog, training, transaction, calendar, unit, approval, expense, nudge, payroll
 
 __all__ = [
     "person", "leave", "timelog", "training", "transaction",
-    "calendar", "unit", "approval", "expense", "nudge"
+    "calendar", "unit", "approval", "expense", "nudge", "payroll",
 ]

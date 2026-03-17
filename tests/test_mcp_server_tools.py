@@ -365,3 +365,38 @@ class TestMcpPrompts:
         assert "person_update_fields" in result
         # Safety guardrail must be present
         assert "CONFIRMATION" in result or "confirm" in result.lower()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAYROLL TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestPayrollTools:
+    def test_payroll_sheet_view(self):
+        from kolay_cli.mcp_server import payroll_sheet_view
+        expected = {"items": [{"person": {"firstName": "Ali", "lastName": "Veli"}, "gross": 10000}]}
+        with patch(_svc("payroll_svc.view_payroll_sheet"), return_value=expected) as m:
+            result = payroll_sheet_view("abc123")
+        m.assert_called_once_with("abc123", search=None, status=None, salary_period=None)
+        assert result == expected
+
+    def test_payroll_sheet_view_with_filter(self):
+        from kolay_cli.mcp_server import payroll_sheet_view
+        data = {"items": [
+            {"person": {"firstName": "Ali", "lastName": "Veli"}, "gross": 10000},
+            {"person": {"firstName": "Ayşe", "lastName": "Kaya"}, "gross": 12000},
+        ]}
+        with patch(_svc("payroll_svc.view_payroll_sheet"), return_value=data):
+            result = payroll_sheet_view("abc123", filter="Ali")
+        # Only Ali should remain after client-side filter
+        assert len(result["items"]) == 1
+        assert result["items"][0]["person"]["firstName"] == "Ali"
+
+    def test_payroll_sheet_view_with_search(self):
+        from kolay_cli.mcp_server import payroll_sheet_view
+        expected = {"items": []}
+        with patch(_svc("payroll_svc.view_payroll_sheet"), return_value=expected) as m:
+            result = payroll_sheet_view("abc123", search="Ali", status=["ended"])
+        m.assert_called_once_with("abc123", search="Ali", status=["ended"], salary_period=None)
+        assert result == expected
+

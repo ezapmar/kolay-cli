@@ -140,15 +140,21 @@ kolay training list
 kolay training assign --person-id abc123def456 --training-id <training-uuid>
 ```
 
-### Transactions (Payroll)
+### Transactions & Payroll
 
 ```bash
-# list all transactions
+# list all transactions (bonuses, deductions, etc.)
 kolay transaction list
 
-# create a bonus
+# create a bonus record
 kolay transaction create --person-id abc123def456 \
   --type bonus --amount 5000 --date 2026-03-01
+
+# view the full payroll sheet (Çarşaf Bordro) for a run
+kolay payroll view abc123def456
+
+# search/filter rows within a payroll run
+kolay payroll view abc123def456 --search "Ahmet" --filter "Dev"
 ```
 
 ### Other Resources
@@ -159,6 +165,18 @@ kolay unit tree                           # organisational chart
 kolay approval list                       # approval workflows
 kolay expense list                        # expense records
 ```
+
+---
+
+## 🛠️ Emphatic User Experience
+
+This CLI is designed with a **"People First"** philosophy. We hate digging for UUIDs and getting cold errors.
+
+- **Interactive Fallbacks:** Every command that requires an ID (view, delete, update) will launch an interactive fuzzy picker if you omit the argument.
+- **Smart Hints:** If a command fails, we don't just show a stack trace. We suggest next steps, missing scopes, or dashboard paths.
+- **Structured Error Handling:** When running with `--json`, we provide machine-readable error shapes for robust automation.
+- **Client-Side Magic:** Most `list` commands support `--filter` (regex/substring) to instantly narrow down results locally without re-fetching from the API.
+- **Rich Visualization:** We use [Rich](https://github.com/Textualize/rich) to render beautiful tables, status badges, and panels that make HR data human-readable.
 
 ## Output Modes
 
