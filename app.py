@@ -235,9 +235,11 @@ if __name__ == "__main__":
     kolay_token = os.environ.get("KOLAY_API_TOKEN")
 
     _log(f"\nKolay IK MCP Proxy (Universal Stateless)")
-    _log(f" Endpoint:   http://{host}:{port}/mcp")
-    _log(f" Gatekeeper: {'enabled' if api_key else 'disabled (tools still protected by @require_auth)'}")
-    _log(f" Kolay Token: {'set via env' if kolay_token else 'not set (clients must send X-Kolay-Token)'}")
+    _log(f"  Endpoint:     http://{host}:{port}/mcp")
+    _log(f"  Gatekeeper:   {'enabled' if api_key else 'disabled (tools still protected by @require_auth)'}")
+    _log(f"  Kolay Token:  {'set via env' if kolay_token else 'not set (clients must send X-Kolay-Token)'}")
+    _log(f"  Rate Limit:   {'enabled' if os.environ.get('MCP_RATE_LIMIT_ENABLED', '').lower() in ('1', 'true', 'yes') else 'disabled (set MCP_RATE_LIMIT_ENABLED=true)'}")
+    _log(f"  Activity Log: always on (structured JSON to stdout)")
     _log("")
 
     uvicorn.run(app, host=host, port=port)

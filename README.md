@@ -261,7 +261,34 @@ kolay mcp serve --transport http --port 8000
 
 ---
 
-### Connect from AI Clients (Step-by-Step)
+### Proxy Monitoring & Limits
+
+When hosting the MCP proxy (e.g., on Railway), you can enable rate limiting and monitor activities.
+
+#### Rate Limiting (Opt-in)
+
+The proxy supports per-token sliding-window rate limiting. It tracks requests by a privacy-safe hash of each Kolay API token. To enable, set:
+
+```bash
+MCP_RATE_LIMIT_ENABLED=true
+MCP_RATE_LIMIT_PER_MINUTE=30    # Default: 30
+MCP_RATE_LIMIT_PER_HOUR=500     # Default: 500
+```
+
+#### Activity Logging
+
+The proxy outputs structured JSON logs for every tool invocation to `stdout`. These logs include:
+- Hashed token key (last 8 chars)
+- Tool name and duration
+- Redacted argument summary (no PII or long strings)
+- Success/failure status
+
+Example log record:
+```json
+{"ts": "2026-03-17T12:00:00Z", "event": "mcp.tool_call", "token_key": "tok_…a1b2c3d4", "tool": "person_list", "duration_ms": 142.5, "success": true}
+```
+
+---
 
 #### ChatGPT (OpenAI)
 

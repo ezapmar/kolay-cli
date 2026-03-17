@@ -396,9 +396,14 @@ def _auth_error(message: str, hint: str | None = None) -> dict[str, Any]:
 
 
 def require_auth(fn: F) -> F:
-    """Decorator that guards an MCP tool function with token authentication."""
+    """Decorator that guards an MCP tool function with token authentication,
+    optional rate limiting, and activity logging."""
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
+        import time as _time
+        from .rate_limiter import token_key as rl_token_key, check_rate_limit, is_rate_limit_enabled
+        from .activity_log import log_tool_call
+
         token = resolve_token()
 
         if not token:
@@ -414,9 +419,23 @@ def require_auth(fn: F) -> F:
                 hint="Run 'kolay auth login' to refresh your token.",
             )
 
+        key = rl_token_key(token)
+
+        # ── Rate-limit check (opt-in via MCP_RATE_LIMIT_ENABLED) ──
+        if is_rate_limit_enabled():
+            allowed, detail = check_rate_limit(key)
+            if not allowed:
+                log_tool_call(key, fn.__name__, kwargs, 0.0, success=False, error="rate_limited")
+                return {"error": True, "code": 429, "message": "Rate limit exceeded.", **detail}
+
+        # ── Execute tool with timing + activity logging ──
+        t0 = _time.monotonic()
         try:
-            return fn(*args, **kwargs)
+            result = fn(*args, **kwargs)
+            log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=True)
+            return result
         except Exception as exc:
+            log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc))
             # Import here to avoid circular imports at module load time
             from .api.errors import APIError
             if isinstance(exc, APIError) and exc.status_code == 401:
