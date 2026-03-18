@@ -138,7 +138,7 @@ async def install_complete(request: Request) -> HTMLResponse:
     </style>
     </head>
     <body>
-        <div class="check">✅</div>
+        <div class="check">[OK]</div>
         <h2>Kolay IK installed to <strong>{team_name}</strong></h2>
         <p>Try <code>/kolay help</code> in Slack to get started.</p>
     </body>

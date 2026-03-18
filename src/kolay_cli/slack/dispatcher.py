@@ -36,7 +36,7 @@ from .modals import (
 _HELP_BLOCKS: list[dict] = [
     {
         "type": "header",
-        "text": {"type": "plain_text", "text": "🔷 Kolay IK — Slack Commands", "emoji": True},
+        "text": {"type": "plain_text", "text": "Kolay IK — Slack Commands", "emoji": False},
     },
     {"type": "divider"},
     {
@@ -51,18 +51,18 @@ _HELP_BLOCKS: list[dict] = [
                 "*Leave*\n"
                 "`/kolaycli leave list`  — this year's leaves\n"
                 "`/kolaycli leave view ID`  — single leave record\n"
-                "`/kolaycli leave request`  — 📋 open request modal\n\n"
+                "`/kolaycli leave request`  — open request modal\n\n"
                 "*Timelog*\n"
                 "`/kolaycli timelog list`  — recent time logs\n"
-                "`/kolaycli timelog create`  — 📋 open create modal\n\n"
+                "`/kolaycli timelog create`  — open create modal\n\n"
                 "*Organization*\n"
                 "`/kolaycli unit tree`  — org chart snapshot\n"
                 "`/kolaycli approval list`  — approval processes\n\n"
                 "*Quiz*\n"
-                "`/kolaycli quiz`  — 🎮 start Data Detective\n"
+                "`/kolaycli quiz`  — start Data Detective\n"
                 "`/kolaycli quiz --mode unique_title`  — skip mode picker\n\n"
                 "*Admin*\n"
-                "`/kolaycli settings`  — ⚙️ update access restrictions & API token\n\n"
+                "`/kolaycli settings`  — update access restrictions & API token\n\n"
                 "`/kolaycli help`  — show this message"
             ),
         },
@@ -123,7 +123,7 @@ def _post_or_upload(
                     content=csv_bytes.decode(),
                     filename=filename,
                     title=filename,
-                    initial_comment=f"📋 {len(items)} results — attached as CSV (too many for inline display).",
+                    initial_comment=f"{len(items)} results -- attached as CSV (too many for inline display).",
                 )
                 print("[_post_or_upload] uploaded CSV (block limit)", flush=True)
                 return
@@ -317,7 +317,7 @@ def _route(
             result = person_svc.list_people(search=search, limit=100)
             items = result.get("items", [])
             total = result.get("totalCount", len(items))
-            blocks = compact_list_blocks(items, "person", f"👥 Employees ({total})", page=page, total_count=total, search=search)
+            blocks = compact_list_blocks(items, "person", f"Employees ({total})", page=page, total_count=total, search=search)
             if reply: reply(text="Employees", blocks=blocks)
             else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Employees")
         elif action == "view":
@@ -340,7 +340,7 @@ def _route(
                 return
             items = person_svc.leave_status(pid)
             keys = ["leaveTypeName", "usedDays", "remainingDays", "totalDays"]
-            blocks = list_to_blocks(items, keys, "🏖️ Leave Balances")
+            blocks = list_to_blocks(items, keys, "Leave Balances")
             if reply: reply(text="Leave status", blocks=blocks)
             else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Leave status")
         else:
@@ -354,7 +354,7 @@ def _route(
             items = leave_svc.list_leaves(limit=100)
             if not isinstance(items, list):
                 items = []
-            blocks = compact_list_blocks(items, "leave", f"🏖️ Leaves ({len(items)})")
+            blocks = compact_list_blocks(items, "leave", f"Leaves ({len(items)})")
             if reply: reply(text="Leaves", blocks=blocks)
             else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Leaves")
         elif action == "view":
@@ -380,7 +380,7 @@ def _route(
         if action in ("list", ""):
             result = timelog_svc.list_timelogs(limit=100)
             items = result.get("items", [])
-            blocks = compact_list_blocks(items, "timelog", f"⏱️ Time Logs ({len(items)})")
+            blocks = compact_list_blocks(items, "timelog", f"Time Logs ({len(items)})")
             if reply: reply(text="Time Logs", blocks=blocks)
             else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Time Logs")
         elif action in ("create", "log"):
@@ -404,7 +404,7 @@ def _route(
         _walk(tree)
         text = "\n".join(lines) or "No org tree data."
         blocks = [
-            {"type": "header", "text": {"type": "plain_text", "text": "🏢 Org Chart", "emoji": True}},
+            {"type": "header", "text": {"type": "plain_text", "text": "Org Chart", "emoji": False}},
             {"type": "section", "text": {"type": "mrkdwn", "text": text[:2900]}},
         ]
         if reply: reply(text="Org Chart", blocks=blocks)
@@ -414,7 +414,7 @@ def _route(
     # ── approval ──────────────────────────────────────────────────────────────
     if module == "approval":
         items = approval_svc.list_approval_processes()
-        blocks = compact_list_blocks(items, "approval", f"✅ Approval Processes ({len(items)})")
+        blocks = compact_list_blocks(items, "approval", f"Approval Processes ({len(items)})")
         if reply: reply(text="Approvals", blocks=blocks)
         else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Approvals")
         return

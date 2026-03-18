@@ -23,7 +23,7 @@ def _str(v: Any) -> str:
 def _title_block(text: str) -> dict:
     return {
         "type": "header",
-        "text": {"type": "plain_text", "text": text[:150], "emoji": True},
+        "text": {"type": "plain_text", "text": text[:150], "emoji": False},
     }
 
 
@@ -54,31 +54,31 @@ def dict_to_fields(d: dict[str, Any], keys: list[str] | None = None) -> list[dic
 
 # Column display config per resource type
 _COLUMN_CONFIG: dict[str, list[tuple[str, str, int]]] = {
-    # (key, emoji_label, max_width)
+    # (key, label_prefix, max_width)
     "person": [
-        ("firstName", "👤", 12),
+        ("firstName", "", 12),
         ("lastName", "", 12),
-        ("title", "💼", 20),
-        ("department", "🏢", 15),
+        ("title", "Title:", 20),
+        ("department", "Dept:", 15),
     ],
     "leave": [
-        ("person", "👤", 20),
-        ("leaveType", "📋", 15),
-        ("startDate", "📅", 10),
-        ("endDate", "→", 10),
-        ("status", "🔵", 8),
+        ("person", "", 20),
+        ("leaveType", "Type:", 15),
+        ("startDate", "From:", 10),
+        ("endDate", "To:", 10),
+        ("status", "Status:", 8),
     ],
     "timelog": [
-        ("person", "👤", 20),
-        ("type", "📋", 12),
-        ("startDate", "📅", 10),
-        ("endDate", "→", 10),
-        ("status", "🔵", 8),
+        ("person", "", 20),
+        ("type", "Type:", 12),
+        ("startDate", "From:", 10),
+        ("endDate", "To:", 10),
+        ("status", "Status:", 8),
     ],
     "approval": [
-        ("name", "📋", 25),
-        ("description", "📝", 30),
-        ("status", "🔵", 10),
+        ("name", "", 25),
+        ("description", "Desc:", 30),
+        ("status", "Status:", 10),
     ],
 }
 
@@ -88,15 +88,15 @@ ITEMS_PER_PAGE = 10  # How many items per page
 def _format_row(item: dict, cols: list[tuple[str, str, int]], idx: int) -> str:
     """Format a single item as a compact row."""
     parts = []
-    for key, emoji, max_w in cols:
+    for key, label, max_w in cols:
         val = _str(item.get(key, ""))
         if len(val) > max_w:
             val = val[:max_w - 1] + "…"
-        if emoji:
-            parts.append(f"{emoji} {val}")
+        if label:
+            parts.append(f"{label} {val}")
         else:
             parts.append(val)
-    return f"`{idx:>2}.` " + " · ".join(parts)
+    return f"`{idx:>2}.` " + " | ".join(parts)
 
 
 def compact_list_blocks(
@@ -131,12 +131,11 @@ def compact_list_blocks(
         })
         return blocks
 
-    # Build compact rows — group ~5 rows per section block to stay under limits
+    # Build compact rows — group ~5 rows per section block for readability
     rows: list[str] = []
     for i, item in enumerate(page_items, start=start + 1):
         rows.append(_format_row(item, cols, i))
 
-    # Group rows into section blocks (5 rows per block for readability)
     ROWS_PER_BLOCK = 5
     for chunk_start in range(0, len(rows), ROWS_PER_BLOCK):
         chunk = rows[chunk_start:chunk_start + ROWS_PER_BLOCK]
@@ -146,8 +145,8 @@ def compact_list_blocks(
         })
 
     # Footer with page info
-    search_info = f"  •  🔍 `{search}`" if search else ""
-    footer = f"_Page {page}/{total_pages}  •  {total} total{search_info}_"
+    search_info = f"  |  Search: `{search}`" if search else ""
+    footer = f"_Page {page}/{total_pages}  |  {total} total{search_info}_"
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": footer}]})
 
     # Pagination buttons
@@ -156,7 +155,7 @@ def compact_list_blocks(
         if page > 1:
             buttons.append({
                 "type": "button",
-                "text": {"type": "plain_text", "text": "◀ Previous", "emoji": True},
+                "text": {"type": "plain_text", "text": "<< Previous", "emoji": False},
                 "action_id": f"page_{resource}_{page - 1}",
                 "value": json.dumps({
                     "resource": resource,
@@ -167,7 +166,7 @@ def compact_list_blocks(
         if page < total_pages:
             buttons.append({
                 "type": "button",
-                "text": {"type": "plain_text", "text": "Next ▶", "emoji": True},
+                "text": {"type": "plain_text", "text": "Next >>", "emoji": False},
                 "action_id": f"page_{resource}_{page + 1}",
                 "value": json.dumps({
                     "resource": resource,

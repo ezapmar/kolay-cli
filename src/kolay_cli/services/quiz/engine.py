@@ -64,7 +64,7 @@ class QuizEngine:
         if not questions:
             self.renderer.clear()
             title_label = _TITLE_LABELS.get(self.lang, "Data Detective")
-            self.renderer.show_title(f"🔍 {title_label}")
+            self.renderer.show_title(f"Data Detective: {title_label}")
             # Give a mode-specific hint
             mode = self.provider.name
             if mode == "photo_match":
@@ -95,7 +95,7 @@ class QuizEngine:
         for i, q in enumerate(questions, 1):
             self.renderer.clear()
             mode_title = self.provider.name.replace("_", " ").title()
-            self.renderer.show_title(f"🔍 {title_label} — {mode_title}")
+            self.renderer.show_title(f"Data Detective: {title_label} -- {mode_title}")
             self.renderer.console.print(
                 f"[grey62]{case_label} {i} / {len(questions)}[/grey62]  "
                 f"{score_label}: [bold]{score}[/bold]  "

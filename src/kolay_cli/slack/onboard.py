@@ -72,7 +72,7 @@ def render_onboard_form(team_id: str, team_name: str, bot_token: str) -> str:
 </head>
 <body>
     <div class="card">
-        <div class="logo">🔷</div>
+        <div class="logo">K</div>
         <h2>Connect Kolay IK</h2>
         <p class="subtitle">
             <span class="badge">✓ {team_name}</span> workspace connected

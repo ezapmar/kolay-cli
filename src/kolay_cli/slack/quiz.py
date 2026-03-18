@@ -13,20 +13,20 @@ from ..services.quiz import get_factory
 _SESSION_TTL = 600  # seconds (10 min)
 
 _MODE_LABELS: dict[str, str] = {
-    "photo_match": "🖼️  Face ID",
-    "education_champion": "🎓 Academic Degrees",
-    "unique_title": "🏆 Lonely Roles",
-    "december_exodus": "⏳ Leave Time Machine",
+    "photo_match": "Face ID",
+    "education_champion": "Academic Degrees",
+    "unique_title": "Lonely Roles",
+    "december_exodus": "Leave Time Machine",
 }
 
 # Rank badge mapping (mirrors badges.py thresholds)
-_RANK_EMOJIS = {
-    "Cadet": "🔵",
-    "Analyst": "🟢",
-    "Investigator": "🟡",
-    "Detective": "🟠",
-    "Chief Inspector": "🔴",
-    "Legend": "🟣",
+_RANK_BADGES = {
+    "Cadet": "[*]",
+    "Analyst": "[**]",
+    "Investigator": "[***]",
+    "Detective": "[****]",
+    "Chief Inspector": "[*****]",
+    "Legend": "[LEGEND]",
 }
 
 
@@ -97,7 +97,7 @@ def build_mode_picker_blocks() -> list[dict]:
     return [
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "*🔍 Data Detective* — choose your case:"},
+            "text": {"type": "mrkdwn", "text": "*Data Detective* — choose your case:"},
         },
         {"type": "actions", "elements": buttons},
     ]
@@ -152,7 +152,7 @@ def build_summary_blocks(session: QuizSession) -> list[dict]:
     elif pct >= 20:
         rank = "Cadet"
 
-    badge = _RANK_EMOJIS.get(rank, "🔵")
+    badge = _RANK_BADGES.get(rank, "[*]")
     verdict = ":trophy:" if pct >= 80 else (":chart_with_upwards_trend:" if pct >= 50 else ":bulb:")
     return [
         {"type": "divider"},

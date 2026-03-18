@@ -71,7 +71,7 @@ CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves
 
 ## Disclaimer (Alpha)
 
-> **⚠️ Please read before using.**
+> **Please read before using.**
 
 1. **Unofficial project.** This is an independent lab application, not a Kolay IK product. Kolay Yazilim A.S. is not responsible for any data loss or issues caused by this software.
 2. **Your token, your responsibility.** Generate tokens at [app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings) and keep them safe.
@@ -773,7 +773,7 @@ AI:  → calls analyze_leave_impact(person_id="...", leave_type_id="...", reques
 You: Yes
 AI:  → calls request_time_off(person_id="...", leave_type_id="...",
          start_date="2026-03-16", end_date="2026-03-17")
-     ✅ Leave request submitted for March 16–17.
+     Leave request submitted for March 16-17.
 ```
 
 #### Listing Pending Leaves
@@ -791,11 +791,11 @@ AI:  → calls leave_list(status="waiting")
 
 ```
 You: Add a new employee: Ali Veli, ali@company.com, starting April 1st
-AI:  ⚠️ This will create a real employee record. Confirm?
+AI:  [WARN] This will create a real employee record. Confirm?
 You: Yes
 AI:  → calls person_create(first_name="Ali", last_name="Veli",
          email="ali@company.com", employment_start="2026-04-01")
-     ✅ Employee created: Ali Veli (ID: ghi789)
+     Employee created: Ali Veli (ID: ghi789)
 ```
 
 #### Employee Health Check
@@ -803,22 +803,22 @@ AI:  → calls person_create(first_name="Ali", last_name="Veli",
 ```
 You: Give me a quick health check on Ayşe Yılmaz
 AI:  → calls employee_health_check(person_id="Ayşe Yılmaz")
-     📋 Upcoming leaves: Annual Leave Mar 20–22
-     ⏱️ Recent timelogs: 42h this week (8h overtime)
-     📚 Training: "AWS Security" — completed
+     Upcoming leaves: Annual Leave Mar 20-22
+     Recent timelogs: 42h this week (8h overtime)
+     Training: "AWS Security" -- completed
 ```
 
 #### Organisation Chart
 
 ```
 You: Show me the company org chart
-AI:  → calls unit_tree()
-     🏢 Acme Corp
-     ├── 🏗️ Engineering (12 people)
-     │   ├── Backend Team (5)
-     │   └── Frontend Team (4)
-     ├── 📈 Marketing (8 people)
-     └── 💰 Finance (5 people)
+AI:  -> calls unit_tree()
+     Acme Corp
+     +-- Engineering (12 people)
+     |   +-- Backend Team (5)
+     |   \-- Frontend Team (4)
+     +-- Marketing (8 people)
+     \-- Finance (5 people)
 ```
 
 #### Manager Morning Briefing (using prompt)
@@ -826,7 +826,7 @@ AI:  → calls unit_tree()
 ```
 You: Give me a morning briefing for the Engineering department
 AI:  → uses manager_dashboard prompt
-     📊 Engineering Department — Morning Briefing
+     Engineering Department -- Morning Briefing
      • 2 people on leave today (Ayşe, Mehmet)
      • 1 pending leave request to approve
      • 3 overtime entries logged yesterday

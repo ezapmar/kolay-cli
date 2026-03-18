@@ -5,7 +5,7 @@ from rich.console import Console
 
 from ..services.quiz import get_factory, QuizState, Renderer, KolayAPIProvider, MockProvider, QuizEngine
 
-app = typer.Typer(help="🔍 Data Detective — uncover secrets hidden in your HR data.")
+app = typer.Typer(help="Data Detective -- uncover secrets hidden in your HR data.")
 console = Console(highlight=False)
 
 LANG_HELP = "UI language: 'en' (default) or 'tr' for Turkish."
@@ -84,20 +84,20 @@ def play(
 
     # Localised summary
     if lang == "tr":
-        console.print(f"\n[bold yellow]🔍 Tüm Davalar Çözüldü![/bold yellow]\n")
+        console.print(f"\n[bold yellow]Tum Davalar Cozuldu![/bold yellow]\n")
         console.print(f"  Doğru: [bold green]{result.score}[/bold green] / {result.total}")
         console.print(f"  Bu turda kazanılan puan: [bold yellow]+{result.points_earned}[/bold yellow]")
         console.print(f"  Toplam puan: [bold]{state.total_case_points}[/bold]")
         console.print(f"  Rütbe: [bold yellow]{state.rank}[/bold yellow]")
-        streak_msg = f"🔥 Günlük seri: [bold]{state.current_streak}[/bold] gün!"
+        streak_msg = f"Gunluk seri: [bold]{state.current_streak}[/bold] gun!"
         no_streak_msg = f"  Günlük seri: [bold]{state.current_streak}[/bold] gün"
     else:
-        console.print(f"\n[bold yellow]🔍 All cases closed![/bold yellow]\n")
+        console.print(f"\n[bold yellow]All cases closed![/bold yellow]\n")
         console.print(f"  Correct: [bold green]{result.score}[/bold green] / {result.total}")
         console.print(f"  Points this session: [bold yellow]+{result.points_earned}[/bold yellow]")
         console.print(f"  Total points: [bold]{state.total_case_points}[/bold]")
         console.print(f"  Rank: [bold yellow]{state.rank}[/bold yellow]")
-        streak_msg = f"🔥 Daily streak: [bold]{state.current_streak}[/bold] days!"
+        streak_msg = f"Daily streak: [bold]{state.current_streak}[/bold] days!"
         no_streak_msg = f"  Daily streak: [bold]{state.current_streak}[/bold] days"
 
     if result.streak_updated:
@@ -112,7 +112,7 @@ def stats(lang: str = typer.Option("en", "--lang", help=LANG_HELP)) -> None:
     """View your detective case stats and high score."""
     state = QuizState.load()
     if lang == "tr":
-        console.print(f"\n[bold yellow]🕵️  Dedektif İstatistikleri[/bold yellow]\n")
+        console.print(f"\n[bold yellow]Dedektif Istatistikleri[/bold yellow]\n")
         console.print(f"  Rekor:            [bold green]{state.high_score}[/bold green]")
         console.print(f"  Günlük Seri:      [bold yellow]{state.current_streak} gün[/bold yellow]")
         console.print(f"  Toplam Puan:      [bold]{state.total_case_points}[/bold]")
@@ -122,7 +122,7 @@ def stats(lang: str = typer.Option("en", "--lang", help=LANG_HELP)) -> None:
             console.print(f"  Son Oynama:       [grey62]{state.last_played}[/grey62]")
         console.print(f"  Çözülen Dava:     [bold]{len(state.seen_question_ids)}[/bold]\n")
     else:
-        console.print(f"\n[bold yellow]🕵️  Detective Stats[/bold yellow]\n")
+        console.print(f"\n[bold yellow]Detective Stats[/bold yellow]\n")
         console.print(f"  High score:   [bold green]{state.high_score}[/bold green]")
         console.print(f"  Daily streak: [bold yellow]{state.current_streak} days[/bold yellow]")
         console.print(f"  Total points: [bold]{state.total_case_points}[/bold]")
@@ -138,9 +138,9 @@ def streak(lang: str = typer.Option("en", "--lang", help=LANG_HELP)) -> None:
     """Check your active daily detective streak."""
     state = QuizState.load()
     if lang == "tr":
-        console.print(f"\n🔥 Aktif Seri: [bold yellow]{state.current_streak}[/bold yellow] gün\n")
+        console.print(f"\nAktif Seri: [bold yellow]{state.current_streak}[/bold yellow] gun\n")
     else:
-        console.print(f"\n🔥 Active streak: [bold yellow]{state.current_streak}[/bold yellow] days\n")
+        console.print(f"\nActive streak: [bold yellow]{state.current_streak}[/bold yellow] days\n")
 
 
 @app.command(name="rank")

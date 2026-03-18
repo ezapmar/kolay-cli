@@ -6,10 +6,10 @@ from rich.text import Text
 
 
 BADGE_TEMPLATE = """
-    ╔══════════════════════════╗
-    ║  🔍  VERİ DEDEKTİFİ    ║
-    ║  ┌────────────────────┐  ║
-    ║  │  🏆  {days:^4} GÜN  │  ║
+     +==========================+
+     |  VERI DEDEKTIFI          |
+     |  +--------------------+  |
+     |  |  {days:^4} GUN        |  |
     ║  │     SERİSİ!        │  ║
     ║  └────────────────────┘  ║
     ║  {rank:<24}║
@@ -25,7 +25,7 @@ def render_streak_badge(console: Console, streak: int, rank: str) -> None:
             Text(badge, style="bold yellow", justify="center"),
             border_style="yellow",
             expand=False,
-            title="[bold yellow]🎖️  Rozet Kazandı![/bold yellow]",
+            title="[bold yellow]Badge Earned![/bold yellow]",
         )
     )
 
@@ -49,7 +49,7 @@ def render_rank_card(console: Console, rank: str, points: int, streak: int, lang
         next_label = "Sonraki Rütbe"
         max_label = "En yüksek rütbeye ulaştınız!"
         days_label = "gün"
-        title_label = "🕵️  Dedektif Kimliği"
+        title_label = "Detective ID"
     else:
         # Show English rank name
         rank_display = next((en for _, tr, en in RANKS if tr == rank), rank)
@@ -58,11 +58,11 @@ def render_rank_card(console: Console, rank: str, points: int, streak: int, lang
         next_label = "Next Rank"
         max_label = "Maximum rank achieved!"
         days_label = "days"
-        title_label = "🕵️  Detective ID"
+        title_label = "Detective ID"
 
     lines = [
         "",
-        f"  [bold yellow]🔍  {rank_display}[/bold yellow]",
+        f"  [bold yellow]{rank_display}[/bold yellow]",
         "",
         f"  [grey62]{points_label}:[/grey62]  [bold white]{points}[/bold white]",
         f"  [grey62]{streak_label}:     [/grey62]  [bold white]{streak} {days_label}[/bold white]",

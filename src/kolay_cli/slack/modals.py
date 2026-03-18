@@ -173,7 +173,7 @@ def build_settings_modal(
         "type": "modal",
         "callback_id": SETTINGS_CALLBACK,
         "private_metadata": team_id,
-        "title": {"type": "plain_text", "text": "⚙️ Kolay Settings"},
+        "title": {"type": "plain_text", "text": "Kolay Settings"},
         "submit": {"type": "plain_text", "text": "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "blocks": [

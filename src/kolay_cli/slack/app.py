@@ -31,22 +31,22 @@ def _startup_banner(env_path: Path | None) -> None:
     from .dispatcher import _access_config
 
     allowed_ch, allowed_users = _access_config()
-    gate = "✅  Both channel + user lists set (Option C)" if (allowed_ch and allowed_users) \
-        else "⚠️  Access gate INACTIVE — set both ALLOWED_CHANNEL_IDS and ALLOWED_USER_IDS to restrict"
+    gate = "[OK]  Both channel + user lists set (Option C)" if (allowed_ch and allowed_users) \
+        else "[WARN]  Access gate INACTIVE -- set both ALLOWED_CHANNEL_IDS and ALLOWED_USER_IDS to restrict"
 
-    env_line = f"📄  Loaded env from: {env_path}" if env_path else "📄  No .env file found — using system env vars"
+    env_line = f"Loaded env from: {env_path}" if env_path else "No .env file found -- using system env vars"
 
-    print("\n╔══════════════════════════════════════════════╗")
-    print("║     ⚡️  Kolay IK — Slack Bot                ║")
-    print("╚══════════════════════════════════════════════╝")
+    print("\n+----------------------------------------------+")
+    print("|      Kolay IK -- Slack Bot                   |")
+    print("+----------------------------------------------+")
     print(f"  {env_line}")
-    print(f"  🔐  Access control: {gate}")
+    print(f"  Access control: {gate}")
     if allowed_ch:
         print(f"       Channels : {', '.join(sorted(allowed_ch))}")
     if allowed_users:
         print(f"       Users    : {', '.join(sorted(allowed_users))}")
-    print("  🎛️   Mode: Socket Mode")
-    print("  📡  Listening for /kolay commands…\n")
+    print("  Mode: Socket Mode")
+    print("  Listening for /kolay commands...\n")
 
 
 # ── App factory ───────────────────────────────────────────────────────────────
@@ -100,10 +100,10 @@ def setup_wizard() -> None:
     """Interactive wizard to create a .env file for the Slack bot."""
     env_file = Path.cwd() / ".env"
 
-    print("\n✨  Kolay Slack Bot — Setup Wizard\n")
+    print("\n  Kolay Slack Bot -- Setup Wizard\n")
 
     if env_file.exists():
-        overwrite = input(f"⚠️  .env already exists at {env_file}\n   Overwrite? [y/N] ").strip().lower()
+        overwrite = input(f"[WARN]  .env already exists at {env_file}\n   Overwrite? [y/N] ").strip().lower()
         if overwrite not in ("y", "yes"):
             print("   Aborted — existing .env untouched.")
             sys.exit(0)
@@ -118,7 +118,7 @@ def setup_wizard() -> None:
     port = _prompt_optional("PORT (default: 8000)")
 
     if bool(channel_ids) != bool(user_ids):
-        print("\n⚠️  You set only one of ALLOWED_CHANNEL_IDS / ALLOWED_USER_IDS.")
+        print("\n[WARN]  You set only one of ALLOWED_CHANNEL_IDS / ALLOWED_USER_IDS.")
         print("   Option C requires BOTH. Access gate will be inactive until both are set.")
 
     lines = [
@@ -136,7 +136,7 @@ def setup_wizard() -> None:
 
 
     env_file.write_text("\n".join(lines) + "\n")
-    print(f"\n✅  .env written to {env_file}")
+    print(f"\n[OK]  .env written to {env_file}")
     print("   Run `kolay-slack` to start the bot.\n")
 
 
@@ -153,7 +153,7 @@ def _prompt_optional(label: str) -> str:
 
 
 def _missing_token_help(var: str) -> None:
-    print(f"\n❌  {var} is not set.\n")
+    print(f"\n[ERROR]  {var} is not set.\n")
     print("   Options:")
     print("   1. Run `kolay-slack setup` to create a .env file interactively.")
     print("   2. Export the variable manually:")

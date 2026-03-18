@@ -59,7 +59,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     signing_secret = os.environ.get("SLACK_SIGNING_SECRET", "")
     if not signing_secret:
         raise RuntimeError(
-            "\n❌  SLACK_SIGNING_SECRET is not set.\n"
+            "\n[ERROR]  SLACK_SIGNING_SECRET is not set.\n"
             "    Get it from: api.slack.com/apps → Basic Information → Signing Secret\n"
         )
 
@@ -165,19 +165,19 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
             result = person_svc_p.list_people(search=search, limit=100)
             items = result.get("items", [])
             total = result.get("totalCount", len(items))
-            title = f"👥 Employees ({total})"
+            title = f"Employees ({total})"
         elif resource == "leave":
             items = leave_svc_p.list_leaves(limit=100)
             if not isinstance(items, list):
                 items = []
-            title = f"🏖️ Leaves ({len(items)})"
+            title = f"Leaves ({len(items)})"
         elif resource == "timelog":
             result = timelog_svc_p.list_timelogs(limit=100)
             items = result.get("items", [])
-            title = f"⏱️ Time Logs ({len(items)})"
+            title = f"Time Logs ({len(items)})"
         elif resource == "approval":
             items = approval_svc_p.list_approval_processes()
-            title = f"✅ Approvals ({len(items)})"
+            title = f"Approvals ({len(items)})"
 
         blocks = compact_list_blocks(items, resource, title, page=page, search=search)
 
@@ -285,7 +285,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
         </head>
         <body>
             <div class="card">
-                <h1>🔷 Kolay IK</h1>
+                <h1>Kolay IK</h1>
                 <p>HR intelligence for Slack — people, leave, quiz, and more.</p>
                 <a class="btn" href="{install_url}">Add to Slack</a>
                 <p class="stat">{tenant_count} workspace{'s' if tenant_count != 1 else ''} connected</p>
@@ -355,14 +355,14 @@ def _startup_banner(host: str, port: int) -> None:
         tenant_count = 0
 
     print("\n╔══════════════════════════════════════════════════════╗")
-    print("║   ⚡️  Kolay IK — Combined MCP + Slack Server        ║")
+    print("||      Kolay IK -- Combined MCP + Slack Server      ||")
     print("╚══════════════════════════════════════════════════════╝")
-    print(f"  🌐  http://{host}:{port}")
-    print(f"  📡  MCP endpoint    → /mcp")
-    print(f"  💬  Slack events    → /slack/events")
-    print(f"  🔗  Add to Slack    → /slack/install")
-    print(f"  🏥  Health check    → /health")
-    print(f"  🏢  Tenants: {tenant_count} workspace(s) connected\n")
+    print(f"  URL:  http://{host}:{port}")
+    print(f"  MCP endpoint    -> /mcp")
+    print(f"  Slack events    -> /slack/events")
+    print(f"  Add to Slack    -> /slack/install")
+    print(f"  Health check    -> /health")
+    print(f"  Tenants: {tenant_count} workspace(s) connected\n")
 
 
 if __name__ == "__main__":

@@ -16,26 +16,26 @@ NOIR_DIM = "grey62"
 # Locale strings — extend here for more languages
 _STRINGS = {
     "en": {
-        "hint_ask":     "💡 Want a hint? (-3 pts) (y/n)",
-        "hint_label":   "🕵️  Hint: The answer looks like →",
+        "hint_ask":     "Want a hint? (-3 pts) (y/n)",
+        "hint_label":   "Hint: The answer looks like ->",
         "get_answer":   "Your answer (1-{n})",
-        "correct":      "✓ Case closed! The detective was right.",
-        "wrong":        "✗ Wrong.",
+        "correct":      "Correct! Case closed.",
+        "wrong":        "Wrong.",
         "right_answer": "The correct answer was",
-        "invalid":      "Invalid choice — please enter a valid number.",
-        "analyzing":    "📂 Case File",
+        "invalid":      "Invalid choice -- please enter a valid number.",
+        "analyzing":    "Case File",
         "no_data":      "Not enough data to run a session. Try again later.",
     },
     "tr": {
-        "hint_ask":     "💡 İpucu ister misiniz? (-3 puan) (e/h)",
-        "hint_label":   "🕵️  İpucu: Cevap şuna benziyor →",
-        "get_answer":   "Cevabınız (1-{n})",
-        "correct":      "✓ Dava kapatıldı! Müfettiş haklıydı.",
-        "wrong":        "✗ Yanlış.",
-        "right_answer": "Doğru cevap:",
-        "invalid":      "Geçersiz seçim — lütfen geçerli bir numara girin.",
-        "analyzing":    "📋 Dava Dosyası",
-        "no_data":      "Yeterli veri bulunamadı. Lütfen daha sonra tekrar deneyin.",
+        "hint_ask":     "Ipucu ister misiniz? (-3 puan) (e/h)",
+        "hint_label":   "Ipucu: Cevap suna benziyor ->",
+        "get_answer":   "Cevabiniz (1-{n})",
+        "correct":      "Dogru! Dava kapatildi.",
+        "wrong":        "Yanlis.",
+        "right_answer": "Dogru cevap:",
+        "invalid":      "Gecersiz secim -- lutfen gecerli bir numara girin.",
+        "analyzing":    "Dava Dosyasi",
+        "no_data":      "Yeterli veri bulunamadi. Lutfen daha sonra tekrar deneyin.",
     },
 }
 
@@ -82,7 +82,7 @@ class Renderer:
                     import requests
                     import base64
                     import os
-                    self.console.print(f"🖼️  [link={media.content}]Photo (Cmd+Click to open)[/link]")
+                    self.console.print(f"[link={media.content}]Photo (Cmd+Click to open)[/link]")
                     resp = requests.get(media.content, timeout=5)
                     if resp.status_code == 200:
                         term_prog = os.environ.get("TERM_PROGRAM", "")

@@ -22,7 +22,7 @@ class UniqueTitleQuestion(BaseQuestion):
 
     def prompt_text(self) -> str:
         return (
-            "🔍 Which job title is held by exactly one person in the company?\n"
+            "Which job title is held by exactly one person in the company?\n"
             "   (Find the loneliest title in the org chart!)"
         )
 

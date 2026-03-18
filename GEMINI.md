@@ -12,6 +12,7 @@
 - Type hints everywhere, `str | None` style (not `Optional`)
 - Commands follow verb-noun: `kolay person list`, `kolay leave create`
 - Imports from `..api` for client/errors, `..ui` for formatters/pickers
+- **NO EMOJIS.** Do not use Unicode emojis anywhere in the codebase, UI, Slack messages, CLI output, documentation, or comments. Use plain text labels instead.
 
 ## Agent Usage
 

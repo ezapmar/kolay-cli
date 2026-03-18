@@ -50,7 +50,7 @@ class EducationChampionQuestion(BaseQuestion):
 
     def prompt_text(self) -> str:
         return (
-            "🎓 Which department is the company's local Think-Tank?\n"
+            "Which department is the company's local Think-Tank?\n"
             "   (Highest percentage of postgraduate degree holders)"
         )
 
