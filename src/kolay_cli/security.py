@@ -192,8 +192,21 @@ def is_first_run() -> bool:
 
 
 def resolve_token() -> str | None:
-    """Resolve API token with in-process caching."""
+    """Resolve API token with in-process caching.
+
+    Priority:
+      0. Per-request ContextVar (multi-tenant Slack / MCP) — always checked first
+      1. Cache (from previous resolution in this process)
+      2. Env var KOLAY_API_TOKEN
+      3. Keychain
+      4. Config file
+    """
     global _token_cache
+
+    # 0. Always check per-request context first — bypasses cache for multi-tenant
+    ctx_token = KOLAY_TOKEN_CTX.get()
+    if ctx_token:
+        return ctx_token
 
     # Return cached result if available (only cache successful resolution)
     if _token_cache is not _SENTINEL:
