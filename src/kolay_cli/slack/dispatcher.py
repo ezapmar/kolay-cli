@@ -192,18 +192,29 @@ def dispatch(
     trigger_id = body.get("trigger_id") or ""
 
     # Use respond (response_url) if available — works without channel membership.
-    # Fall back to chat_postEphemeral.
+    # Fall back to chat_postEphemeral, then chat_postMessage.
     def _reply(text: str = "", blocks: list | None = None, **extra: Any) -> None:
         kwargs: dict[str, Any] = {"text": text}
         if blocks:
             kwargs["blocks"] = blocks
+        # Try respond first
         if respond:
-            kwargs["response_type"] = "ephemeral"
-            respond(**kwargs)
-        else:
-            kwargs["channel"] = channel
-            kwargs["user"] = user
-            client.chat_postEphemeral(**kwargs)
+            try:
+                respond(**{**kwargs, "response_type": "ephemeral"})
+                return
+            except Exception as e:
+                print(f"[_reply] respond failed: {e}", flush=True)
+        # Fallback: ephemeral
+        try:
+            client.chat_postEphemeral(channel=channel, user=user, **kwargs)
+            return
+        except Exception as e2:
+            print(f"[_reply] ephemeral failed: {e2}", flush=True)
+        # Last resort: DM
+        try:
+            client.chat_postMessage(channel=user, **kwargs)
+        except Exception as e3:
+            print(f"[_reply] DM failed: {e3}", flush=True)
 
     module, action, rest = _parse(text)
 
@@ -217,6 +228,7 @@ def dispatch(
     try:
         _route(module, action, rest, channel, user, trigger_id, client, _reply, body)
     except Exception as exc:  # noqa: BLE001
+        print(f"[dispatch] error: {exc}", flush=True)
         _reply(text=f"Error: {exc}", blocks=error_block(str(exc)))
 
 
