@@ -69,6 +69,17 @@ def _purge_expired() -> None:
         del _sessions[k]
 
 
+def _post(client: Any, user_id: Any, channel_id: str, **kwargs: Any) -> None:
+    """Post a message: try channel first, fallback to DM (user_id as channel)."""
+    try:
+        client.chat_postMessage(channel=channel_id, **kwargs)
+    except Exception:
+        try:
+            client.chat_postMessage(channel=user_id, **kwargs)
+        except Exception:
+            pass
+
+
 # ── Block builders ─────────────────────────────────────────────────────────────
 
 def build_mode_picker_blocks() -> list[dict]:
@@ -153,7 +164,7 @@ def build_summary_blocks(session: QuizSession) -> list[dict]:
                     f"*Score:* {session.score}/{total} ({pct}%)\n"
                     f"*Rank:* {badge} {rank}\n"
                     f"*Mode:* {_MODE_LABELS.get(session.mode, session.mode)}\n\n"
-                    f"Run `/kolay quiz` to start a new case."
+                    f"Run `/kolaycli quiz` to start a new case."
                 ),
             },
         },
@@ -191,11 +202,11 @@ def handle_quiz_command(ack: Any, body: Any, client: Any, respond: Any = None) -
     """Handle /kolay quiz — show the mode picker."""
     ack()
     _purge_expired()
-    channel = body.get("channel_id") or body.get("channel", {}).get("id", "")
     blocks = build_mode_picker_blocks()
     if respond:
         respond(text="Data Detective — choose your case", blocks=blocks, response_type="ephemeral")
     else:
+        channel = body.get("channel_id") or body.get("channel", {}).get("id", "")
         client.chat_postEphemeral(
             channel=channel,
             user=body["user_id"],
@@ -212,7 +223,7 @@ def handle_mode_selection(ack: Any, body: Any, client: Any) -> None:
     action = body["actions"][0]
     mode = action["value"]
     user_id = body["user"]["id"]
-    channel_id = body["channel"]["id"]
+    channel_id = (body.get("channel") or {}).get("id", user_id)
     key = _session_key(user_id, channel_id)
 
     # Generate questions
@@ -220,29 +231,11 @@ def handle_mode_selection(ack: Any, body: Any, client: Any) -> None:
         provider = get_factory().get_provider(mode, KolayAPIProvider())
         questions = provider.generate(5, set())
     except Exception as exc:
-        try:
-            client.chat_postEphemeral(
-                channel=channel_id, user=user_id,
-                text=f":x: Could not load questions: {exc}",
-            )
-        except Exception:
-            client.chat_postMessage(
-                channel=channel_id,
-                text=f":x: Could not load questions: {exc}",
-            )
+        _post(client, user_id, channel_id, text=f":x: Could not load questions: {exc}")
         return
 
     if not questions:
-        try:
-            client.chat_postEphemeral(
-                channel=channel_id, user=user_id,
-                text=":warning: Not enough data to generate questions for this mode. Try another!",
-            )
-        except Exception:
-            client.chat_postMessage(
-                channel=channel_id,
-                text=":warning: Not enough data to generate questions for this mode. Try another!",
-            )
+        _post(client, user_id, channel_id, text=":warning: Not enough data for this mode. Try another!")
         return
 
     session = QuizSession(
@@ -254,8 +247,8 @@ def handle_mode_selection(ack: Any, body: Any, client: Any) -> None:
     _sessions[key] = session
 
     sh = _session_hash(user_id, channel_id)
-    client.chat_postMessage(
-        channel=channel_id,
+    _post(
+        client, user_id, channel_id,
         blocks=build_question_blocks(questions[0], 0, len(questions), 0, sh),
         text=f"Data Detective — Q1 of {len(questions)}",
     )
@@ -267,21 +260,12 @@ def handle_answer(ack: Any, body: Any, client: Any) -> None:
 
     action = body["actions"][0]
     user_id = body["user"]["id"]
-    channel_id = body["channel"]["id"]
+    channel_id = (body.get("channel") or {}).get("id", user_id)
     key = _session_key(user_id, channel_id)
 
     session = _sessions.get(key)
     if not session or session.is_expired():
-        try:
-            client.chat_postEphemeral(
-                channel=channel_id, user=user_id,
-                text=":hourglass: Session expired. Run `/kolaycli quiz` to start again.",
-            )
-        except Exception:
-            client.chat_postMessage(
-                channel=channel_id,
-                text=":hourglass: Session expired. Run `/kolaycli quiz` to start again.",
-            )
+        _post(client, user_id, channel_id, text=":hourglass: Session expired. Run `/kolaycli quiz` to start again.")
         return
 
     # Decode chosen_index from action_id: quiz_answer_{hash}_{qidx}_{cidx}
@@ -308,24 +292,20 @@ def handle_answer(ack: Any, body: Any, client: Any) -> None:
     result_blocks = build_answer_result_blocks(
         q, chosen, session.current_idx, len(session.questions), session.score
     )
-    client.chat_postMessage(channel=channel_id, blocks=result_blocks, text="Answer result")
+    _post(client, user_id, channel_id, blocks=result_blocks, text="Answer result")
 
     session.current_idx += 1
 
     if session.is_done():
         # Post summary
-        client.chat_postMessage(
-            channel=channel_id,
-            blocks=build_summary_blocks(session),
-            text="Quiz complete!",
-        )
+        _post(client, user_id, channel_id, blocks=build_summary_blocks(session), text="Quiz complete!")
         del _sessions[key]
     else:
         # Post next question
         sh = _session_hash(user_id, channel_id)
         nq = session.current_question()
-        client.chat_postMessage(
-            channel=channel_id,
+        _post(
+            client, user_id, channel_id,
             blocks=build_question_blocks(
                 nq, session.current_idx, len(session.questions), session.score, sh
             ),
