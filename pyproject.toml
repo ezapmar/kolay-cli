@@ -52,6 +52,7 @@ kolay = "kolay_cli.cli:app"
 kolay-mcp = "kolay_cli.mcp_server:mcp.run"
 kolay-slack = "kolay_cli.slack.app:main"
 kolay-slack-setup = "kolay_cli.slack.app:setup_wizard"
+kolay-combined = "kolay_cli.slack.mount:main"
 
 
 [tool.setuptools]
