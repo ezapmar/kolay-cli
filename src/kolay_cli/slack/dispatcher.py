@@ -215,7 +215,7 @@ def dispatch(
             return
 
     try:
-        _route(module, action, rest, channel, user, trigger_id, client, _reply)
+        _route(module, action, rest, channel, user, trigger_id, client, _reply, body)
     except Exception as exc:  # noqa: BLE001
         _reply(text=f"Error: {exc}", blocks=error_block(str(exc)))
 
@@ -231,6 +231,7 @@ def _route(
     trigger_id: str,
     client: Any,
     reply: Any = None,
+    body: Any = None,
 ) -> None:
     # ── help ─────────────────────────────────────────────────────────────────
     if module in ("help", ""):
