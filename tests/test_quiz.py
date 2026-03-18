@@ -14,8 +14,17 @@ def test_factory_registration():
 def test_mock_provider():
     provider = MockProvider()
     people = provider.list_people()
-    assert len(people) == 5
+    assert len(people) == 8
     assert people[0]["firstName"] == "Ahmet"
+    # New: check extended mock has education and title
+    assert "educationLevel" in people[0]
+    assert "title" in people[0]
+    # Test new data methods
+    tree = provider.get_unit_tree()
+    assert len(tree) >= 3
+    leaves = provider.list_leaves("2024-12-01", "2024-12-31")
+    assert len(leaves) >= 1
+
 
 def test_photo_match_logic():
     person = {"id": "1", "firstName": "Ahmet", "lastName": "Yılmaz", "department": {"name": "IT"}}
@@ -60,3 +69,80 @@ def test_streak_logic(tmp_path):
     state.update_streak()
     assert state.current_streak == 2
     assert state.last_played == today
+
+
+def test_rank_system():
+    from kolay_cli.services.quiz.state import _calculate_rank
+    assert _calculate_rank(0) == "Çaylak İzci"
+    assert _calculate_rank(9) == "Çaylak İzci"
+    assert _calculate_rank(10) == "Genç Müfettiş"
+    assert _calculate_rank(25) == "Kıdemli Müfettiş"
+    assert _calculate_rank(50) == "Dedektif"
+    assert _calculate_rank(100) == "Veri Sherlock'u"
+    assert _calculate_rank(999) == "Veri Sherlock'u"
+
+
+def test_state_add_points():
+    state = QuizState()
+    assert state.total_case_points == 0
+    assert state.rank == "Çaylak İzci"
+    state.add_points(15)
+    assert state.total_case_points == 15
+    assert state.rank == "Genç Müfettiş"
+    state.add_points(50)
+    assert state.rank == "Dedektif"
+
+
+def test_education_champion_provider():
+    from kolay_cli.services.quiz.providers.education_champion import EducationChampionProvider
+    provider = EducationChampionProvider(data_provider=MockProvider())
+    questions = provider.generate(1, set())
+    # Mock has dept Mühendislik with 2 postgrads out of 3 — should generate a question
+    assert len(questions) >= 1
+    q = questions[0]
+    assert q.correct_answer in q.choices()
+    result = q.check_answer(q.correct_answer)
+    assert result.is_correct is True
+    result_bad = q.check_answer("Yanlış Departman")
+    assert result_bad.is_correct is False
+
+
+def test_unique_title_provider():
+    from kolay_cli.services.quiz.providers.unique_title import UniqueTitleProvider
+    provider = UniqueTitleProvider(data_provider=MockProvider())
+    questions = provider.generate(3, set())
+    assert len(questions) >= 1
+    q = questions[0]
+    assert q.correct_answer in q.choices()
+    assert len(q.choices()) == 4
+    result = q.check_answer(q.correct_answer)
+    assert result.is_correct is True
+
+
+def test_december_exodus_provider():
+    from kolay_cli.services.quiz.providers.december_exodus import DecemberExodusProvider, _is_counted_leave
+    # Test the filter function
+    assert _is_counted_leave("Yıllık İzin") is True
+    assert _is_counted_leave("Uzaktan Çalışma") is True
+    assert _is_counted_leave("Hastalık İzni") is False
+
+    provider = DecemberExodusProvider(data_provider=MockProvider())
+    questions = provider.generate(1, set())
+    assert len(questions) >= 1
+    q = questions[0]
+    # Real answer should be one of the choices
+    assert q.correct_answer in q.choices()
+    # Total days from mock: leave 1(5) + leave 2(5) + leave 3(5) + leave 5(5) + leave 6(5) + leave 7(3) + leave 8(2) = 30
+    assert int(q.correct_answer) == 30
+
+    result = q.check_answer(q.correct_answer)
+    assert result.is_correct is True
+
+
+def test_hint_masking():
+    from kolay_cli.services.quiz.renderer import _mask_answer
+    assert _mask_answer("Ahmet Yılmaz") == "A**** Y*****"
+    assert _mask_answer("Mühendislik") == "M**********"
+    assert _mask_answer("A") == "A"
+    assert _mask_answer("Veri Dedektifi") == "V*** D********"
+

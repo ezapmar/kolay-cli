@@ -3,10 +3,9 @@ from __future__ import annotations
 import typer
 from rich.console import Console
 
-from ..ui.constants import PRIMARY
 from ..services.quiz import get_factory, QuizState, Renderer, KolayAPIProvider, MockProvider, QuizEngine
 
-app = typer.Typer(help="Play Kolay Quiz.")
+app = typer.Typer(help="🔍 Veri Dedektifi — Data Detective. Know your company's secrets.")
 console = Console(highlight=False)
 
 
@@ -19,16 +18,22 @@ def _main(ctx: typer.Context) -> None:
 
 @app.command(name="play")
 def play(
-    mode: str = typer.Option("photo_match", "--mode", "-m", help="Game mode to play."),
-    count: int = typer.Option(5, "--count", "-c", min=1, max=50, help="Number of questions."),
+    mode: str = typer.Option(
+        "photo_match",
+        "--mode", "-m",
+        help="Game mode. Choices: photo_match, education_champion, unique_title, december_exodus"
+    ),
+    count: int = typer.Option(5, "--count", "-c", min=1, max=50, help="Number of cases."),
     mock: bool = typer.Option(False, "--mock", help="Use mock data (for testing/demo without an API token)."),
+    hints: bool = typer.Option(True, "--hints/--no-hints", help="Enable or disable the hint system."),
 ) -> None:
-    """Start a new quiz session."""
+    """Start a new Veri Dedektifi session. Solve the cases. Earn your badge."""
     factory = get_factory()
     modes = factory.available_modes()
 
     if mode not in modes:
-        console.print(f"[red]Unknown mode '{mode}'. Available modes: {', '.join(modes)}[/red]")
+        console.print(f"[red]Bilinmeyen mod '{mode}'.[/red]")
+        console.print(f"[grey62]Mevcut modlar: {', '.join(modes)}[/grey62]")
         raise typer.Exit(1)
 
     data_provider = MockProvider() if mock else KolayAPIProvider()
@@ -36,48 +41,60 @@ def play(
     # Early auth check
     if not mock:
         from ..api.client import KolayClient
-        from ..api.errors import NotAuthenticatedError
         try:
-            # this will raise if not initialized/authenticated
             KolayClient()
-        except NotAuthenticatedError:
-            console.print("[red]Not authenticated. Use --mock or run `kolay auth login` first.[/red]")
+        except Exception:
+            console.print("[red]Kimlik doğrulaması başarısız. --mock kullanın veya önce `kolay auth login` çalıştırın.[/red]")
             raise typer.Exit(4)
 
     provider = factory.get_provider(mode, data_provider)
     state = QuizState.load()
     renderer = Renderer(console=console)
 
-    engine = QuizEngine(provider, renderer, state)
-
+    engine = QuizEngine(provider, renderer, state, hints_enabled=hints)
     result = engine.play(num_questions=count)
 
     if result.total == 0:
         raise typer.Exit(0)
 
-    console.print(f"\n[bold {PRIMARY}]Quiz Complete![/bold {PRIMARY}]\n")
-    console.print(f"You scored [bold green]{result.score}[/bold green] out of {result.total}.")
+    console.print(f"\n[bold yellow]🔍 Tüm Davalar Çözüldü![/bold yellow]\n")
+    console.print(f"  Doğru: [bold green]{result.score}[/bold green] / {result.total}")
+    console.print(f"  Bu turda kazanılan puan: [bold yellow]+{result.points_earned}[/bold yellow]")
+    console.print(f"  Toplam puan: [bold]{state.total_case_points}[/bold]")
+    console.print(f"  Rütbe: [bold yellow]{state.rank}[/bold yellow]")
 
     if result.streak_updated:
-        console.print(f"🔥 Daily streak increased to [bold]{state.current_streak}[/bold] days!")
+        console.print(f"\n🔥 Günlük seri: [bold]{state.current_streak}[/bold] gün!")
     else:
-        console.print(f"Current streak: [bold]{state.current_streak}[/bold] days.")
+        console.print(f"\n  Günlük seri: [bold]{state.current_streak}[/bold] gün")
     console.print()
+
 
 @app.command(name="stats")
 def stats() -> None:
-    """View your quiz statistics and high score."""
+    """View your detective case stats and high score."""
     state = QuizState.load()
-    console.print(f"\n[bold {PRIMARY}]Your Kolay Quiz Stats[/bold {PRIMARY}]\n")
-    console.print(f"  High Score:      [bold green]{state.high_score}[/bold green]")
-    console.print(f"  Current Streak:  [bold yellow]{state.current_streak} days[/bold yellow]")
+    console.print(f"\n[bold yellow]🕵️  Dedektif İstatistikleri[/bold yellow]\n")
+    console.print(f"  Rekor:           [bold green]{state.high_score}[/bold green]")
+    console.print(f"  Günlük Seri:     [bold yellow]{state.current_streak} gün[/bold yellow]")
+    console.print(f"  Toplam Puan:     [bold]{state.total_case_points}[/bold]")
+    console.print(f"  Rütbe:           [bold yellow]{state.rank}[/bold yellow]")
+    console.print(f"  Kullanılan İpucu:[bold]{state.hints_used}[/bold]")
     if state.last_played:
-        console.print(f"  Last Played:     [grey62]{state.last_played}[/grey62]")
-    console.print(f"  Questions Seen:  [bold]{len(state.seen_question_ids)}[/bold]\n")
+        console.print(f"  Son Oynama:      [grey62]{state.last_played}[/grey62]")
+    console.print(f"  Çözülen Dava:    [bold]{len(state.seen_question_ids)}[/bold]\n")
 
 
 @app.command(name="streak")
 def streak() -> None:
-    """Check your active daily streak."""
+    """Check your active daily detective streak."""
     state = QuizState.load()
-    console.print(f"\n🔥 Active Streak: [bold {PRIMARY}]{state.current_streak}[/bold {PRIMARY}] days\n")
+    console.print(f"\n🔥 Aktif Seri: [bold yellow]{state.current_streak}[/bold yellow] gün\n")
+
+
+@app.command(name="rank")
+def rank() -> None:
+    """Display your detective rank card."""
+    from ..services.quiz.badges import render_rank_card
+    state = QuizState.load()
+    render_rank_card(console, state.rank, state.total_case_points, state.current_streak)
