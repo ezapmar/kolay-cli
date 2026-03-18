@@ -205,13 +205,14 @@ def dispatch(
             kwargs["user"] = user
             client.chat_postEphemeral(**kwargs)
 
-    # ── Combined Option-C gate ────────────────────────────────────────────────
-    denial = _check_access(channel, user)
-    if denial:
-        _reply(text=denial)
-        return
-
     module, action, rest = _parse(text)
+
+    # ── Access gate (bypass for help & settings so admins can always configure) ──
+    if module not in ("help", "settings", ""):
+        denial = _check_access(channel, user)
+        if denial:
+            _reply(text=denial)
+            return
 
     try:
         _route(module, action, rest, channel, user, trigger_id, client, _reply)
