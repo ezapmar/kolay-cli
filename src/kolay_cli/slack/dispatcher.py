@@ -159,8 +159,8 @@ def _check_access(channel: str, user: str) -> str | None:
         return None  # both conditions met
 
     if not channel_ok:
-        return ":no_entry: This bot is not enabled in this channel."
-    return ":no_entry: You don't have permission to use this bot."
+        return f":no_entry: This bot is not enabled in this channel.\nChannel ID: `{channel}`"
+    return f":no_entry: You don't have permission to use this bot.\nYour User ID: `{user}`"
 
 
 def _warn_partial_config() -> None:
