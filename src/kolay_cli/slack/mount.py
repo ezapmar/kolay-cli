@@ -128,6 +128,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
 
 
     import re
+    import json as _json
     @bolt_app.action(re.compile(r"^quiz_start_mode_"))
     def quiz_mode(ack, body, client):  # type: ignore[no-untyped-def]
         handle_mode_selection(ack, body, client)
@@ -135,6 +136,60 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     @bolt_app.action(re.compile(r"^quiz_answer_"))
     def quiz_answer(ack, body, client):  # type: ignore[no-untyped-def]
         handle_answer(ack, body, client)
+
+    @bolt_app.action(re.compile(r"^page_"))
+    def handle_pagination(ack, body, client, respond):  # type: ignore[no-untyped-def]
+        """Handle pagination button clicks for list views."""
+        ack()
+        action = body["actions"][0]
+        try:
+            payload = _json.loads(action["value"])
+        except Exception:
+            return
+        resource = payload.get("resource", "")
+        page = payload.get("page", 1)
+        search = payload.get("search", "") or None
+
+        from ..services import (
+            person as person_svc_p,
+            leave as leave_svc_p,
+            timelog as timelog_svc_p,
+            approval as approval_svc_p,
+        )
+        from .formatters import compact_list_blocks
+
+        items: list = []
+        title = ""
+
+        if resource == "person":
+            result = person_svc_p.list_people(search=search, limit=100)
+            items = result.get("items", [])
+            total = result.get("totalCount", len(items))
+            title = f"👥 Employees ({total})"
+        elif resource == "leave":
+            items = leave_svc_p.list_leaves(limit=100)
+            if not isinstance(items, list):
+                items = []
+            title = f"🏖️ Leaves ({len(items)})"
+        elif resource == "timelog":
+            result = timelog_svc_p.list_timelogs(limit=100)
+            items = result.get("items", [])
+            title = f"⏱️ Time Logs ({len(items)})"
+        elif resource == "approval":
+            items = approval_svc_p.list_approval_processes()
+            title = f"✅ Approvals ({len(items)})"
+
+        blocks = compact_list_blocks(items, resource, title, page=page, search=search)
+
+        # Update the original message with new page
+        try:
+            respond(text=title, blocks=blocks, replace_original=True, response_type="ephemeral")
+        except Exception:
+            user_id = body["user"]["id"]
+            try:
+                client.chat_postMessage(channel=user_id, text=title, blocks=blocks)
+            except Exception as e:
+                print(f"[pagination] failed: {e}", flush=True)
 
     slack_handler = SlackRequestHandler(bolt_app)
 

@@ -13,10 +13,11 @@ from ..services import (
 )
 from .formatters import (
     dict_to_fields,
-    list_to_blocks,
+    compact_list_blocks,
     error_block,
     render_text,
     overflow_to_csv,
+    ITEMS_PER_PAGE,
 )
 from .modals import (
     build_leave_request_modal,
@@ -223,10 +224,6 @@ def dispatch(
     respond: Any = None,
 ) -> None:
     """Route a /kolay command to the appropriate handler."""
-    import os as _dos
-    text_str = body.get("text", "")
-    token_set = bool(_dos.environ.get("KOLAY_API_TOKEN"))
-    print(f"[dispatch] ENTER text='{text_str}' token_set={token_set}", flush=True)
     ack()
     channel = body.get("channel_id") or ""
     user = body.get("user_id") or ""
@@ -316,11 +313,13 @@ def _route(
     if module == "person":
         if action in ("list", ""):
             search = _flag(rest, "--search") or (rest[0] if rest else None)
-            result = person_svc.list_people(search=search, limit=20)
+            page = int(_flag(rest, "--page") or "1")
+            result = person_svc.list_people(search=search, limit=100)
             items = result.get("items", [])
-            keys = ["firstName", "lastName", "title", "department", "workEmail"]
-            blocks = list_to_blocks(items, keys, f"👥 Employees ({len(items)})")
-            _post_or_upload(client, channel, user, blocks, items, "employees.csv", reply)
+            total = result.get("totalCount", len(items))
+            blocks = compact_list_blocks(items, "person", f"👥 Employees ({total})", page=page, total_count=total, search=search)
+            if reply: reply(text="Employees", blocks=blocks)
+            else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Employees")
         elif action == "view":
             pid = rest[0] if rest else None
             if not pid:
@@ -352,12 +351,12 @@ def _route(
     # ── leave ─────────────────────────────────────────────────────────────────
     if module == "leave":
         if action in ("list", ""):
-            items = leave_svc.list_leaves(limit=20)
+            items = leave_svc.list_leaves(limit=100)
             if not isinstance(items, list):
                 items = []
-            keys = ["person", "leaveType", "startDate", "endDate", "status"]
-            blocks = list_to_blocks(items, keys, f"🏖️ Leaves ({len(items)})")
-            _post_or_upload(client, channel, user, blocks, items, "leaves.csv", reply)
+            blocks = compact_list_blocks(items, "leave", f"🏖️ Leaves ({len(items)})")
+            if reply: reply(text="Leaves", blocks=blocks)
+            else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Leaves")
         elif action == "view":
             lid = rest[0] if rest else None
             if not lid:
@@ -379,11 +378,11 @@ def _route(
     # ── timelog ───────────────────────────────────────────────────────────────
     if module == "timelog":
         if action in ("list", ""):
-            result = timelog_svc.list_timelogs(limit=20)
+            result = timelog_svc.list_timelogs(limit=100)
             items = result.get("items", [])
-            keys = ["person", "type", "startDate", "endDate", "status"]
-            blocks = list_to_blocks(items, keys, f"⏱️ Time Logs ({len(items)})")
-            _post_or_upload(client, channel, user, blocks, items, "timelogs.csv", reply)
+            blocks = compact_list_blocks(items, "timelog", f"⏱️ Time Logs ({len(items)})")
+            if reply: reply(text="Time Logs", blocks=blocks)
+            else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Time Logs")
         elif action in ("create", "log"):
             view = build_timelog_create_modal()
             client.views_open(trigger_id=trigger_id, view=view)
@@ -415,9 +414,9 @@ def _route(
     # ── approval ──────────────────────────────────────────────────────────────
     if module == "approval":
         items = approval_svc.list_approval_processes()
-        keys = ["name", "description", "status"]
-        blocks = list_to_blocks(items, keys, f"✅ Approval Processes ({len(items)})")
-        _post_or_upload(client, channel, user, blocks, items, "approvals.csv", reply)
+        blocks = compact_list_blocks(items, "approval", f"✅ Approval Processes ({len(items)})")
+        if reply: reply(text="Approvals", blocks=blocks)
+        else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Approvals")
         return
 
     # ── unknown ───────────────────────────────────────────────────────────────
