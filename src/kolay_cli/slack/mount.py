@@ -117,7 +117,13 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
 
     # ── Starlette route for Slack events ──────────────────────────────────────
     async def slack_events(request: Request) -> Any:
-        return await slack_handler.handle(request)
+        import traceback
+        try:
+            return await slack_handler.handle(request)
+        except Exception as e:
+            print(f"[slack-error] {type(e).__name__}: {e}", flush=True)
+            traceback.print_exc()
+            raise
 
     # ── OAuth routes ──────────────────────────────────────────────────────────
     from .oauth import oauth_routes
@@ -128,6 +134,19 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
             "status": "ok",
             "services": {"mcp": True, "slack": True},
             "tenants": store.count(),
+        })
+
+    # ── Debug endpoint (safe: shows config status, not values) ────────────────
+    async def debug_info(request: Request) -> JSONResponse:
+        return JSONResponse({
+            "SLACK_SIGNING_SECRET": bool(os.environ.get("SLACK_SIGNING_SECRET")),
+            "SLACK_CLIENT_ID": bool(os.environ.get("SLACK_CLIENT_ID")),
+            "SLACK_CLIENT_SECRET": bool(os.environ.get("SLACK_CLIENT_SECRET")),
+            "KOLAY_API_TOKEN": bool(os.environ.get("KOLAY_API_TOKEN")),
+            "TENANT_ENCRYPTION_KEY": bool(os.environ.get("TENANT_ENCRYPTION_KEY")),
+            "SLACK_BOT_TOKEN": bool(os.environ.get("SLACK_BOT_TOKEN")),
+            "tenants": store.count(),
+            "bolt_command_registered": "/kolaycli",
         })
 
     # ── Landing page with "Add to Slack" ──────────────────────────────────────
@@ -189,6 +208,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     app = Starlette(routes=[
         Route("/", landing),
         Route("/health", health),
+        Route("/debug", debug_info),
         Mount("/mcp", app=mcp_asgi),
         Route("/slack/events", slack_events, methods=["POST"]),
         Mount("/slack/install", routes=oauth_routes),
