@@ -80,6 +80,11 @@ class APIError(Exception):
             # Special case for Kolay's weird 400 for bad API keys
             if status_code == 400 and "API anahtarını kontrol edin" in str(message):
                 self.hint = "Your API token is invalid. Run [bold]kolay auth login[/bold] to re-authenticate."
+            elif "Deneme süreniz" in str(message):
+                self.message = "Your Kolay IK workspace's free trial has expired."
+                self.hint = "You must upgrade to a paid plan in the Kolay web app, or use an active API token."
+                if status_code == 400:
+                    self.status_code = 403  # Semantically it's a Forbidden error
             elif status_code and status_code in HTTP_ERRORS:
                 self.hint = HTTP_ERRORS[status_code][1]
             else:
