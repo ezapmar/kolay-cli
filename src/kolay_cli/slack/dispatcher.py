@@ -105,26 +105,57 @@ def _post_or_upload(
     reply: Any = None,
 ) -> None:
     """Post blocks if they fit; otherwise upload as CSV."""
+    MAX_BLOCKS = 49  # Slack hard limit is 50 blocks per message
+
     text_len = len(render_text(blocks))
     block_count = len(blocks)
     print(f"[_post_or_upload] blocks={block_count} text_len={text_len} reply={'yes' if reply else 'no'}", flush=True)
-    if text_len <= 3000:
+
+    # If blocks exceed Slack's limit, truncate or fall back to CSV
+    if block_count > MAX_BLOCKS:
+        if items:
+            # Fall back to CSV for large lists
+            csv_bytes = overflow_to_csv(items)
+            try:
+                client.files_upload_v2(
+                    channel=channel,
+                    content=csv_bytes.decode(),
+                    filename=filename,
+                    title=filename,
+                    initial_comment=f"📋 {len(items)} results — attached as CSV (too many for inline display).",
+                )
+                print("[_post_or_upload] uploaded CSV (block limit)", flush=True)
+                return
+            except Exception as e:
+                print(f"[_post_or_upload] CSV upload failed: {e}", flush=True)
+        # Truncate blocks as last resort
+        blocks = blocks[:MAX_BLOCKS]
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"_…and more (showing first {MAX_BLOCKS} blocks)_"}})
+
+    if text_len <= 3000 and block_count <= MAX_BLOCKS:
         if reply:
             reply(text="Result", blocks=blocks)
             print("[_post_or_upload] replied via reply()", flush=True)
         else:
             client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Result")
-            print("[_post_or_upload] replied via chat_postEphemeral", flush=True)
+            print("[_post_or_upload] replied via ephemeral", flush=True)
     else:
         csv_bytes = overflow_to_csv(items)
-        client.files_upload_v2(
-            channel=channel,
-            content=csv_bytes.decode(),
-            filename=filename,
-            title=filename,
-            initial_comment="Result too long — attached as CSV.",
-        )
-        print("[_post_or_upload] uploaded CSV", flush=True)
+        try:
+            client.files_upload_v2(
+                channel=channel,
+                content=csv_bytes.decode(),
+                filename=filename,
+                title=filename,
+                initial_comment="Result too long — attached as CSV.",
+            )
+            print("[_post_or_upload] uploaded CSV (text limit)", flush=True)
+        except Exception as e:
+            print(f"[_post_or_upload] CSV upload failed: {e}", flush=True)
+            # Try truncated blocks via reply
+            if reply:
+                truncated = blocks[:MAX_BLOCKS]
+                reply(text="Result (truncated)", blocks=truncated)
 
 
 # ── Access control ────────────────────────────────────────────────────────────
