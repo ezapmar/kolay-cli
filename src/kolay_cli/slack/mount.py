@@ -84,7 +84,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     # ── Bolt authorize function (multi-tenant) ────────────────────────────
     # Bolt calls this on EVERY incoming request to resolve the bot token
     # for the workspace. This is the proper multi-tenant pattern.
-    from slack_bolt import AuthorizeResult
+    from slack_bolt.authorization import AuthorizeResult
 
     def authorize(enterprise_id, team_id, logger):  # type: ignore[no-untyped-def]
         tenant = store.find(team_id or "")
