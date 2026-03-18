@@ -1,1 +1,1 @@
-web: python app.py
+web: uv run python app.py

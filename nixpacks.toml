@@ -2,4 +2,4 @@
 python_version = "3.12"
 
 [phases.install]
-cmds = ["pip install '.[slack]'"]
+cmds = ["uv sync --all-extras"]
