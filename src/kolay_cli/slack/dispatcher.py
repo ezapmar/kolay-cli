@@ -186,6 +186,10 @@ def dispatch(
     respond: Any = None,
 ) -> None:
     """Route a /kolay command to the appropriate handler."""
+    import os as _dos
+    text_str = body.get("text", "")
+    token_set = bool(_dos.environ.get("KOLAY_API_TOKEN"))
+    print(f"[dispatch] ENTER text='{text_str}' token_set={token_set}", flush=True)
     ack()
     channel = body.get("channel_id") or ""
     user = body.get("user_id") or ""
