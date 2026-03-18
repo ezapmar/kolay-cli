@@ -869,6 +869,7 @@ linux = [
     { name = "keyrings-alt" },
 ]
 slack = [
+    { name = "python-dotenv" },
     { name = "slack-bolt" },
 ]
 test = [
@@ -889,6 +890,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0" },
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10" },
+    { name = "python-dotenv", marker = "extra == 'slack'", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "rich", specifier = ">=13.4.2" },

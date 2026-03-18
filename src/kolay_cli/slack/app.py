@@ -2,25 +2,68 @@
 from __future__ import annotations
 
 import os
-
-from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
-
-from .dispatcher import (
-    dispatch,
-    handle_leave_request_submission,
-    handle_timelog_create_submission,
-    LEAVE_REQUEST_CALLBACK,
-    TIMELOG_CREATE_CALLBACK,
-)
-from .quiz import handle_mode_selection, handle_answer
-from .modals import LEAVE_REQUEST_CALLBACK, TIMELOG_CREATE_CALLBACK  # re-import for registration
+import sys
+from pathlib import Path
 
 
-def create_app() -> App:
+# ── .env auto-loader ──────────────────────────────────────────────────────────
+
+def _load_env() -> Path | None:
+    """
+    Load .env from the project root (or CWD) if present.
+    Falls back silently if python-dotenv is not installed.
+    Returns the path that was loaded, or None.
+    """
+    try:
+        from dotenv import load_dotenv, find_dotenv
+        env_path = find_dotenv(usecwd=True)
+        if env_path:
+            load_dotenv(env_path, override=False)
+            return Path(env_path)
+    except ImportError:
+        pass
+    return None
+
+
+# ── Startup banner ────────────────────────────────────────────────────────────
+
+def _startup_banner(env_path: Path | None) -> None:
+    from .dispatcher import _access_config
+
+    allowed_ch, allowed_users = _access_config()
+    gate = "✅  Both channel + user lists set (Option C)" if (allowed_ch and allowed_users) \
+        else "⚠️  Access gate INACTIVE — set both ALLOWED_CHANNEL_IDS and ALLOWED_USER_IDS to restrict"
+
+    env_line = f"📄  Loaded env from: {env_path}" if env_path else "📄  No .env file found — using system env vars"
+
+    print("\n╔══════════════════════════════════════════════╗")
+    print("║     ⚡️  Kolay IK — Slack Bot                ║")
+    print("╚══════════════════════════════════════════════╝")
+    print(f"  {env_line}")
+    print(f"  🔐  Access control: {gate}")
+    if allowed_ch:
+        print(f"       Channels : {', '.join(sorted(allowed_ch))}")
+    if allowed_users:
+        print(f"       Users    : {', '.join(sorted(allowed_users))}")
+    print("  🎛️   Mode: Socket Mode")
+    print("  📡  Listening for /kolay commands…\n")
+
+
+# ── App factory ───────────────────────────────────────────────────────────────
+
+def create_app():  # type: ignore[no-untyped-def]
+    from slack_bolt import App
+    from .dispatcher import (
+        dispatch,
+        handle_leave_request_submission,
+        handle_timelog_create_submission,
+    )
+    from .quiz import handle_mode_selection, handle_answer
+    from .modals import LEAVE_REQUEST_CALLBACK, TIMELOG_CREATE_CALLBACK
+
     bot_token = os.environ.get("SLACK_BOT_TOKEN")
     if not bot_token:
-        raise RuntimeError("SLACK_BOT_TOKEN environment variable is not set.")
+        _missing_token_help("SLACK_BOT_TOKEN")
 
     app = App(token=bot_token)
 
@@ -38,12 +81,12 @@ def create_app() -> App:
     def timelog_modal_submit(ack, body, client):  # type: ignore[no-untyped-def]
         handle_timelog_create_submission(ack, body, client)
 
-    # ── Quiz: mode picker buttons ──────────────────────────────────────────────
+    # ── Quiz: mode picker buttons ─────────────────────────────────────────────
     @app.action({"action_id": lambda aid: aid.startswith("quiz_start_mode_")})
     def quiz_mode_button(ack, body, client):  # type: ignore[no-untyped-def]
         handle_mode_selection(ack, body, client)
 
-    # ── Quiz: answer buttons ───────────────────────────────────────────────────
+    # ── Quiz: answer buttons ──────────────────────────────────────────────────
     @app.action({"action_id": lambda aid: aid.startswith("quiz_answer_")})
     def quiz_answer_button(ack, body, client):  # type: ignore[no-untyped-def]
         handle_answer(ack, body, client)
@@ -51,17 +94,88 @@ def create_app() -> App:
     return app
 
 
+# ── Setup wizard ──────────────────────────────────────────────────────────────
+
+def setup_wizard() -> None:
+    """Interactive wizard to create a .env file for the Slack bot."""
+    env_file = Path.cwd() / ".env"
+
+    print("\n✨  Kolay Slack Bot — Setup Wizard\n")
+
+    if env_file.exists():
+        overwrite = input(f"⚠️  .env already exists at {env_file}\n   Overwrite? [y/N] ").strip().lower()
+        if overwrite not in ("y", "yes"):
+            print("   Aborted — existing .env untouched.")
+            sys.exit(0)
+
+    print("Paste each value and press Enter. Leave blank to skip optional fields.\n")
+
+    bot_token = _prompt_required("SLACK_BOT_TOKEN (xoxb-…)")
+    app_token = _prompt_required("SLACK_APP_TOKEN (xapp-…)")
+    kolay_token = _prompt_required("KOLAY_API_TOKEN")
+    channel_ids = _prompt_optional("ALLOWED_CHANNEL_IDS (comma-separated, e.g. C0123ABC,C0456DEF)")
+    user_ids = _prompt_optional("ALLOWED_USER_IDS (comma-separated, e.g. U0123456,U0654321)")
+
+    if bool(channel_ids) != bool(user_ids):
+        print("\n⚠️  You set only one of ALLOWED_CHANNEL_IDS / ALLOWED_USER_IDS.")
+        print("   Option C requires BOTH. Access gate will be inactive until both are set.")
+
+    lines = [
+        "# Kolay IK Slack Bot — generated by `kolay-slack setup`",
+        f"SLACK_BOT_TOKEN={bot_token}",
+        f"SLACK_APP_TOKEN={app_token}",
+        f"KOLAY_API_TOKEN={kolay_token}",
+        "",
+        "# Access control (Option C) — leave blank to allow everyone",
+        f"ALLOWED_CHANNEL_IDS={channel_ids}",
+        f"ALLOWED_USER_IDS={user_ids}",
+    ]
+
+    env_file.write_text("\n".join(lines) + "\n")
+    print(f"\n✅  .env written to {env_file}")
+    print("   Run `kolay-slack` to start the bot.\n")
+
+
+def _prompt_required(label: str) -> str:
+    while True:
+        val = input(f"  {label}: ").strip()
+        if val:
+            return val
+        print("   This field is required.")
+
+
+def _prompt_optional(label: str) -> str:
+    return input(f"  {label} (optional): ").strip()
+
+
+def _missing_token_help(var: str) -> None:
+    print(f"\n❌  {var} is not set.\n")
+    print("   Options:")
+    print("   1. Run `kolay-slack setup` to create a .env file interactively.")
+    print("   2. Export the variable manually:")
+    print(f"      export {var}=your-token-here")
+    print("   3. Create a .env file in the current directory with:")
+    print(f"      {var}=your-token-here\n")
+    sys.exit(1)
+
+
+# ── Entry points ──────────────────────────────────────────────────────────────
+
 def main() -> None:
-    app_token = os.environ.get("SLACK_APP_TOKEN")
-    if not app_token:
-        raise RuntimeError("SLACK_APP_TOKEN environment variable is not set.")
+    env_path = _load_env()
 
     from .dispatcher import _warn_partial_config
     _warn_partial_config()
 
+    app_token = os.environ.get("SLACK_APP_TOKEN")
+    if not app_token:
+        _missing_token_help("SLACK_APP_TOKEN")
+
+    _startup_banner(env_path)
+
+    from slack_bolt.adapter.socket_mode import SocketModeHandler
     app = create_app()
     handler = SocketModeHandler(app, app_token)
-    print("⚡️ Kolay Slack bot is running via Socket Mode…")
     handler.start()
 
 
