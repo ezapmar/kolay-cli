@@ -66,6 +66,26 @@ class KolayAPIProvider(DataProvider):
                 # Merge stub fields so firstName/lastName are always present
                 profile.setdefault("firstName", stub.get("firstName", ""))
                 profile.setdefault("lastName", stub.get("lastName", ""))
+
+                # Extract department and title from unitList
+                units = profile.get("unitList") or []
+                active_units = [u for u in units if u.get("active")]
+                assignment = active_units[0].get("items", []) if active_units else (units[0].get("items", []) if units else [])
+                
+                dept_name = None
+                title_name = None
+                for item in assignment:
+                    uname = item.get("unitName", "").lower()
+                    if uname in ("department", "departman"):
+                        dept_name = item.get("unitItemName")
+                    elif uname in ("position", "pozisyon"):
+                        title_name = item.get("unitItemName")
+                
+                if dept_name and not profile.get("department"):
+                    profile["department"] = {"name": dept_name}
+                if title_name and not profile.get("title"):
+                    profile["title"] = title_name
+
                 enriched.append(profile)
             except Exception:
                 # If a profile fetch fails, use the stub (no photo, but won't crash)
