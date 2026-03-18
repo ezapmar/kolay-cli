@@ -23,8 +23,11 @@ from .modals import (
     extract_leave_request_values,
     build_timelog_create_modal,
     extract_timelog_create_values,
+    build_settings_modal,
+    extract_settings_values,
     LEAVE_REQUEST_CALLBACK,
     TIMELOG_CREATE_CALLBACK,
+    SETTINGS_CALLBACK,
 )
 
 # ── Help card ─────────────────────────────────────────────────────────────────
@@ -57,6 +60,8 @@ _HELP_BLOCKS: list[dict] = [
                 "*Quiz*\n"
                 "`/kolaycli quiz`  — 🎮 start Data Detective\n"
                 "`/kolaycli quiz --mode unique_title`  — skip mode picker\n\n"
+                "*Admin*\n"
+                "`/kolaycli settings`  — ⚙️ update access restrictions & API token\n\n"
                 "`/kolaycli help`  — show this message"
             ),
         },
@@ -215,6 +220,11 @@ def _route(
         client.chat_postEphemeral(
             channel=channel, user=user, blocks=_HELP_BLOCKS, text="Kolay Help"
         )
+        return
+
+    # ── settings ──────────────────────────────────────────────────────────────
+    if module == "settings":
+        _handle_settings(channel, user, trigger_id, client, body)
         return
 
     # ── quiz ─────────────────────────────────────────────────────────────────
@@ -393,3 +403,84 @@ def handle_timelog_create_submission(ack: Any, body: Any, client: Any) -> None:
         )
     except Exception as exc:
         client.chat_postMessage(channel=user_id, text=f":x: Could not create timelog: {exc}")
+
+
+# ── Settings command ──────────────────────────────────────────────────────────
+
+def _handle_settings(
+    channel: str,
+    user: str,
+    trigger_id: str,
+    client: Any,
+    body: Any,
+) -> None:
+    """Open the settings modal pre-filled with the current tenant config."""
+    team_id = body.get("team_id") or (body.get("team") or {}).get("id", "")
+
+    current_channels = ""
+    current_users = ""
+    try:
+        from .tenant_store import TenantStore
+        store = TenantStore()
+        tenant = store.find(team_id)
+        if tenant:
+            current_channels = tenant.allowed_channels
+            current_users = tenant.allowed_users
+    except Exception:
+        pass
+
+    modal = build_settings_modal(
+        current_channels=current_channels,
+        current_users=current_users,
+        team_id=team_id,
+    )
+    client.views_open(trigger_id=trigger_id, view=modal)
+
+
+def handle_settings_submission(ack: Any, body: Any, client: Any) -> None:
+    """Save updated settings from the modal to TenantStore."""
+    ack()
+    vals = extract_settings_values(body)
+    user_id = body["user"]["id"]
+    team_id = vals.get("team_id", "")
+
+    if not team_id:
+        client.chat_postMessage(channel=user_id, text=":x: Could not determine workspace.")
+        return
+
+    try:
+        from .tenant_store import TenantStore
+        store = TenantStore()
+        tenant = store.find(team_id)
+
+        if not tenant:
+            client.chat_postMessage(
+                channel=user_id,
+                text=":x: This workspace is not registered. Please re-install the app.",
+            )
+            return
+
+        if vals["allowed_channels"] or vals["allowed_channels"] == "":
+            tenant.allowed_channels = vals["allowed_channels"]
+        if vals["allowed_users"] or vals["allowed_users"] == "":
+            tenant.allowed_users = vals["allowed_users"]
+        if vals["kolay_api_token"]:
+            tenant.kolay_api_token = vals["kolay_api_token"]
+
+        store.upsert(tenant)
+
+        parts = [":white_check_mark: *Settings updated!*"]
+        if tenant.allowed_channels and tenant.allowed_users:
+            parts.append(
+                f"Access gate: *active* ({len(tenant.allowed_channels.split(','))} channel(s), "
+                f"{len(tenant.allowed_users.split(','))} user(s))"
+            )
+        else:
+            parts.append("Access gate: *inactive* (open to everyone)")
+        if vals["kolay_api_token"]:
+            parts.append("Kolay API token: *updated*")
+
+        client.chat_postMessage(channel=user_id, text="\n".join(parts))
+
+    except Exception as exc:
+        client.chat_postMessage(channel=user_id, text=f":x: Could not save settings: {exc}")
