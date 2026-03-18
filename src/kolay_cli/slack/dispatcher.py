@@ -105,11 +105,16 @@ def _post_or_upload(
     reply: Any = None,
 ) -> None:
     """Post blocks if they fit; otherwise upload as CSV."""
-    if len(render_text(blocks)) <= 3000:
+    text_len = len(render_text(blocks))
+    block_count = len(blocks)
+    print(f"[_post_or_upload] blocks={block_count} text_len={text_len} reply={'yes' if reply else 'no'}", flush=True)
+    if text_len <= 3000:
         if reply:
             reply(text="Result", blocks=blocks)
+            print("[_post_or_upload] replied via reply()", flush=True)
         else:
             client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Result")
+            print("[_post_or_upload] replied via chat_postEphemeral", flush=True)
     else:
         csv_bytes = overflow_to_csv(items)
         client.files_upload_v2(
@@ -119,6 +124,7 @@ def _post_or_upload(
             title=filename,
             initial_comment="Result too long — attached as CSV.",
         )
+        print("[_post_or_upload] uploaded CSV", flush=True)
 
 
 # ── Access control ────────────────────────────────────────────────────────────
