@@ -23,11 +23,8 @@ from .modals import (
     extract_leave_request_values,
     build_timelog_create_modal,
     extract_timelog_create_values,
-    build_settings_modal,
-    extract_settings_values,
     LEAVE_REQUEST_CALLBACK,
     TIMELOG_CREATE_CALLBACK,
-    SETTINGS_CALLBACK,
 )
 
 # ── Help card ─────────────────────────────────────────────────────────────────
@@ -44,25 +41,23 @@ _HELP_BLOCKS: list[dict] = [
             "type": "mrkdwn",
             "text": (
                 "*People*\n"
-                "`/kolay person list [--search NAME]`  — list active employees\n"
-                "`/kolay person view ID_OR_NAME`  — full profile\n"
-                "`/kolay person leave-status ID`  — leave balances\n\n"
+                "`/kolaycli person list [--search NAME]`  — list active employees\n"
+                "`/kolaycli person view ID_OR_NAME`  — full profile\n"
+                "`/kolaycli person leave-status ID`  — leave balances\n\n"
                 "*Leave*\n"
-                "`/kolay leave list`  — this year's leaves\n"
-                "`/kolay leave view ID`  — single leave record\n"
-                "`/kolay leave request`  — 📋 open request modal\n\n"
+                "`/kolaycli leave list`  — this year's leaves\n"
+                "`/kolaycli leave view ID`  — single leave record\n"
+                "`/kolaycli leave request`  — 📋 open request modal\n\n"
                 "*Timelog*\n"
-                "`/kolay timelog list`  — recent time logs\n"
-                "`/kolay timelog create`  — 📋 open create modal\n\n"
+                "`/kolaycli timelog list`  — recent time logs\n"
+                "`/kolaycli timelog create`  — 📋 open create modal\n\n"
                 "*Organization*\n"
-                "`/kolay unit tree`  — org chart snapshot\n"
-                "`/kolay approval list`  — approval processes\n\n"
+                "`/kolaycli unit tree`  — org chart snapshot\n"
+                "`/kolaycli approval list`  — approval processes\n\n"
                 "*Quiz*\n"
-                "`/kolay quiz`  — 🎮 start Data Detective\n"
-                "`/kolay quiz --mode unique_title`  — skip mode picker\n\n"
-                "*Admin*\n"
-                "`/kolay settings`  — ⚙️ update access restrictions & API token\n\n"
-                "`/kolay help`  — show this message"
+                "`/kolaycli quiz`  — 🎮 start Data Detective\n"
+                "`/kolaycli quiz --mode unique_title`  — skip mode picker\n\n"
+                "`/kolaycli help`  — show this message"
             ),
         },
     },
@@ -222,11 +217,6 @@ def _route(
         )
         return
 
-    # ── settings ──────────────────────────────────────────────────────────────
-    if module == "settings":
-        _handle_settings(channel, user, trigger_id, client, body)
-        return
-
     # ── quiz ─────────────────────────────────────────────────────────────────
     if module == "quiz":
         from .quiz import handle_quiz_command
@@ -251,7 +241,7 @@ def _route(
             pid = rest[0] if rest else None
             if not pid:
                 client.chat_postEphemeral(channel=channel, user=user,
-                                          text=":x: Usage: `/kolay person view NAME_OR_ID`")
+                                          text=":x: Usage: `/kolaycli person view NAME_OR_ID`")
                 return
             p = person_svc.view_person(pid)
             keys = ["firstName", "lastName", "title", "department", "workEmail",
@@ -263,7 +253,7 @@ def _route(
             pid = rest[0] if rest else None
             if not pid:
                 client.chat_postEphemeral(channel=channel, user=user,
-                                          text=":x: Usage: `/kolay person leave-status ID`")
+                                          text=":x: Usage: `/kolaycli person leave-status ID`")
                 return
             items = person_svc.leave_status(pid)
             keys = ["leaveTypeName", "usedDays", "remainingDays", "totalDays"]
@@ -272,7 +262,7 @@ def _route(
                                       text="Leave status")
         else:
             client.chat_postEphemeral(channel=channel, user=user,
-                                      text=f":x: Unknown action `person {action}`. Try `/kolay help`.")
+                                      text=f":x: Unknown action `person {action}`. Try `/kolaycli help`.")
         return
 
     # ── leave ─────────────────────────────────────────────────────────────────
@@ -288,7 +278,7 @@ def _route(
             lid = rest[0] if rest else None
             if not lid:
                 client.chat_postEphemeral(channel=channel, user=user,
-                                          text=":x: Usage: `/kolay leave view ID`")
+                                          text=":x: Usage: `/kolaycli leave view ID`")
                 return
             lv = leave_svc.view_leave(lid)
             blocks = dict_to_fields(lv)
@@ -347,7 +337,7 @@ def _route(
     # ── unknown ───────────────────────────────────────────────────────────────
     client.chat_postEphemeral(
         channel=channel, user=user,
-        text=f":x: Unknown module `{module}`. Try `/kolay help`."
+        text=f":x: Unknown module `{module}`. Try `/kolaycli help`."
     )
 
 
@@ -403,93 +393,3 @@ def handle_timelog_create_submission(ack: Any, body: Any, client: Any) -> None:
         )
     except Exception as exc:
         client.chat_postMessage(channel=user_id, text=f":x: Could not create timelog: {exc}")
-
-
-# ── Settings command ──────────────────────────────────────────────────────────
-
-def _handle_settings(
-    channel: str,
-    user: str,
-    trigger_id: str,
-    client: Any,
-    body: Any,
-) -> None:
-    """Open the settings modal pre-filled with the current tenant config."""
-    team_id = body.get("team_id") or (body.get("team") or {}).get("id", "")
-
-    # Try to load current config from TenantStore
-    current_channels = ""
-    current_users = ""
-    try:
-        from .tenant_store import TenantStore
-        store = TenantStore()
-        tenant = store.find(team_id)
-        if tenant:
-            current_channels = tenant.allowed_channels
-            current_users = tenant.allowed_users
-    except Exception:
-        pass
-
-    modal = build_settings_modal(
-        current_channels=current_channels,
-        current_users=current_users,
-        team_id=team_id,
-    )
-    client.views_open(trigger_id=trigger_id, view=modal)
-
-
-def handle_settings_submission(ack: Any, body: Any, client: Any) -> None:
-    """Save updated settings from the modal to TenantStore."""
-    ack()
-    vals = extract_settings_values(body)
-    user_id = body["user"]["id"]
-    team_id = vals.get("team_id", "")
-
-    if not team_id:
-        client.chat_postMessage(
-            channel=user_id,
-            text=":x: Could not determine workspace. Try again.",
-        )
-        return
-
-    try:
-        from .tenant_store import TenantStore
-        store = TenantStore()
-        tenant = store.find(team_id)
-
-        if not tenant:
-            client.chat_postMessage(
-                channel=user_id,
-                text=":x: This workspace is not registered. Please re-install the app.",
-            )
-            return
-
-        # Update fields
-        if vals["allowed_channels"] or vals["allowed_channels"] == "":
-            tenant.allowed_channels = vals["allowed_channels"]
-        if vals["allowed_users"] or vals["allowed_users"] == "":
-            tenant.allowed_users = vals["allowed_users"]
-        if vals["kolay_api_token"]:  # only update if provided (not empty)
-            tenant.kolay_api_token = vals["kolay_api_token"]
-
-        store.upsert(tenant)
-
-        parts = [":white_check_mark: *Settings updated!*"]
-        if tenant.allowed_channels and tenant.allowed_users:
-            parts.append(
-                f"Access gate: *active* ({len(tenant.allowed_channels.split(','))} channel(s), "
-                f"{len(tenant.allowed_users.split(','))} user(s))"
-            )
-        else:
-            parts.append("Access gate: *inactive* (open to everyone)")
-        if vals["kolay_api_token"]:
-            parts.append("Kolay API token: *updated*")
-
-        client.chat_postMessage(channel=user_id, text="\n".join(parts))
-
-    except Exception as exc:
-        client.chat_postMessage(
-            channel=user_id,
-            text=f":x: Could not save settings: {exc}",
-        )
-

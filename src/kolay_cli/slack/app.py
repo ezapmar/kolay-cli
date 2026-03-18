@@ -68,7 +68,7 @@ def create_app():  # type: ignore[no-untyped-def]
     app = App(token=bot_token)
 
     # ── /kolay slash command ──────────────────────────────────────────────────
-    @app.command("/kolay")
+    @app.command("/kolaycli")
     def kolay_command(ack, body, client):  # type: ignore[no-untyped-def]
         dispatch(body.get("text", ""), body, client, ack)
 

@@ -88,7 +88,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
 
     bolt_app.use(tenant_middleware)
 
-    @bolt_app.command("/kolay")
+    @bolt_app.command("/kolaycli")
     def kolay_command(ack, body, client):  # type: ignore[no-untyped-def]
         dispatch(body.get("text", ""), body, client, ack)
 
