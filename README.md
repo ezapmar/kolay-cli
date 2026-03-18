@@ -1,5 +1,5 @@
 
-# CLI and MCP server for Kolay IK
+# CLI and MCP Server for Kolay IK
 
 ```
                ███████████████████████
@@ -26,7 +26,51 @@ CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves
 
 ---
 
-# Disclaimer (Alpha)
+## Table of Contents
+
+- [Disclaimer (Alpha)](#disclaimer-alpha)
+- [Install](#install)
+- [Setup](#setup)
+- [CLI Usage](#cli-usage)
+  - [People](#people)
+  - [Leaves](#leaves)
+  - [Timelogs](#timelogs)
+  - [Trainings](#trainings)
+  - [Transactions & Payroll](#transactions--payroll)
+  - [Other Resources](#other-resources)
+- [User Experience](#-user-experience)
+- [Output Modes](#output-modes)
+- [MCP Server (AI Integration)](#mcp-server-ai-integration)
+  - [Quick Start — Which setup is right for me?](#quick-start--which-setup-is-right-for-me)
+  - [Option 1: Public Server (no deployment needed)](#option-1-use-the-public-server-no-deployment-needed)
+  - [Option 2: Local Mode (stdio)](#option-2-local-mode-stdio)
+  - [Option 3: Self-Host (Railway / Docker)](#option-3-self-host-railway--docker)
+  - [Proxy Monitoring & Limits](#proxy-monitoring--limits)
+- [Client Setup Guides](#client-setup-guides)
+  - [ChatGPT (OpenAI)](#chatgpt-openai)
+  - [Perplexity AI](#perplexity-ai)
+  - [Mistral Le Chat](#mistral-le-chat)
+  - [Claude Desktop](#claude-desktop)
+  - [Cursor](#cursor)
+  - [Gemini CLI](#gemini-cli)
+  - [VS Code (GitHub Copilot)](#vs-code-github-copilot)
+  - [Windsurf](#windsurf)
+  - [Zed](#zed)
+  - [Any Other MCP Client](#any-other-mcp-client)
+- [How Authentication Works](#how-authentication-works)
+- [Available MCP Tools](#available-mcp-tools)
+- [MCP Prompts](#mcp-prompts)
+- [Usage Examples (AI Conversations)](#usage-examples-ai-conversations)
+- [Test with curl](#test-with-curl)
+- [Project Structure](#project-structure)
+- [Development](#development)
+- [License](#license)
+
+---
+
+## Disclaimer (Alpha)
+
+> **⚠️ Please read before using.**
 
 1. **Unofficial project.** This is an independent lab application, not a Kolay IK product. Kolay Yazilim A.S. is not responsible for any data loss or issues caused by this software.
 2. **Your token, your responsibility.** Generate tokens at [app.kolayik.com/settings/developer-settings](https://app.kolayik.com/settings/developer-settings) and keep them safe.
@@ -52,6 +96,8 @@ This gives you two commands:
 | `kolay` | Interactive CLI for terminal use |
 | `kolay-mcp` | MCP server binary (used by AI clients) |
 
+---
+
 ## Setup
 
 ```bash
@@ -70,6 +116,8 @@ Verify everything works:
 ```bash
 kolay doctor
 ```
+
+---
 
 ## CLI Usage
 
@@ -168,7 +216,7 @@ kolay expense list                        # expense records
 
 ---
 
-## 🛠️ Emphatic User Experience
+## 🛠️ User Experience
 
 This CLI is designed with a **"People First"** philosophy. We hate digging for UUIDs and getting cold errors.
 
@@ -177,6 +225,8 @@ This CLI is designed with a **"People First"** philosophy. We hate digging for U
 - **Structured Error Handling:** When running with `--json`, we provide machine-readable error shapes for robust automation.
 - **Client-Side Magic:** Most `list` commands support `--filter` (regex/substring) to instantly narrow down results locally without re-fetching from the API.
 - **Rich Visualization:** We use [Rich](https://github.com/Textualize/rich) to render beautiful tables, status badges, and panels that make HR data human-readable.
+
+---
 
 ## Output Modes
 
@@ -194,6 +244,8 @@ kolay --json person list --limit 5 | jq '.items[].firstName'
 kolay --yes timelog delete <id>
 ```
 
+---
+
 ## MCP Server (AI Integration)
 
 `kolay-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server. Any MCP-compatible AI client can manage your HR data through natural language.
@@ -202,7 +254,7 @@ kolay --yes timelog delete <id>
 
 | I want to… | Method | Time |
 |---|---|---|
-| Use with ChatGPT, Le Chat, or any web AI | [Public Server (Option 1)](#option-1-use-the-public-server-no-deployment-needed) | 2 min |
+| Use with ChatGPT, Le Chat, Perplexity, or any web AI | [Public Server (Option 1)](#option-1-use-the-public-server-no-deployment-needed) | 2 min |
 | Use with Claude Desktop, Cursor, Gemini CLI | [Local Mode (Option 2)](#option-2-local-mode-stdio) | 1 min |
 | Full control, own hosting | [Self-Host (Option 3)](#option-3-self-host-railway--docker) | 15 min |
 
@@ -308,7 +360,11 @@ Example log record:
 
 ---
 
-#### ChatGPT (OpenAI)
+## Client Setup Guides
+
+Step-by-step instructions for connecting Kolay MCP to popular AI clients.
+
+### ChatGPT (OpenAI)
 
 ChatGPT supports remote MCP servers as **Apps** (formerly called "connectors"). Available on all plans including Plus, Pro, Business, Enterprise, and Education. Requires **Developer Mode** to add custom servers.
 
@@ -346,7 +402,51 @@ ChatGPT will display tool-call payloads so you can confirm inputs and outputs. W
 
 📖 *Full docs: [developers.openai.com/apps-sdk/deploy/connect-chatgpt](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt)*
 
-#### Mistral Le Chat
+---
+
+### Perplexity AI
+
+Perplexity supports remote MCP servers via **Connectors**. Requires a **Perplexity Pro** or **Enterprise** plan.
+
+> **Important:** Perplexity connects to *remote* MCP servers only — it does not run local stdio servers. Your MCP server must be reachable over HTTPS.
+
+**Step 1 — Open connector settings:**
+
+1. Go to [perplexity.ai](https://www.perplexity.ai) and sign in
+2. Click your profile icon → **Settings**
+3. Navigate to **Connectors**
+
+**Step 2 — Add a remote connector:**
+
+1. Click **+ Custom connector** → select **Remote**
+2. Fill in the connector details:
+   - **Name**: `Kolay IK`
+   - **MCP Server URL**: `https://kolay.up.railway.app/mcp`
+   - **Description** *(optional)*: `HR management — employees, leaves, timelogs, trainings, payroll`
+   - **Transport**: `Streamable HTTP`
+   - **Authentication**: select one of:
+     - **None** — if the server has `KOLAY_API_TOKEN` set (single-tenant mode)
+     - **API Key** — enter your Kolay IK API token if using multi-tenant mode
+3. Click **Save**
+
+**Step 3 — Use it in a conversation:**
+
+1. Open a new thread on Perplexity
+2. Make sure the **Kolay IK** connector is enabled (check the connectors panel)
+3. Ask a question like:
+   ```
+   Show me all active employees in the Engineering department
+   ```
+
+Perplexity will automatically discover the available tools from the MCP server and invoke them as needed.
+
+> **Tip:** If you update or redeploy the MCP server, re-open the connector settings and verify the connection is still active.
+
+📖 *Full docs: [perplexity.ai/help-center — Local and Remote MCPs](https://www.perplexity.ai/help-center/en/articles/11502712-local-and-remote-mcps-for-perplexity)*
+
+---
+
+### Mistral Le Chat
 
 1. Open [chat.mistral.ai](https://chat.mistral.ai) and go to **Intelligence** → **Connectors** (or [chat.mistral.ai/connections](https://chat.mistral.ai/connections))
 2. Click **Add Connector** → **Custom MCP Connector**
@@ -368,7 +468,9 @@ Who are the employees in the engineering department?
 
 > **Tip:** Le Chat auto-detects available tools from the MCP server. You don't need to configure individual tools.
 
-#### Claude Desktop
+---
+
+### Claude Desktop
 
 **Automatic (recommended):**
 
@@ -403,7 +505,9 @@ This writes the correct config to `~/Library/Application Support/Claude/claude_d
 2. Enter URL: `https://kolay.up.railway.app/mcp`
 3. Optionally add your `X-Kolay-Token` in the URL as a query parameter or configure the Authorization header
 
-#### Cursor
+---
+
+### Cursor
 
 **Automatic:**
 
@@ -428,7 +532,9 @@ kolay mcp install
 
 Restart Cursor after saving.
 
-#### Gemini CLI
+---
+
+### Gemini CLI
 
 **Automatic:**
 
@@ -449,7 +555,9 @@ kolay mcp install
 }
 ```
 
-#### VS Code (GitHub Copilot)
+---
+
+### VS Code (GitHub Copilot)
 
 1. Open VS Code → **Settings** (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)")
 2. Add to `mcp.servers`:
@@ -469,7 +577,9 @@ kolay mcp install
 
 3. Alternatively, use the remote URL via the MCP extension settings
 
-#### Windsurf
+---
+
+### Windsurf
 
 **Automatic:**
 
@@ -490,7 +600,9 @@ kolay mcp install
 }
 ```
 
-#### Zed
+---
+
+### Zed
 
 Edit `~/.config/zed/settings.json` and add under `"context_servers"`:
 
@@ -507,7 +619,9 @@ Edit `~/.config/zed/settings.json` and add under `"context_servers"`:
 }
 ```
 
-#### Any Other MCP Client
+---
+
+### Any Other MCP Client
 
 Any client that supports the MCP standard can connect using either:
 
@@ -516,7 +630,7 @@ Any client that supports the MCP standard can connect using either:
 
 ---
 
-### How Authentication Works
+## How Authentication Works
 
 ```
 AI Client --> POST /mcp --> MCP Handshake (always succeeds)
@@ -539,7 +653,7 @@ Token resolution order:
 
 ---
 
-### Available MCP Tools
+## Available MCP Tools
 
 The server exposes these tools to AI clients:
 
@@ -562,7 +676,9 @@ The server exposes these tools to AI clients:
 | `approval_list` | View approval workflows |
 | `employee_health_check` | Cross-reference leaves, timelogs, and trainings in one call |
 
-### MCP Prompts
+---
+
+## MCP Prompts
 
 Built-in prompts guide the AI through complex multi-step workflows:
 
@@ -578,7 +694,7 @@ Built-in prompts guide the AI through complex multi-step workflows:
 
 ---
 
-### Usage Examples (AI Conversations)
+## Usage Examples (AI Conversations)
 
 Here are real-world examples of what you can ask any AI assistant connected to Kolay MCP:
 
@@ -696,7 +812,9 @@ AI:  → uses manager_dashboard prompt
      • Training "Cloud Security 101" starts next week (4 enrolled)
 ```
 
-### Test with curl
+---
+
+## Test with curl
 
 ```bash
 # discover available tools
@@ -704,6 +822,8 @@ curl -X POST https://kolay.up.railway.app/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
+
+---
 
 ## Project Structure
 
@@ -726,6 +846,8 @@ src/kolay_cli/
     search.py         # client-side filtering
 ```
 
+---
+
 ## Development
 
 ```bash
@@ -738,6 +860,8 @@ pytest tests/ -v
 # or using uv
 uv run --extra test pytest tests/ -v
 ```
+
+---
 
 ## License
 
