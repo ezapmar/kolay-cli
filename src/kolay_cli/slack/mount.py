@@ -111,8 +111,8 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     bolt_app.use(tenant_middleware)
 
     @bolt_app.command("/kolaycli")
-    def kolay_command(ack, body, client):  # type: ignore[no-untyped-def]
-        dispatch(body.get("text", ""), body, client, ack)
+    def kolay_command(ack, body, client, respond):  # type: ignore[no-untyped-def]
+        dispatch(body.get("text", ""), body, client, ack, respond)
 
     @bolt_app.view(LEAVE_REQUEST_CALLBACK)
     def leave_modal_submit(ack, body, client):  # type: ignore[no-untyped-def]

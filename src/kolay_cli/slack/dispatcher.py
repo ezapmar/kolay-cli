@@ -102,10 +102,14 @@ def _post_or_upload(
     blocks: list[dict],
     items: list[dict],
     filename: str,
+    reply: Any = None,
 ) -> None:
     """Post blocks if they fit; otherwise upload as CSV."""
     if len(render_text(blocks)) <= 3000:
-        client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Result")
+        if reply:
+            reply(text="Result", blocks=blocks)
+        else:
+            client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Result")
     else:
         csv_bytes = overflow_to_csv(items)
         client.files_upload_v2(
@@ -179,6 +183,7 @@ def dispatch(
     body: Any,
     client: Any,
     ack: Any,
+    respond: Any = None,
 ) -> None:
     """Route a /kolay command to the appropriate handler."""
     ack()
@@ -186,23 +191,33 @@ def dispatch(
     user = body.get("user_id") or ""
     trigger_id = body.get("trigger_id") or ""
 
+    # Use respond (response_url) if available — works without channel membership.
+    # Fall back to chat_postEphemeral.
+    def _reply(text: str = "", blocks: list | None = None) -> None:
+        kwargs: dict[str, Any] = {"text": text}
+        if blocks:
+            kwargs["blocks"] = blocks
+        if respond:
+            kwargs["response_type"] = "ephemeral"
+            respond(**kwargs)
+        else:
+            kwargs["channel"] = channel
+            kwargs["user"] = user
+            client.chat_postEphemeral(**kwargs)
+
     # ── Combined Option-C gate ────────────────────────────────────────────────
     denial = _check_access(channel, user)
     if denial:
-        client.chat_postEphemeral(channel=channel, user=user, text=denial)
+        _reply(text=denial)
         return
 
     module, action, rest = _parse(text)
 
     try:
-        _route(module, action, rest, channel, user, trigger_id, client)
+        _route(module, action, rest, channel, user, trigger_id, client, _reply)
     except Exception as exc:  # noqa: BLE001
-        client.chat_postEphemeral(
-            channel=channel,
-            user=user,
-            blocks=error_block(str(exc)),
-            text=f"Error: {exc}",
-        )
+        _reply(text=f"Error: {exc}", blocks=error_block(str(exc)))
+
 
 
 
@@ -214,12 +229,16 @@ def _route(
     user: str,
     trigger_id: str,
     client: Any,
+    reply: Any = None,
 ) -> None:
     # ── help ─────────────────────────────────────────────────────────────────
     if module in ("help", ""):
-        client.chat_postEphemeral(
-            channel=channel, user=user, blocks=_HELP_BLOCKS, text="Kolay Help"
-        )
+        if reply:
+            reply(text="Kolay Help", blocks=_HELP_BLOCKS)
+        else:
+            client.chat_postEphemeral(
+                channel=channel, user=user, blocks=_HELP_BLOCKS, text="Kolay Help"
+            )
         return
 
     # ── settings ──────────────────────────────────────────────────────────────
@@ -246,33 +265,33 @@ def _route(
             items = result.get("items", [])
             keys = ["firstName", "lastName", "title", "department", "workEmail"]
             blocks = list_to_blocks(items, keys, f"👥 Employees ({len(items)})")
-            _post_or_upload(client, channel, user, blocks, items, "employees.csv")
+            _post_or_upload(client, channel, user, blocks, items, "employees.csv", reply)
         elif action == "view":
             pid = rest[0] if rest else None
             if not pid:
-                client.chat_postEphemeral(channel=channel, user=user,
-                                          text=":x: Usage: `/kolaycli person view NAME_OR_ID`")
+                if reply: reply(text=":x: Usage: `/kolaycli person view NAME_OR_ID`")
+                else: client.chat_postEphemeral(channel=channel, user=user, text=":x: Usage: `/kolaycli person view NAME_OR_ID`")
                 return
             p = person_svc.view_person(pid)
             keys = ["firstName", "lastName", "title", "department", "workEmail",
                     "gender", "employmentStartDate", "contractType", "status"]
             blocks = dict_to_fields(p, keys)
-            client.chat_postEphemeral(channel=channel, user=user, blocks=blocks,
-                                      text=f"{p.get('firstName','')} {p.get('lastName','')}")
+            if reply: reply(text=f"{p.get('firstName','')} {p.get('lastName','')}", blocks=blocks)
+            else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text=f"{p.get('firstName','')} {p.get('lastName','')}")
         elif action in ("leave-status", "leave_status"):
             pid = rest[0] if rest else None
             if not pid:
-                client.chat_postEphemeral(channel=channel, user=user,
-                                          text=":x: Usage: `/kolaycli person leave-status ID`")
+                if reply: reply(text=":x: Usage: `/kolaycli person leave-status ID`")
+                else: client.chat_postEphemeral(channel=channel, user=user, text=":x: Usage: `/kolaycli person leave-status ID`")
                 return
             items = person_svc.leave_status(pid)
             keys = ["leaveTypeName", "usedDays", "remainingDays", "totalDays"]
             blocks = list_to_blocks(items, keys, "🏖️ Leave Balances")
-            client.chat_postEphemeral(channel=channel, user=user, blocks=blocks,
-                                      text="Leave status")
+            if reply: reply(text="Leave status", blocks=blocks)
+            else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Leave status")
         else:
-            client.chat_postEphemeral(channel=channel, user=user,
-                                      text=f":x: Unknown action `person {action}`. Try `/kolaycli help`.")
+            if reply: reply(text=f":x: Unknown action `person {action}`. Try `/kolaycli help`.")
+            else: client.chat_postEphemeral(channel=channel, user=user, text=f":x: Unknown action `person {action}`. Try `/kolaycli help`.")
         return
 
     # ── leave ─────────────────────────────────────────────────────────────────
@@ -283,22 +302,23 @@ def _route(
                 items = []
             keys = ["person", "leaveType", "startDate", "endDate", "status"]
             blocks = list_to_blocks(items, keys, f"🏖️ Leaves ({len(items)})")
-            _post_or_upload(client, channel, user, blocks, items, "leaves.csv")
+            _post_or_upload(client, channel, user, blocks, items, "leaves.csv", reply)
         elif action == "view":
             lid = rest[0] if rest else None
             if not lid:
-                client.chat_postEphemeral(channel=channel, user=user,
-                                          text=":x: Usage: `/kolaycli leave view ID`")
+                if reply: reply(text=":x: Usage: `/kolaycli leave view ID`")
+                else: client.chat_postEphemeral(channel=channel, user=user, text=":x: Usage: `/kolaycli leave view ID`")
                 return
             lv = leave_svc.view_leave(lid)
             blocks = dict_to_fields(lv)
-            client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Leave")
+            if reply: reply(text="Leave", blocks=blocks)
+            else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Leave")
         elif action in ("request", "create"):
             view = build_leave_request_modal(trigger_id)
             client.views_open(trigger_id=trigger_id, view=view)
         else:
-            client.chat_postEphemeral(channel=channel, user=user,
-                                      text=f":x: Unknown action `leave {action}`.")
+            if reply: reply(text=f":x: Unknown action `leave {action}`.")
+            else: client.chat_postEphemeral(channel=channel, user=user, text=f":x: Unknown action `leave {action}`.")
         return
 
     # ── timelog ───────────────────────────────────────────────────────────────
@@ -308,13 +328,13 @@ def _route(
             items = result.get("items", [])
             keys = ["person", "type", "startDate", "endDate", "status"]
             blocks = list_to_blocks(items, keys, f"⏱️ Time Logs ({len(items)})")
-            _post_or_upload(client, channel, user, blocks, items, "timelogs.csv")
+            _post_or_upload(client, channel, user, blocks, items, "timelogs.csv", reply)
         elif action in ("create", "log"):
             view = build_timelog_create_modal()
             client.views_open(trigger_id=trigger_id, view=view)
         else:
-            client.chat_postEphemeral(channel=channel, user=user,
-                                      text=f":x: Unknown action `timelog {action}`.")
+            if reply: reply(text=f":x: Unknown action `timelog {action}`.")
+            else: client.chat_postEphemeral(channel=channel, user=user, text=f":x: Unknown action `timelog {action}`.")
         return
 
     # ── unit ──────────────────────────────────────────────────────────────────
@@ -333,7 +353,8 @@ def _route(
             {"type": "header", "text": {"type": "plain_text", "text": "🏢 Org Chart", "emoji": True}},
             {"type": "section", "text": {"type": "mrkdwn", "text": text[:2900]}},
         ]
-        client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Org Chart")
+        if reply: reply(text="Org Chart", blocks=blocks)
+        else: client.chat_postEphemeral(channel=channel, user=user, blocks=blocks, text="Org Chart")
         return
 
     # ── approval ──────────────────────────────────────────────────────────────
@@ -341,14 +362,17 @@ def _route(
         items = approval_svc.list_approval_processes()
         keys = ["name", "description", "status"]
         blocks = list_to_blocks(items, keys, f"✅ Approval Processes ({len(items)})")
-        _post_or_upload(client, channel, user, blocks, items, "approvals.csv")
+        _post_or_upload(client, channel, user, blocks, items, "approvals.csv", reply)
         return
 
     # ── unknown ───────────────────────────────────────────────────────────────
-    client.chat_postEphemeral(
-        channel=channel, user=user,
-        text=f":x: Unknown module `{module}`. Try `/kolaycli help`."
-    )
+    if reply:
+        reply(text=f":x: Unknown module `{module}`. Try `/kolaycli help`.")
+    else:
+        client.chat_postEphemeral(
+            channel=channel, user=user,
+            text=f":x: Unknown module `{module}`. Try `/kolaycli help`."
+        )
 
 
 # ── Modal submission handlers ─────────────────────────────────────────────────
