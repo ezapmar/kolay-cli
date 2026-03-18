@@ -36,6 +36,7 @@ CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves
   - [Leaves](#leaves)
   - [Timelogs](#timelogs)
   - [Trainings](#trainings)
+  - [Fun (Kolay Quiz)](#fun-kolay-quiz)
   - [Transactions & Payroll](#transactions--payroll)
   - [Other Resources](#other-resources)
 - [User Experience](#-user-experience)
@@ -203,6 +204,26 @@ kolay payroll view abc123def456
 
 # search/filter rows within a payroll run
 kolay payroll view abc123def456 --search "Ahmet" --filter "Dev"
+```
+
+```
+
+### Fun (Kolay Quiz)
+
+Take a break and test your knowledge of your colleagues with Kolay Quiz! Currently features the "Who Is This?" photo matching game. Renders high-res images directly in modern terminals (iTerm2, VSCode, WezTerm) or beautiful Braille ASCII art in standard terminals.
+
+```bash
+# play a new session
+kolay quiz play
+
+# test the UI with mock data (bypasses API)
+kolay quiz play --mock
+
+# view your high scores and stats
+kolay quiz stats
+
+# check your daily streak
+kolay quiz streak
 ```
 
 ### Other Resources
