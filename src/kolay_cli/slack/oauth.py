@@ -11,6 +11,24 @@ from starlette.routing import Route
 _SCOPES = "commands,chat:write,chat:write.public,files:write,channels:read"
 
 
+def _callback_url(request: Request) -> str:
+    """Build the OAuth callback URL, always using HTTPS.
+
+    Behind a reverse proxy (Railway, Render, etc.) Starlette sees
+    http:// internally. We fix this by:
+      1. Using PUBLIC_URL env var if set (e.g. https://kolay.up.railway.app)
+      2. Otherwise forcing the scheme to https on the auto-generated URL
+    """
+    public_url = os.environ.get("PUBLIC_URL", "").rstrip("/")
+    if public_url:
+        return f"{public_url}/slack/install/callback"
+
+    # Fallback: use request.url_for but force https
+    raw = str(request.url_for("install_callback"))
+    return raw.replace("http://", "https://", 1)
+
+
+
 def _client_id() -> str:
     v = os.environ.get("SLACK_CLIENT_ID", "")
     if not v:
@@ -30,7 +48,7 @@ def _client_secret() -> str:
 async def install_redirect(request: Request) -> RedirectResponse:
     """Redirect the browser to Slack's OAuth authorize page."""
     client_id = _client_id()
-    redirect_uri = str(request.url_for("install_callback"))
+    redirect_uri = _callback_url(request)
     url = (
         f"https://slack.com/oauth/v2/authorize"
         f"?client_id={client_id}"
@@ -62,7 +80,7 @@ async def install_callback(request: Request) -> HTMLResponse:
                 "client_id": _client_id(),
                 "client_secret": _client_secret(),
                 "code": code,
-                "redirect_uri": str(request.url_for("install_callback")),
+                "redirect_uri": _callback_url(request),
             },
         )
         data = resp.json()
