@@ -160,6 +160,17 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
 
     # ── Debug endpoint (safe: shows config status, not values) ────────────────
     async def debug_info(request: Request) -> JSONResponse:
+        tenants = store.list_all()
+        tenant_info = []
+        for t in tenants:
+            tenant_info.append({
+                "team_id": t.team_id,
+                "team_name": t.team_name,
+                "kolay_token_len": len(t.kolay_api_token),
+                "bot_token_len": len(t.slack_bot_token),
+                "allowed_channels": t.allowed_channels,
+                "allowed_users": t.allowed_users,
+            })
         return JSONResponse({
             "SLACK_SIGNING_SECRET": bool(os.environ.get("SLACK_SIGNING_SECRET")),
             "SLACK_CLIENT_ID": bool(os.environ.get("SLACK_CLIENT_ID")),
@@ -168,6 +179,7 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
             "TENANT_ENCRYPTION_KEY": bool(os.environ.get("TENANT_ENCRYPTION_KEY")),
             "SLACK_BOT_TOKEN": bool(os.environ.get("SLACK_BOT_TOKEN")),
             "tenants": store.count(),
+            "tenant_details": tenant_info,
             "bolt_command_registered": "/kolaycli",
         })
 
@@ -226,11 +238,33 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
         </html>
         """)
 
+    # ── Admin: clear access restrictions ─────────────────────────────────────
+    async def clear_access(request: Request) -> JSONResponse:
+        """Clear allowed_channels and allowed_users for all tenants."""
+        from .tenant_store import Tenant
+        tenants = store.list_all()
+        for t in tenants:
+            store.upsert(Tenant(
+                team_id=t.team_id,
+                team_name=t.team_name,
+                kolay_api_token=t.kolay_api_token,
+                slack_bot_token=t.slack_bot_token,
+                allowed_channels="",
+                allowed_users="",
+                installed_at=t.installed_at,
+            ))
+        # Also clear env vars
+        for k in ("ALLOWED_CHANNEL_IDS", "ALLOWED_USER_IDS"):
+            if k in os.environ:
+                del os.environ[k]
+        return JSONResponse({"cleared": len(tenants)})
+
     # ── Assemble ──────────────────────────────────────────────────────────────
     app = Starlette(routes=[
         Route("/", landing),
         Route("/health", health),
         Route("/debug", debug_info),
+        Route("/debug/clear-access", clear_access, methods=["POST"]),
         Mount("/mcp", app=mcp_asgi),
         Route("/slack/events", slack_events, methods=["POST"]),
         Mount("/slack/install", routes=oauth_routes),

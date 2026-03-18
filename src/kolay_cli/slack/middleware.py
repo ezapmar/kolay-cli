@@ -52,10 +52,15 @@ def tenant_middleware(payload: dict, body: dict, next: Any, context: dict | None
     if tenant is not None:
         kolay_token = tenant.kolay_api_token
         # Also inject tenant-level access control
+        # Always set (or clear) access control env vars from tenant
         if tenant.allowed_channels:
             os.environ["ALLOWED_CHANNEL_IDS"] = tenant.allowed_channels
+        elif "ALLOWED_CHANNEL_IDS" in os.environ:
+            del os.environ["ALLOWED_CHANNEL_IDS"]
         if tenant.allowed_users:
             os.environ["ALLOWED_USER_IDS"] = tenant.allowed_users
+        elif "ALLOWED_USER_IDS" in os.environ:
+            del os.environ["ALLOWED_USER_IDS"]
     else:
         # Single-tenant fallback
         kolay_token = os.environ.get("KOLAY_API_TOKEN", "").strip() or None
