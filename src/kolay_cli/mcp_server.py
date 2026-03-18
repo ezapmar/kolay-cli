@@ -838,6 +838,46 @@ For those employees, cross-reference their data:
 Output a very succinct, highly readable dashboard-style summary."""
 
 
+@mcp.tool
+@require_auth
+def quiz_challenge(
+    mode: str = "photo_match",
+    count: int = 5,
+) -> dict[str, Any]:
+    """Generate a Kolay Quiz challenge.
+    Use this when the user says 'give me a quiz' or 'test my knowledge'.
+    Returns a list of questions with their choices, correct answers, and media.
+    You, the AI, should act as the game host: present the questions one by one, wait for the user's answer, and then reveal if they were right.
+    Do NOT reveal the correct answers immediately."""
+    from .services.quiz import get_factory, KolayAPIProvider
+    factory = get_factory()
+    try:
+        provider = factory.get_provider(mode, KolayAPIProvider())
+    except ValueError as e:
+        return {"error": True, "message": str(e)}
+        
+    questions = provider.generate(count, set())
+    
+    payload = []
+    for q in questions:
+        media = q.media()
+        payload.append({
+            "prompt": q.prompt_text(),
+            "choices": q.choices(),
+            "correct_answer": q.correct_answer,
+            "media": {
+                "type": media.type.value,
+                "content": media.content
+            } if media else None
+        })
+        
+    return {
+        "mode": mode,
+        "total_questions": len(payload),
+        "questions": payload
+    }
+
+
 # ── HTTP API Key Authentication Middleware ──────────────────────────
 #
 # Protects the MCP HTTP/SSE endpoints when deployed on a public URL

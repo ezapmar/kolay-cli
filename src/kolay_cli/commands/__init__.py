@@ -1,8 +1,6 @@
-from . import auth, person, leave, transaction, calendar, timelog, training, unit, expense, approval, config, schema, mcp, doctor, setup, nudge, payroll
+from . import person, leave, timelog, training, transaction, calendar, auth, config, mcp, setup, doctor, unit, approval, payroll, expense, nudge, schema, quiz
 
 __all__ = [
-    "auth", "person", "leave", "transaction", "calendar",
-    "timelog", "training", "unit", "expense", "approval", "config", "schema", "mcp",
-    "doctor", "setup", "nudge", "payroll",
+    "person", "leave", "timelog", "training", "transaction", "calendar",
+    "auth", "config", "mcp", "setup", "doctor", "unit", "approval", "payroll", "expense", "nudge", "schema", "quiz"
 ]
-

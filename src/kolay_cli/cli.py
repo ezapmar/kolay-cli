@@ -7,11 +7,11 @@ from . import __version__
 
 
 from .commands import (
-    auth, person, leave, transaction, calendar,
-    timelog, training, unit, expense, approval, schema,
-    doctor, setup, nudge, payroll,
+    auth, person, leave, timelog, training, transaction, calendar,
+    unit, approval, payroll, expense, nudge, schema, doctor, setup,
+    quiz
 )
-from .commands import config as config_cmd  # avoid shadowing built-in
+from .commands import config as config_cmd
 from .commands import mcp as mcp_cmd
 
 from .ui.constants import KOLAY_LOGO, KOLAY_LOGO_COMPACT, PRIMARY
@@ -41,6 +41,7 @@ app.add_typer(unit.app,         name="unit",        rich_help_panel="Organisatio
 app.add_typer(setup.app,        name="setup",       rich_help_panel="Getting Started")
 app.add_typer(doctor.app,       name="doctor",      rich_help_panel="Getting Started")
 app.add_typer(nudge.app,        name="nudge",       rich_help_panel="Productivity")
+app.add_typer(quiz.app,         name="quiz",        rich_help_panel="Fun")
 app.add_typer(mcp_cmd.app,      name="mcp",         rich_help_panel="Agent / Dev")
 app.add_typer(schema.app,       name="schema",      rich_help_panel="Agent / Dev", hidden=True)
 
