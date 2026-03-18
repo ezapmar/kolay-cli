@@ -81,9 +81,31 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     set_store(store)
     _warn_partial_config()
 
+    # ── Bolt authorize function (multi-tenant) ────────────────────────────
+    # Bolt calls this on EVERY incoming request to resolve the bot token
+    # for the workspace. This is the proper multi-tenant pattern.
+    from slack_bolt import AuthorizeResult
+
+    def authorize(enterprise_id, team_id, logger):  # type: ignore[no-untyped-def]
+        tenant = store.find(team_id or "")
+        if tenant is None:
+            logger.warning(f"No tenant found for team_id={team_id}")
+            # Return a minimal AuthorizeResult so Bolt doesn't crash.
+            # The middleware will handle the "no token" case.
+            return AuthorizeResult(
+                enterprise_id=enterprise_id,
+                team_id=team_id,
+                bot_token=os.environ.get("SLACK_BOT_TOKEN", "xoxb-fallback"),
+            )
+        return AuthorizeResult(
+            enterprise_id=enterprise_id,
+            team_id=team_id,
+            bot_token=tenant.slack_bot_token,
+        )
+
     bolt_app = BoltApp(
         signing_secret=signing_secret,
-        token=os.environ.get("SLACK_BOT_TOKEN", "xoxb-not-used"),
+        authorize=authorize,
     )
 
     bolt_app.use(tenant_middleware)
