@@ -193,7 +193,7 @@ def dispatch(
 
     # Use respond (response_url) if available — works without channel membership.
     # Fall back to chat_postEphemeral.
-    def _reply(text: str = "", blocks: list | None = None) -> None:
+    def _reply(text: str = "", blocks: list | None = None, **extra: Any) -> None:
         kwargs: dict[str, Any] = {"text": text}
         if blocks:
             kwargs["blocks"] = blocks
