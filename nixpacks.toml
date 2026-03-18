@@ -1,5 +1,2 @@
 [settings]
 python_version = "3.12"
-
-[phases.install]
-cmds = ["uv sync --all-extras"]
