@@ -869,6 +869,8 @@ linux = [
     { name = "keyrings-alt" },
 ]
 slack = [
+    { name = "cryptography" },
+    { name = "httpx" },
     { name = "python-dotenv" },
     { name = "slack-bolt" },
 ]
@@ -880,7 +882,9 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", marker = "extra == 'slack'", specifier = ">=41.0" },
     { name = "fastmcp", specifier = ">=3.1.0" },
+    { name = "httpx", marker = "extra == 'slack'", specifier = ">=0.25" },
     { name = "keyring", specifier = ">=25.0" },
     { name = "keyrings-alt", marker = "extra == 'linux'", specifier = ">=5.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.6.0" },

@@ -63,7 +63,7 @@ where = ["src"]
 
 [project.optional-dependencies]
 test = ["pytest>=7.0", "pytest-mock>=3.10", "pytest-cov>=4.0"]
-slack = ["slack-bolt>=1.18.0", "python-dotenv>=1.0.0"]
+slack = ["slack-bolt>=1.18.0", "python-dotenv>=1.0.0", "cryptography>=41.0", "httpx>=0.25"]
 linux = ["keyrings.alt>=5.0"]  # file-backed fallback for headless Linux / CI
 
 dev = [
