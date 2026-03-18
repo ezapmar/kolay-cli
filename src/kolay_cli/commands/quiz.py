@@ -20,8 +20,8 @@ def _main(ctx: typer.Context) -> None:
 
 @app.command(name="play")
 def play(
-    mode: str = typer.Option(
-        "photo_match",
+    mode: Optional[str] = typer.Option(
+        None,
         "--mode", "-m",
         help="Game mode: photo_match, education_champion, unique_title, december_exodus"
     ),
@@ -34,7 +34,26 @@ def play(
     factory = get_factory()
     modes = factory.available_modes()
 
-    if mode not in modes:
+    if mode is None:
+        from rich.prompt import IntPrompt
+        from ..ui.constants import PRIMARY
+        console.print(f"\n[{PRIMARY}]Available Cases:[/]\n")
+        
+        mode_labels = {
+            "photo_match": "Face ID (Who is this?)", 
+            "education_champion": "Academic Degrees",
+            "unique_title": "Lonely Roles (Org Chart)",
+            "december_exodus": "Leave Time Machine",
+        }
+
+        for i, m in enumerate(modes, 1):
+            lbl = mode_labels.get(m, m)
+            console.print(f"  [bold cyan]{i}.[/] {lbl} [grey62]({m})[/]")
+        
+        console.print()
+        choice = IntPrompt.ask("Select a case to solve", choices=[str(i) for i in range(1, len(modes) + 1)], show_choices=False)
+        mode = modes[choice - 1]
+    elif mode not in modes:
         console.print(f"[red]Unknown mode '{mode}'.[/red]")
         console.print(f"[grey62]Available modes: {', '.join(modes)}[/grey62]")
         raise typer.Exit(1)
