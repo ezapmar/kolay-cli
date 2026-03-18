@@ -50,6 +50,8 @@ Issues = "https://github.com/ezapmar/kolay-cli/issues"
 [project.scripts]
 kolay = "kolay_cli.cli:app"
 kolay-mcp = "kolay_cli.mcp_server:mcp.run"
+kolay-slack = "kolay_cli.slack.app:main"
+
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -59,7 +61,9 @@ where = ["src"]
 
 [project.optional-dependencies]
 test = ["pytest>=7.0", "pytest-mock>=3.10", "pytest-cov>=4.0"]
+slack = ["slack-bolt>=1.18.0"]
 linux = ["keyrings.alt>=5.0"]  # file-backed fallback for headless Linux / CI
+
 dev = [
     "ruff>=0.1.0",
     "mypy>=1.6.0",
