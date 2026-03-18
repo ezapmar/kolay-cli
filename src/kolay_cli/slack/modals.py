@@ -157,3 +157,88 @@ def extract_timelog_create_values(body: dict[str, Any]) -> dict[str, Any]:
     log_type = vals["log_type"]["log_type_select"]["selected_option"]["value"]
     desc = (vals.get("description", {}).get("description_input") or {}).get("value") or ""
     return {"person": person, "start_date": start, "end_date": end, "type": log_type, "description": desc}
+
+
+# ── Settings (access control) ────────────────────────────────────────────────
+
+SETTINGS_CALLBACK = "kolay_settings"
+
+
+def build_settings_modal(
+    current_channels: str = "",
+    current_users: str = "",
+    team_id: str = "",
+) -> dict[str, Any]:
+    return {
+        "type": "modal",
+        "callback_id": SETTINGS_CALLBACK,
+        "private_metadata": team_id,
+        "title": {"type": "plain_text", "text": "⚙️ Kolay Settings"},
+        "submit": {"type": "plain_text", "text": "Save"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        "*Access Control (Option C)*\n"
+                        "Set both fields to restrict `/kolay` to specific channels and users.\n"
+                        "Leave both empty to allow everyone."
+                    ),
+                },
+            },
+            {"type": "divider"},
+            {
+                "type": "input",
+                "block_id": "allowed_channels",
+                "optional": True,
+                "label": {"type": "plain_text", "text": "Allowed Channel IDs"},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "channels_input",
+                    "placeholder": {"type": "plain_text", "text": "C0123ABC, C0456DEF"},
+                    **({"initial_value": current_channels} if current_channels else {}),
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "allowed_users",
+                "optional": True,
+                "label": {"type": "plain_text", "text": "Allowed User IDs"},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "users_input",
+                    "placeholder": {"type": "plain_text", "text": "U0123456, U0654321"},
+                    **({"initial_value": current_users} if current_users else {}),
+                },
+            },
+            {"type": "divider"},
+            {
+                "type": "input",
+                "block_id": "kolay_token",
+                "optional": True,
+                "label": {"type": "plain_text", "text": "Kolay API Token (update)"},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "token_input",
+                    "placeholder": {"type": "plain_text", "text": "Leave empty to keep current token"},
+                },
+            },
+        ],
+    }
+
+
+def extract_settings_values(body: dict[str, Any]) -> dict[str, Any]:
+    vals = body["view"]["state"]["values"]
+    channels = (vals.get("allowed_channels", {}).get("channels_input") or {}).get("value") or ""
+    users = (vals.get("allowed_users", {}).get("users_input") or {}).get("value") or ""
+    token = (vals.get("kolay_token", {}).get("token_input") or {}).get("value") or ""
+    team_id = body["view"].get("private_metadata", "")
+    return {
+        "allowed_channels": channels.strip(),
+        "allowed_users": users.strip(),
+        "kolay_api_token": token.strip(),
+        "team_id": team_id,
+    }
+

@@ -70,24 +70,20 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
         dispatch,
         handle_leave_request_submission,
         handle_timelog_create_submission,
+        handle_settings_submission,
         _warn_partial_config,
     )
     from .quiz import handle_mode_selection, handle_answer
-    from .modals import LEAVE_REQUEST_CALLBACK, TIMELOG_CREATE_CALLBACK
+    from .modals import LEAVE_REQUEST_CALLBACK, TIMELOG_CREATE_CALLBACK, SETTINGS_CALLBACK
     from .middleware import tenant_middleware, set_store
 
     # Share store with middleware
     set_store(store)
     _warn_partial_config()
 
-    # In multi-tenant mode we can't set a fixed bot_token at init —
-    # the middleware resolves the correct token per request.
-    # We pass a dummy token here; Bolt requires it at init but the
-    # per-workspace token is looked up by the middleware on each request.
     bolt_app = BoltApp(
         signing_secret=signing_secret,
         token=os.environ.get("SLACK_BOT_TOKEN", "xoxb-not-used"),
-        # We register the tenant middleware to run before all handlers
     )
 
     bolt_app.use(tenant_middleware)
@@ -103,6 +99,11 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
     @bolt_app.view(TIMELOG_CREATE_CALLBACK)
     def timelog_submit(ack, body, client):  # type: ignore[no-untyped-def]
         handle_timelog_create_submission(ack, body, client)
+
+    @bolt_app.view(SETTINGS_CALLBACK)
+    def settings_submit(ack, body, client):  # type: ignore[no-untyped-def]
+        handle_settings_submission(ack, body, client)
+
 
     @bolt_app.action({"action_id": lambda aid: aid.startswith("quiz_start_mode_")})
     def quiz_mode(ack, body, client):  # type: ignore[no-untyped-def]
