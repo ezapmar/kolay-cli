@@ -45,8 +45,10 @@ def tenant_middleware(payload: dict, body: dict, next: Any, client: Any = None, 
 
     store = _get_store()
     tenant = store.find(team_id) if team_id else None
+    print(f"[middleware] team_id={team_id} tenant={'FOUND' if tenant else 'NONE'}", flush=True)
 
     if tenant is not None:
+        print(f"[middleware] setting KOLAY_TOKEN_CTX, token_len={len(tenant.kolay_api_token)}", flush=True)
         # ── Multi-tenant path: use tenant's stored token ──────────────
         token = KOLAY_TOKEN_CTX.set(tenant.kolay_api_token)
 
