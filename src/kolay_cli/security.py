@@ -192,34 +192,17 @@ def is_first_run() -> bool:
 
 
 def resolve_token() -> str | None:
-    """Resolve API token with in-process caching.
+    """Resolve API token — always fresh (no cache in server mode).
 
     Priority:
-      0. Per-request ContextVar (multi-tenant Slack / MCP) — always checked first
-      1. Cache (from previous resolution in this process)
-      2. Env var KOLAY_API_TOKEN
-      3. Keychain
-      4. Config file
+      0. Per-request ContextVar (multi-tenant MCP)
+      1. Env var KOLAY_API_TOKEN (set by Slack middleware per-tenant)
+      2. Keychain
+      3. Config file
     """
-    global _token_cache
-
-    # 0. Always check per-request context first — bypasses cache for multi-tenant
-    ctx_token = KOLAY_TOKEN_CTX.get()
-    if ctx_token:
-        return ctx_token
-
-    # Return cached result if available (only cache successful resolution)
-    if _token_cache is not _SENTINEL:
-        return _token_cache  # type: ignore[return-value]
-
-    token = _resolve_uncached()
-
-    # Only cache a real token — never cache None so that a subsequent
-    # `kolay auth login` in the same session is picked up immediately.
-    if token is not None:
-        _token_cache = token
-
-    return token
+    # In server mode, the env var is dynamically set per-request by middleware.
+    # Caching would break multi-tenant, so always resolve fresh.
+    return _resolve_uncached()
 
 
 def _resolve_uncached() -> str | None:
