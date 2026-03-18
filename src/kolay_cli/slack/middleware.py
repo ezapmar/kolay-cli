@@ -24,16 +24,19 @@ def set_store(store: TenantStore) -> None:
     _store = store
 
 
-def tenant_middleware(payload: dict, body: dict, next: Any, client: Any = None) -> None:
+def tenant_middleware(payload: dict, body: dict, next: Any, client: Any = None, ack: Any = None) -> None:
     """Slack Bolt global middleware.
 
     Runs before every slash-command / action / view-submission handler.
     1. Extracts ``team_id`` from the Slack payload.
     2. Looks up the tenant in the store.
-    3. Sets ``KOLAY_TOKEN_CTX`` so all downstream ``services.*`` calls
-       use the correct company's Kolay API token.
-    4. Overrides access-control env vars for the tenant.
+    3. If found → injects tenant's Kolay token into ``KOLAY_TOKEN_CTX``.
+    4. If NOT found → falls back to global ``KOLAY_API_TOKEN`` env var
+       (single-tenant mode, e.g. Railway with env vars set).
+    5. If neither exists → acks and sends an error message.
     """
+    import os
+
     team_id = (
         body.get("team_id")
         or (body.get("team") or {}).get("id")
@@ -43,45 +46,46 @@ def tenant_middleware(payload: dict, body: dict, next: Any, client: Any = None) 
     store = _get_store()
     tenant = store.find(team_id) if team_id else None
 
-    if tenant is None:
-        # Unknown workspace — bail with a friendly message
-        if client:
-            channel = body.get("channel_id") or body.get("channel", {}).get("id", "")
-            user = body.get("user_id") or body.get("user", {}).get("id", "")
-            if channel and user:
-                client.chat_postEphemeral(
-                    channel=channel,
-                    user=user,
-                    text=(
-                        ":warning: This Slack workspace isn't connected to Kolay IK yet.\n"
-                        "Ask your admin to visit the install page to set it up."
-                    ),
-                )
-        return  # don't call next() — stop the chain
+    if tenant is not None:
+        # ── Multi-tenant path: use tenant's stored token ──────────────
+        token = KOLAY_TOKEN_CTX.set(tenant.kolay_api_token)
 
-    # Inject tenant's Kolay token into the request-scoped ContextVar
-    token = KOLAY_TOKEN_CTX.set(tenant.kolay_api_token)
+        # Inject tenant-level access control into env (scoped to this request)
+        prev_ch = os.environ.get("ALLOWED_CHANNEL_IDS")
+        prev_usr = os.environ.get("ALLOWED_USER_IDS")
 
-    # Inject tenant-level access control into env (scoped to this request)
-    import os
-    prev_ch = os.environ.get("ALLOWED_CHANNEL_IDS")
-    prev_usr = os.environ.get("ALLOWED_USER_IDS")
+        if tenant.allowed_channels:
+            os.environ["ALLOWED_CHANNEL_IDS"] = tenant.allowed_channels
+        if tenant.allowed_users:
+            os.environ["ALLOWED_USER_IDS"] = tenant.allowed_users
 
-    if tenant.allowed_channels:
-        os.environ["ALLOWED_CHANNEL_IDS"] = tenant.allowed_channels
-    if tenant.allowed_users:
-        os.environ["ALLOWED_USER_IDS"] = tenant.allowed_users
+        try:
+            next()
+        finally:
+            KOLAY_TOKEN_CTX.reset(token)
+            if prev_ch is not None:
+                os.environ["ALLOWED_CHANNEL_IDS"] = prev_ch
+            elif "ALLOWED_CHANNEL_IDS" in os.environ and tenant.allowed_channels:
+                del os.environ["ALLOWED_CHANNEL_IDS"]
+            if prev_usr is not None:
+                os.environ["ALLOWED_USER_IDS"] = prev_usr
+            elif "ALLOWED_USER_IDS" in os.environ and tenant.allowed_users:
+                del os.environ["ALLOWED_USER_IDS"]
+        return
 
-    try:
-        next()
-    finally:
-        # Reset ContextVar and env
-        KOLAY_TOKEN_CTX.reset(token)
-        if prev_ch is not None:
-            os.environ["ALLOWED_CHANNEL_IDS"] = prev_ch
-        elif "ALLOWED_CHANNEL_IDS" in os.environ and tenant.allowed_channels:
-            del os.environ["ALLOWED_CHANNEL_IDS"]
-        if prev_usr is not None:
-            os.environ["ALLOWED_USER_IDS"] = prev_usr
-        elif "ALLOWED_USER_IDS" in os.environ and tenant.allowed_users:
-            del os.environ["ALLOWED_USER_IDS"]
+    # ── Single-tenant fallback: use global KOLAY_API_TOKEN env var ─────
+    global_token = os.environ.get("KOLAY_API_TOKEN", "").strip()
+    if global_token:
+        token = KOLAY_TOKEN_CTX.set(global_token)
+        try:
+            next()
+        finally:
+            KOLAY_TOKEN_CTX.reset(token)
+        return
+
+    # ── No token at all: ack and inform the user ──────────────────────
+    # We must call next() so Bolt can ack the request and avoid Slack's
+    # 3-second timeout. Instead we'll pass through and the dispatcher
+    # will hit @require_auth which returns a proper error.
+    next()
+
