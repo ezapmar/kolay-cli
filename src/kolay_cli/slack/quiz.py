@@ -73,11 +73,12 @@ def _post(client: Any, user_id: Any, channel_id: str, **kwargs: Any) -> None:
     """Post a message: try channel first, fallback to DM (user_id as channel)."""
     try:
         client.chat_postMessage(channel=channel_id, **kwargs)
-    except Exception:
+    except Exception as e1:
+        print(f"[quiz._post] channel={channel_id} failed: {e1}", flush=True)
         try:
             client.chat_postMessage(channel=user_id, **kwargs)
-        except Exception:
-            pass
+        except Exception as e2:
+            print(f"[quiz._post] DM user={user_id} failed: {e2}", flush=True)
 
 
 # ── Block builders ─────────────────────────────────────────────────────────────
@@ -225,12 +226,15 @@ def handle_mode_selection(ack: Any, body: Any, client: Any) -> None:
     user_id = body["user"]["id"]
     channel_id = (body.get("channel") or {}).get("id", user_id)
     key = _session_key(user_id, channel_id)
+    print(f"[quiz] mode={mode} user={user_id} channel={channel_id}", flush=True)
 
     # Generate questions
     try:
         provider = get_factory().get_provider(mode, KolayAPIProvider())
         questions = provider.generate(5, set())
+        print(f"[quiz] generated {len(questions)} questions", flush=True)
     except Exception as exc:
+        print(f"[quiz] generate failed: {exc}", flush=True)
         _post(client, user_id, channel_id, text=f":x: Could not load questions: {exc}")
         return
 
