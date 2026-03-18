@@ -187,17 +187,21 @@ def build_answer_result_blocks(
 
 # ── Public handlers (called from app.py) ──────────────────────────────────────
 
-def handle_quiz_command(ack: Any, body: Any, client: Any) -> None:
+def handle_quiz_command(ack: Any, body: Any, client: Any, respond: Any = None) -> None:
     """Handle /kolay quiz — show the mode picker."""
     ack()
     _purge_expired()
     channel = body.get("channel_id") or body.get("channel", {}).get("id", "")
-    client.chat_postEphemeral(
-        channel=channel,
-        user=body["user_id"],
-        blocks=build_mode_picker_blocks(),
-        text="Data Detective — choose your case",
-    )
+    blocks = build_mode_picker_blocks()
+    if respond:
+        respond(text="Data Detective — choose your case", blocks=blocks, response_type="ephemeral")
+    else:
+        client.chat_postEphemeral(
+            channel=channel,
+            user=body["user_id"],
+            blocks=blocks,
+            text="Data Detective — choose your case",
+        )
 
 
 def handle_mode_selection(ack: Any, body: Any, client: Any) -> None:
@@ -216,19 +220,29 @@ def handle_mode_selection(ack: Any, body: Any, client: Any) -> None:
         provider = get_factory().get_provider(mode, KolayAPIProvider())
         questions = provider.generate(5, set())
     except Exception as exc:
-        client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=f":x: Could not load questions: {exc}",
-        )
+        try:
+            client.chat_postEphemeral(
+                channel=channel_id, user=user_id,
+                text=f":x: Could not load questions: {exc}",
+            )
+        except Exception:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=f":x: Could not load questions: {exc}",
+            )
         return
 
     if not questions:
-        client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=":warning: Not enough data to generate questions for this mode. Try another!",
-        )
+        try:
+            client.chat_postEphemeral(
+                channel=channel_id, user=user_id,
+                text=":warning: Not enough data to generate questions for this mode. Try another!",
+            )
+        except Exception:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=":warning: Not enough data to generate questions for this mode. Try another!",
+            )
         return
 
     session = QuizSession(
@@ -258,11 +272,16 @@ def handle_answer(ack: Any, body: Any, client: Any) -> None:
 
     session = _sessions.get(key)
     if not session or session.is_expired():
-        client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=":hourglass: Session expired. Run `/kolay quiz` to start again.",
-        )
+        try:
+            client.chat_postEphemeral(
+                channel=channel_id, user=user_id,
+                text=":hourglass: Session expired. Run `/kolaycli quiz` to start again.",
+            )
+        except Exception:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=":hourglass: Session expired. Run `/kolaycli quiz` to start again.",
+            )
         return
 
     # Decode chosen_index from action_id: quiz_answer_{hash}_{qidx}_{cidx}

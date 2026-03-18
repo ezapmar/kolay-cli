@@ -249,11 +249,11 @@ def _route(
     # ── quiz ─────────────────────────────────────────────────────────────────
     if module == "quiz":
         from .quiz import handle_quiz_command
-        # Fake body structure expected by handle_quiz_command
         handle_quiz_command(
             ack=lambda: None,
             body={"user_id": user, "channel_id": channel},
             client=client,
+            respond=reply,
         )
         return
 
