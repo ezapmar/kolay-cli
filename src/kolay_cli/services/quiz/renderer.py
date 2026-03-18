@@ -26,15 +26,33 @@ class Renderer:
                     import requests
                     import base64
                     import sys
+                    import os
                     self.console.print(f"🖼️  [link={media.content}]Photo details (Cmd+Click to open)[/link]")
                     
                     # Fetch and convert to iTerm2 inline protocol (supported by VSCode, iTerm, WezTerm, etc.)
                     resp = requests.get(media.content, timeout=5)
                     if resp.status_code == 200:
-                        img_b64 = base64.b64encode(resp.content).decode("ascii")
-                        # height=12 forces it to take up about 12 lines of terminal vertical space
-                        sys.stdout.write(f"\033]1337;File=inline=1;height=12;preserveAspectRatio=1:{img_b64}\a\n")
-                        sys.stdout.flush()
+                        term_prog = os.environ.get("TERM_PROGRAM", "")
+                        # Try high-res native rendering for supported multiplexers
+                        if term_prog in ("iTerm.app", "vscode", "WezTerm", "Ghostty") or "kitty" in os.environ.get("TERM", ""):
+                            img_b64 = base64.b64encode(resp.content).decode("ascii")
+                            # height=12 forces it to take up about 12 lines of terminal vertical space
+                            sys.stdout.write(f"\033]1337;File=inline=1;height=12;preserveAspectRatio=1:{img_b64}\a\n")
+                            sys.stdout.flush()
+                        else:
+                            # Graceful fallback: Braille-based ASCII art for standard terminals (like Apple Terminal)
+                            from io import BytesIO
+                            try:
+                                from PIL import Image
+                                from rich_pixels import Pixels
+                                
+                                with Image.open(BytesIO(resp.content)) as image:
+                                    # Ensure image is small enough for 1x zoom rendering
+                                    image.thumbnail((60, 60))
+                                    pixels = Pixels.from_image(image)
+                                    self.console.print(pixels)
+                            except ImportError:
+                                self.console.print("[grey62](Native rendering unavailable. Install `Pillow` & `rich-pixels` for ASCII mode)[/grey62]")
                     else:
                         raise ValueError(f"HTTP {resp.status_code}")
                 except Exception as e:
