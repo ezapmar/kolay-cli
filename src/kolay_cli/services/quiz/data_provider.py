@@ -27,9 +27,44 @@ class KolayAPIProvider(DataProvider):
     """Uses KolayClient. The real deal."""
 
     def list_people(self, limit: int = 100) -> list[dict[str, Any]]:
-        from ..person import list_people
-        result = list_people(status="active", limit=limit, page=1)
-        return result.get("items", [])
+        """Return people with full profile data (including avatar).
+
+        The list endpoint only returns id/firstName/lastName.
+        We fetch full profiles for a batch to enrich with photos, department, title, etc.
+        """
+        from ..person import list_people, view_person
+        import random
+
+        result = list_people(status="active", limit=min(limit, 200), page=1)
+        stubs = result.get("items", [])  # [{id, firstName, lastName}, ...]
+
+        if not stubs:
+            return []
+
+        # Fetch full profiles for up to 40 randomly selected people.
+        # This gives us avatar, department, title, educationLevel, hireDate, etc.
+        sample_size = min(40, len(stubs))
+        sample = random.sample(stubs, sample_size) if len(stubs) > sample_size else stubs
+
+        enriched: list[dict[str, Any]] = []
+        for stub in sample:
+            try:
+                profile = view_person(stub["id"])
+                # Merge stub fields so firstName/lastName are always present
+                profile.setdefault("firstName", stub.get("firstName", ""))
+                profile.setdefault("lastName", stub.get("lastName", ""))
+                enriched.append(profile)
+            except Exception:
+                # If a profile fetch fails, use the stub (no photo, but won't crash)
+                enriched.append(stub)
+
+        # Also return the remaining stubs (without detailed data) for non-photo queries
+        remaining_ids = {p["id"] for p in sample}
+        for stub in stubs:
+            if stub["id"] not in remaining_ids:
+                enriched.append(stub)
+
+        return enriched
 
     def get_unit_tree(self) -> list[dict[str, Any]]:
         from ..unit import unit_tree

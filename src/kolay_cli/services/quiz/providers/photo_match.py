@@ -45,10 +45,15 @@ class PhotoMatchQuestion(BaseQuestion):
         return QuestionResult(is_correct, self.correct_name, expl)
 
     def media(self) -> QuestionMedia | None:
-        url = self.person.get("photoUrl") or self.person.get("avatarUrl")
+        url = (
+            self.person.get("avatar")
+            or self.person.get("photoUrl")
+            or self.person.get("avatarUrl")
+        )
         if url:
             return QuestionMedia(MediaType.PHOTO_URL, url)
         return None
+
 
 
 class PhotoMatchProvider(BaseQuestionProvider):
@@ -63,8 +68,12 @@ class PhotoMatchProvider(BaseQuestionProvider):
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
         all_people = self.data_provider.list_people(limit=100)
         
-        # Valid pool: people with photos
-        valid_pool = [p for p in all_people if p.get("photoUrl") or p.get("avatarUrl")]
+        # Valid pool: people with any recognised photo field
+        valid_pool = [
+            p for p in all_people
+            if p.get("avatar") or p.get("photoUrl") or p.get("avatarUrl")
+        ]
+
         
         if not valid_pool:
             return []

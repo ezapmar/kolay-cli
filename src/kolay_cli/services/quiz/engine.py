@@ -65,8 +65,22 @@ class QuizEngine:
             self.renderer.clear()
             title_label = _TITLE_LABELS.get(self.lang, "Data Detective")
             self.renderer.show_title(f"🔍 {title_label}")
-            self.renderer.console.print(f"[yellow]{_NO_DATA_LABELS.get(self.lang, '')}[/yellow]")
+            # Give a mode-specific hint
+            mode = self.provider.name
+            if mode == "photo_match":
+                msg = (
+                    "No employees with profile photos were found in this session.\n\n"
+                    "  • Ask an admin to upload avatars in Kolay IK, or\n"
+                    "  • Try a different mode that doesn't need photos:\n"
+                    "    [bold]kolay quiz play --mode unique_title[/bold]\n"
+                    "    [bold]kolay quiz play --mode education_champion[/bold]\n"
+                    "    [bold]kolay quiz play --mode december_exodus[/bold]"
+                )
+            else:
+                msg = _NO_DATA_LABELS.get(self.lang, "Not enough data. Try again later.")
+            self.renderer.console.print(f"[yellow]{msg}[/yellow]")
             return SessionResult(0, 0, 0, False)
+
 
         score = 0
         session_points = 0
