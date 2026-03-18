@@ -112,6 +112,21 @@ def _post_or_upload(
         )
 
 
+# ── Access control ────────────────────────────────────────────────────────────
+import os as _os
+
+def _allowed_channels() -> set[str]:
+    """Channels the bot responds in. Empty = unrestricted."""
+    raw = _os.environ.get("ALLOWED_CHANNEL_IDS", "").strip()
+    return {c.strip() for c in raw.split(",") if c.strip()}
+
+def _allowed_users() -> set[str]:
+    """Slack user IDs who may use the bot. Empty = unrestricted."""
+    raw = _os.environ.get("ALLOWED_USER_IDS", "").strip()
+    return {u.strip() for u in raw.split(",") if u.strip()}
+
+
+
 # ── Main dispatcher ───────────────────────────────────────────────────────────
 
 def dispatch(
@@ -126,6 +141,26 @@ def dispatch(
     user = body.get("user_id") or ""
     trigger_id = body.get("trigger_id") or ""
 
+    # ── Channel allowlist ────────────────────────────────────────────────────
+    allowed_ch = _allowed_channels()
+    if allowed_ch and channel not in allowed_ch:
+        client.chat_postEphemeral(
+            channel=channel,
+            user=user,
+            text=":no_entry: This bot is not enabled in this channel.",
+        )
+        return
+
+    # ── User allowlist ───────────────────────────────────────────────────────
+    allowed_users = _allowed_users()
+    if allowed_users and user not in allowed_users:
+        client.chat_postEphemeral(
+            channel=channel,
+            user=user,
+            text=":no_entry: You don't have access to this bot.",
+        )
+        return
+
     module, action, rest = _parse(text)
 
     try:
@@ -137,6 +172,7 @@ def dispatch(
             blocks=error_block(str(exc)),
             text=f"Error: {exc}",
         )
+
 
 
 def _route(
