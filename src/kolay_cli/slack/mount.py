@@ -33,7 +33,7 @@ def _load_env() -> None:
 
 # ── Combined ASGI app ─────────────────────────────────────────────────────────
 
-def create_combined_app():  # type: ignore[no-untyped-def]
+def create_combined_app(mcp_asgi: Any = None) -> Any:
     """
     Build one Starlette ASGI application that serves:
       • /mcp              — FastMCP (MCP protocol, with APIKeyMiddleware)
@@ -47,8 +47,9 @@ def create_combined_app():  # type: ignore[no-untyped-def]
     from starlette.responses import JSONResponse, HTMLResponse
 
     # ── MCP sub-app ───────────────────────────────────────────────────────────
-    from kolay_cli.mcp_server import create_secured_http_app
-    mcp_asgi = create_secured_http_app()
+    if mcp_asgi is None:
+        from kolay_cli.mcp_server import create_secured_http_app
+        mcp_asgi = create_secured_http_app()
 
     # ── Tenant store ──────────────────────────────────────────────────────────
     from .tenant_store import TenantStore

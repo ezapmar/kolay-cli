@@ -223,7 +223,19 @@ def validate_connection() -> dict:
 def create_proxy_app():
     """Build the ASGI app with token injection middleware."""
     starlette_app = mcp.http_app()
-    return KolayProxyMiddleware(starlette_app)
+    mcp_proxy = KolayProxyMiddleware(starlette_app)
+
+    # If Slack is configured (needs signing secret for HTTP mode),
+    # mount the Slack routes alongside the MCP proxy.
+    if os.environ.get("SLACK_SIGNING_SECRET"):
+        try:
+            from kolay_cli.slack.mount import create_combined_app
+            return create_combined_app(mcp_asgi=mcp_proxy)
+        except ImportError as e:
+            _log(f"[warn] Slack configured but missing dependencies: {e}")
+            pass
+
+    return mcp_proxy
 
 
 host = "0.0.0.0"
