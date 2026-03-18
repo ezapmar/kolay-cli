@@ -35,8 +35,21 @@ class KolayAPIProvider(DataProvider):
         from ..person import list_people, view_person
         import random
 
-        result = list_people(status="active", limit=min(limit, 200), page=1)
-        stubs = result.get("items", [])  # [{id, firstName, lastName}, ...]
+        result_stubs = []
+        target = min(limit, 200)
+        page = 1
+        while len(result_stubs) < target:
+            # Kolay API throws 400 if limit > 50
+            res = list_people(status="active", limit=50, page=page)
+            items = res.get("items", [])
+            if not items:
+                break
+            result_stubs.extend(items)
+            if len(items) < 50:
+                break
+            page += 1
+            
+        stubs = result_stubs[:target]  # [{id, firstName, lastName}, ...]
 
         if not stubs:
             return []
