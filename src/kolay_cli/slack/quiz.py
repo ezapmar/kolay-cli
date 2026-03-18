@@ -116,12 +116,13 @@ def build_question_blocks(
         buttons.append(
             {
                 "type": "button",
-                "text": {"type": "plain_text", "text": choice[:75], "emoji": True},
+                "text": {"type": "plain_text", "text": choice[:75], "emoji": False},
                 "action_id": f"quiz_answer_{session_hash}_{idx}_{ci}",
                 "value": str(ci),
             }
         )
-    return [
+
+    blocks: list[dict] = [
         {"type": "divider"},
         {
             "type": "section",
@@ -133,8 +134,19 @@ def build_question_blocks(
                 ),
             },
         },
-        {"type": "actions", "elements": buttons},
     ]
+
+    # Add photo/image if the question provides media
+    media = q.media()
+    if media and media.type.value == "photo_url" and media.content:
+        blocks.append({
+            "type": "image",
+            "image_url": media.content,
+            "alt_text": f"Question {idx + 1} photo",
+        })
+
+    blocks.append({"type": "actions", "elements": buttons})
+    return blocks
 
 
 def build_summary_blocks(session: QuizSession) -> list[dict]:
