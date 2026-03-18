@@ -213,6 +213,10 @@ def dispatch(
 
     module, action, rest = _parse(text)
 
+    import os, threading
+    env_tok = os.environ.get("KOLAY_API_TOKEN", "")
+    print(f"[dispatch] module={module} action={action} KOLAY_API_TOKEN_len={len(env_tok)} thread={threading.current_thread().name}", flush=True)
+
     try:
         _route(module, action, rest, channel, user, trigger_id, client, _reply)
     except Exception as exc:  # noqa: BLE001
