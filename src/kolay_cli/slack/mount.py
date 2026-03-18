@@ -127,11 +127,12 @@ def create_combined_app(mcp_asgi: Any = None) -> Any:
         handle_settings_submission(ack, body, client)
 
 
-    @bolt_app.action({"action_id": lambda aid: aid.startswith("quiz_start_mode_")})
+    import re
+    @bolt_app.action(re.compile(r"^quiz_start_mode_"))
     def quiz_mode(ack, body, client):  # type: ignore[no-untyped-def]
         handle_mode_selection(ack, body, client)
 
-    @bolt_app.action({"action_id": lambda aid: aid.startswith("quiz_answer_")})
+    @bolt_app.action(re.compile(r"^quiz_answer_"))
     def quiz_answer(ack, body, client):  # type: ignore[no-untyped-def]
         handle_answer(ack, body, client)
 
