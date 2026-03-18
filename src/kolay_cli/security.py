@@ -205,8 +205,6 @@ def resolve_token() -> str | None:
 
     # 0. Always check per-request context first — bypasses cache for multi-tenant
     ctx_token = KOLAY_TOKEN_CTX.get()
-    import threading
-    print(f"[resolve_token] ctx_token={'SET' if ctx_token else 'NONE'} len={len(ctx_token) if ctx_token else 0} thread={threading.current_thread().name}", flush=True)
     if ctx_token:
         return ctx_token
 
