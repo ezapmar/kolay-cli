@@ -56,6 +56,9 @@ def main() -> None:
     if not app_token:
         raise RuntimeError("SLACK_APP_TOKEN environment variable is not set.")
 
+    from .dispatcher import _warn_partial_config
+    _warn_partial_config()
+
     app = create_app()
     handler = SocketModeHandler(app, app_token)
     print("⚡️ Kolay Slack bot is running via Socket Mode…")

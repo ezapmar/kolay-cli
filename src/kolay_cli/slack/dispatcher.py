@@ -115,16 +115,56 @@ def _post_or_upload(
 # ── Access control ────────────────────────────────────────────────────────────
 import os as _os
 
-def _allowed_channels() -> set[str]:
-    """Channels the bot responds in. Empty = unrestricted."""
-    raw = _os.environ.get("ALLOWED_CHANNEL_IDS", "").strip()
-    return {c.strip() for c in raw.split(",") if c.strip()}
 
-def _allowed_users() -> set[str]:
-    """Slack user IDs who may use the bot. Empty = unrestricted."""
-    raw = _os.environ.get("ALLOWED_USER_IDS", "").strip()
-    return {u.strip() for u in raw.split(",") if u.strip()}
+def _access_config() -> tuple[set[str], set[str]]:
+    """Return (allowed_channels, allowed_users). Both must be set for the gate to activate."""
+    raw_ch = _os.environ.get("ALLOWED_CHANNEL_IDS", "").strip()
+    raw_usr = _os.environ.get("ALLOWED_USER_IDS", "").strip()
+    channels = {c.strip() for c in raw_ch.split(",") if c.strip()}
+    users = {u.strip() for u in raw_usr.split(",") if u.strip()}
+    return channels, users
 
+
+def _check_access(channel: str, user: str) -> str | None:
+    """
+    Combined Option-C gate.
+
+    Rules:
+    - If BOTH ALLOWED_CHANNEL_IDS and ALLOWED_USER_IDS are set:
+        user must be in the user list AND channel must be in the channel list.
+    - If only one is set: gate is inactive (warns at startup).
+    - If neither is set: fully open.
+
+    Returns an error string if access is denied, None if access is allowed.
+    """
+    allowed_ch, allowed_users = _access_config()
+    gate_active = bool(allowed_ch) and bool(allowed_users)
+
+    if not gate_active:
+        return None  # unrestricted
+
+    channel_ok = channel in allowed_ch
+    user_ok = user in allowed_users
+
+    if channel_ok and user_ok:
+        return None  # both conditions met
+
+    if not channel_ok:
+        return ":no_entry: This bot is not enabled in this channel."
+    return ":no_entry: You don't have permission to use this bot."
+
+
+def _warn_partial_config() -> None:
+    """Warn at startup if only one of the two env vars is set."""
+    allowed_ch, allowed_users = _access_config()
+    if bool(allowed_ch) != bool(allowed_users):
+        import warnings
+        missing = "ALLOWED_USER_IDS" if allowed_ch else "ALLOWED_CHANNEL_IDS"
+        warnings.warn(
+            f"[kolay-slack] Access control partially configured — {missing} is not set. "
+            "The gate is INACTIVE. Set both vars to enable it.",
+            stacklevel=2,
+        )
 
 
 # ── Main dispatcher ───────────────────────────────────────────────────────────
@@ -141,24 +181,10 @@ def dispatch(
     user = body.get("user_id") or ""
     trigger_id = body.get("trigger_id") or ""
 
-    # ── Channel allowlist ────────────────────────────────────────────────────
-    allowed_ch = _allowed_channels()
-    if allowed_ch and channel not in allowed_ch:
-        client.chat_postEphemeral(
-            channel=channel,
-            user=user,
-            text=":no_entry: This bot is not enabled in this channel.",
-        )
-        return
-
-    # ── User allowlist ───────────────────────────────────────────────────────
-    allowed_users = _allowed_users()
-    if allowed_users and user not in allowed_users:
-        client.chat_postEphemeral(
-            channel=channel,
-            user=user,
-            text=":no_entry: You don't have access to this bot.",
-        )
+    # ── Combined Option-C gate ────────────────────────────────────────────────
+    denial = _check_access(channel, user)
+    if denial:
+        client.chat_postEphemeral(channel=channel, user=user, text=denial)
         return
 
     module, action, rest = _parse(text)

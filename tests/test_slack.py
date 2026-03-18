@@ -154,3 +154,82 @@ def test_quiz_session_expiry():
     assert session.is_expired()
     _purge_expired()
     assert key not in _sessions
+
+
+# ── Access control (Option C) tests ──────────────────────────────────────────
+
+def test_access_gate_inactive_when_neither_set(monkeypatch):
+    """No env vars → gate is inactive → access allowed."""
+    monkeypatch.delenv("ALLOWED_CHANNEL_IDS", raising=False)
+    monkeypatch.delenv("ALLOWED_USER_IDS", raising=False)
+    from kolay_cli.slack.dispatcher import _check_access
+    assert _check_access("C_ANY", "U_ANY") is None
+
+
+def test_access_gate_inactive_when_only_channel_set(monkeypatch):
+    """Only channel set → gate inactive (partial config)."""
+    monkeypatch.setenv("ALLOWED_CHANNEL_IDS", "C_GOOD")
+    monkeypatch.delenv("ALLOWED_USER_IDS", raising=False)
+    from kolay_cli.slack.dispatcher import _check_access
+    assert _check_access("C_GOOD", "U_ANYONE") is None
+
+
+def test_access_gate_inactive_when_only_user_set(monkeypatch):
+    """Only user set → gate inactive (partial config)."""
+    monkeypatch.delenv("ALLOWED_CHANNEL_IDS", raising=False)
+    monkeypatch.setenv("ALLOWED_USER_IDS", "U_GOOD")
+    from kolay_cli.slack.dispatcher import _check_access
+    assert _check_access("C_ANYWHERE", "U_GOOD") is None
+
+
+def test_access_gate_allows_when_both_match(monkeypatch):
+    """Both set, user in list, channel in list → access allowed."""
+    monkeypatch.setenv("ALLOWED_CHANNEL_IDS", "C_GOOD,C_OTHER")
+    monkeypatch.setenv("ALLOWED_USER_IDS", "U_ALICE,U_BOB")
+    from kolay_cli.slack.dispatcher import _check_access
+    assert _check_access("C_GOOD", "U_ALICE") is None
+
+
+def test_access_gate_denies_wrong_channel(monkeypatch):
+    """Both set, user allowed but channel not → denied."""
+    monkeypatch.setenv("ALLOWED_CHANNEL_IDS", "C_GOOD")
+    monkeypatch.setenv("ALLOWED_USER_IDS", "U_ALICE")
+    from kolay_cli.slack.dispatcher import _check_access
+    result = _check_access("C_BAD", "U_ALICE")
+    assert result is not None
+    assert "channel" in result.lower()
+
+
+def test_access_gate_denies_wrong_user(monkeypatch):
+    """Both set, channel allowed but user not → denied."""
+    monkeypatch.setenv("ALLOWED_CHANNEL_IDS", "C_GOOD")
+    monkeypatch.setenv("ALLOWED_USER_IDS", "U_ALICE")
+    from kolay_cli.slack.dispatcher import _check_access
+    result = _check_access("C_GOOD", "U_STRANGER")
+    assert result is not None
+    assert "permission" in result.lower()
+
+
+def test_access_gate_denies_both_wrong(monkeypatch):
+    """Both set, both wrong → denied (channel message takes priority)."""
+    monkeypatch.setenv("ALLOWED_CHANNEL_IDS", "C_GOOD")
+    monkeypatch.setenv("ALLOWED_USER_IDS", "U_ALICE")
+    from kolay_cli.slack.dispatcher import _check_access
+    result = _check_access("C_BAD", "U_STRANGER")
+    assert result is not None
+
+
+def test_partial_config_warns(monkeypatch):
+    """Only one env var → warning is emitted."""
+    import warnings
+    monkeypatch.setenv("ALLOWED_CHANNEL_IDS", "C_GOOD")
+    monkeypatch.delenv("ALLOWED_USER_IDS", raising=False)
+    from kolay_cli.slack import dispatcher
+    # Reload the module to avoid caching
+    import importlib
+    importlib.reload(dispatcher)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        dispatcher._warn_partial_config()
+    assert any("INACTIVE" in str(warning.message) for warning in w)
+
