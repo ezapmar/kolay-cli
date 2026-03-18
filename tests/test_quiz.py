@@ -120,23 +120,36 @@ def test_unique_title_provider():
 
 
 def test_december_exodus_provider():
-    from kolay_cli.services.quiz.providers.december_exodus import DecemberExodusProvider, _is_counted_leave
-    # Test the filter function
+    from kolay_cli.services.quiz.providers.december_exodus import (
+        DecemberExodusProvider, _is_counted_leave, _all_available_months
+    )
+    # Test the normalised leave filter
     assert _is_counted_leave("Yıllık İzin") is True
     assert _is_counted_leave("Uzaktan Çalışma") is True
     assert _is_counted_leave("Hastalık İzni") is False
 
+    # Test month range generation
+    months = _all_available_months("2021-01-15")
+    assert len(months) > 12          # at least 12 months
+    assert months[0] == (2021, 1)    # starts at start date's month
+
     provider = DecemberExodusProvider(data_provider=MockProvider())
-    questions = provider.generate(1, set())
+    questions = provider.generate(3, set())
     assert len(questions) >= 1
     q = questions[0]
-    # Real answer should be one of the choices
+    # ID format: leave_time_machine_YYYY_MM
+    assert q.id.startswith("leave_time_machine_")
+    # Real answer is one of the choices
     assert q.correct_answer in q.choices()
-    # Total days from mock: leave 1(5) + leave 2(5) + leave 3(5) + leave 5(5) + leave 6(5) + leave 7(3) + leave 8(2) = 30
-    assert int(q.correct_answer) == 30
-
+    # Answer is numeric string
+    assert int(q.correct_answer) > 0
+    # Correct answer is correct
     result = q.check_answer(q.correct_answer)
     assert result.is_correct is True
+    # Wrong answer fails
+    wrong = next(c for c in q.choices() if c != q.correct_answer)
+    assert q.check_answer(wrong).is_correct is False
+
 
 
 def test_hint_masking():

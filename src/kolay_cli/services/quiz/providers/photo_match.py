@@ -53,6 +53,12 @@ class PhotoMatchQuestion(BaseQuestion):
 
 class PhotoMatchProvider(BaseQuestionProvider):
     name = "photo_match"
+    analyzing_hints = [
+        "Scanning employee directory...",
+        "Loading profile photos...",
+        "Shuffling the faces...",
+        "Who could this be?",
+    ]
 
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
         all_people = self.data_provider.list_people(limit=100)

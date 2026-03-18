@@ -30,31 +30,48 @@ def render_streak_badge(console: Console, streak: int, rank: str) -> None:
     )
 
 
-def render_rank_card(console: Console, rank: str, points: int, streak: int) -> None:
+def render_rank_card(console: Console, rank: str, points: int, streak: int, lang: str = "en") -> None:
     """Render the detective rank card for the `kolay quiz rank` command."""
-    # Find rank tier for progress info
     from .state import RANKS
     current_tier = 0
     next_tier_points = None
-    for i, (threshold, tr_name, _) in enumerate(RANKS):
+    for i, (threshold, tr_name, en_name) in enumerate(RANKS):
         if tr_name == rank:
             current_tier = i
             if i + 1 < len(RANKS):
                 next_tier_points = RANKS[i + 1][0]
             break
 
+    if lang == "tr":
+        rank_display = rank
+        points_label = "Toplam Puan"
+        streak_label = "Seri"
+        next_label = "Sonraki Rütbe"
+        max_label = "En yüksek rütbeye ulaştınız!"
+        days_label = "gün"
+        title_label = "🕵️  Dedektif Kimliği"
+    else:
+        # Show English rank name
+        rank_display = next((en for _, tr, en in RANKS if tr == rank), rank)
+        points_label = "Total Points"
+        streak_label = "Streak"
+        next_label = "Next Rank"
+        max_label = "Maximum rank achieved!"
+        days_label = "days"
+        title_label = "🕵️  Detective ID"
+
     lines = [
         "",
-        f"  [bold yellow]🔍  {rank}[/bold yellow]",
+        f"  [bold yellow]🔍  {rank_display}[/bold yellow]",
         "",
-        f"  [grey62]Toplam Puan:[/grey62]  [bold white]{points}[/bold white]",
-        f"  [grey62]Seri:        [/grey62]  [bold white]{streak} gün[/bold white]",
+        f"  [grey62]{points_label}:[/grey62]  [bold white]{points}[/bold white]",
+        f"  [grey62]{streak_label}:     [/grey62]  [bold white]{streak} {days_label}[/bold white]",
     ]
     if next_tier_points is not None:
         remaining = next_tier_points - points
-        lines.append(f"  [grey62]Sonraki Rütbe:[/grey62] [yellow]{remaining} puan daha[/yellow]")
+        lines.append(f"  [grey62]{next_label}:[/grey62] [yellow]{remaining} pts more[/yellow]")
     else:
-        lines.append("  [yellow]En yüksek rütbeye ulaştınız![/yellow]")
+        lines.append(f"  [yellow]{max_label}[/yellow]")
 
     lines.append("")
     box = "\n".join(lines)
@@ -62,7 +79,7 @@ def render_rank_card(console: Console, rank: str, points: int, streak: int) -> N
         Panel(
             box,
             border_style="yellow",
-            title="[bold yellow]🕵️  Dedektif Kimliği[/bold yellow]",
+            title=f"[bold yellow]{title_label}[/bold yellow]",
             expand=False,
         )
     )

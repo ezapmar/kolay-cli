@@ -13,17 +13,35 @@ NOIR_BORDER = "grey42"
 NOIR_ACCENT = "yellow"
 NOIR_DIM = "grey62"
 
-ANALYZING_LINES = [
-    "Personel dosyaları taranıyor...",
-    "Departman kayıtları çapraz kontrol ediliyor...",
-    "İzin verileri analiz ediliyor...",
-    "Organizasyon şeması inceleniyor...",
-    "Veri izleri takip ediliyor...",
-]
+# Locale strings — extend here for more languages
+_STRINGS = {
+    "en": {
+        "hint_ask":     "💡 Want a hint? (-3 pts) (y/n)",
+        "hint_label":   "🕵️  Hint: The answer looks like →",
+        "get_answer":   "Your answer (1-{n})",
+        "correct":      "✓ Case closed! The detective was right.",
+        "wrong":        "✗ Wrong.",
+        "right_answer": "The correct answer was",
+        "invalid":      "Invalid choice — please enter a valid number.",
+        "analyzing":    "📂 Case File",
+        "no_data":      "Not enough data to run a session. Try again later.",
+    },
+    "tr": {
+        "hint_ask":     "💡 İpucu ister misiniz? (-3 puan) (e/h)",
+        "hint_label":   "🕵️  İpucu: Cevap şuna benziyor →",
+        "get_answer":   "Cevabınız (1-{n})",
+        "correct":      "✓ Dava kapatıldı! Müfettiş haklıydı.",
+        "wrong":        "✗ Yanlış.",
+        "right_answer": "Doğru cevap:",
+        "invalid":      "Geçersiz seçim — lütfen geçerli bir numara girin.",
+        "analyzing":    "📋 Dava Dosyası",
+        "no_data":      "Yeterli veri bulunamadı. Lütfen daha sonra tekrar deneyin.",
+    },
+}
 
 
 def _mask_answer(answer: str) -> str:
-    """Partially mask an answer string. 'Ahmet Yılmaz' -> 'A**** Y****'"""
+    """Partially mask an answer string. 'Ahmet Yılmaz' → 'A**** Y*****'"""
     parts = answer.split()
     masked = []
     for part in parts:
@@ -35,8 +53,9 @@ def _mask_answer(answer: str) -> str:
 
 
 class Renderer:
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(self, console: Console | None = None, lang: str = "en") -> None:
         self.console = console or Console(highlight=False)
+        self._s = _STRINGS.get(lang, _STRINGS["en"])
 
     def clear(self) -> None:
         self.console.clear()
@@ -44,9 +63,10 @@ class Renderer:
     def show_title(self, title: str) -> None:
         self.console.print(f"\n[bold {NOIR_ACCENT}]{title}[/bold {NOIR_ACCENT}]\n", justify="center")
 
-    def show_analyzing(self) -> None:
-        """Typing effect for 'analyzing data...' line."""
-        line = random.choice(ANALYZING_LINES)
+    def show_analyzing(self, hints: list[str] | None = None) -> None:
+        """Typing effect using provider-specific hints."""
+        pool = hints if hints else ["Analyzing data..."]
+        line = random.choice(pool)
         for ch in line:
             sys.stdout.write(ch)
             sys.stdout.flush()
@@ -62,7 +82,7 @@ class Renderer:
                     import requests
                     import base64
                     import os
-                    self.console.print(f"🖼️  [link={media.content}]Fotoğraf detayı (Cmd+Click)[/link]")
+                    self.console.print(f"🖼️  [link={media.content}]Photo (Cmd+Click to open)[/link]")
                     resp = requests.get(media.content, timeout=5)
                     if resp.status_code == 200:
                         term_prog = os.environ.get("TERM_PROGRAM", "")
@@ -80,12 +100,12 @@ class Renderer:
                                     pixels = Pixels.from_image(image)
                                     self.console.print(pixels)
                             except ImportError:
-                                self.console.print(f"[{NOIR_DIM}](Görüntü protokolü desteklenmiyor)[/{NOIR_DIM}]")
+                                self.console.print(f"[{NOIR_DIM}](Image rendering unavailable — install Pillow & rich-pixels)[/{NOIR_DIM}]")
                     else:
                         raise ValueError(f"HTTP {resp.status_code}")
                 except Exception as e:
                     self.console.print(
-                        Panel(f"\n[{NOIR_DIM}](Fotoğraf yüklenemedi: {e})[/{NOIR_DIM}]", border_style=NOIR_BORDER, width=60)
+                        Panel(f"\n[{NOIR_DIM}](Could not load image: {e})[/{NOIR_DIM}]", border_style=NOIR_BORDER, width=60)
                     )
             else:
                 self.console.print(Panel(media.content, border_style=NOIR_BORDER, width=60))
@@ -95,7 +115,7 @@ class Renderer:
             Panel(
                 f"[bold white]{q.prompt_text()}[/bold white]",
                 border_style=NOIR_BORDER,
-                title=f"[{NOIR_DIM}]📋 Dava Dosyası[/{NOIR_DIM}]",
+                title=f"[{NOIR_DIM}]{self._s['analyzing']}[/{NOIR_DIM}]",
                 expand=False,
             )
         )
@@ -107,14 +127,14 @@ class Renderer:
     def offer_hint(self, q: BaseQuestion) -> bool:
         """Ask if the user wants a hint. Returns True if hint was used."""
         ask = Prompt.ask(
-            f"[{NOIR_DIM}]💡 İpucu ister misiniz? (-3 puan) (e/h)[/{NOIR_DIM}]",
-            default="h",
+            f"[{NOIR_DIM}]{self._s['hint_ask']}[/{NOIR_DIM}]",
+            default="n",
         )
         if ask.strip().lower() in ("e", "evet", "y", "yes"):
             masked = _mask_answer(q.correct_answer)
             self.console.print(
                 Panel(
-                    f"[{NOIR_ACCENT}]🕵️  İpucu: Cevap şuna benziyor → [bold]{masked}[/bold][/{NOIR_ACCENT}]",
+                    f"[{NOIR_ACCENT}]{self._s['hint_label']} [bold]{masked}[/bold][/{NOIR_ACCENT}]",
                     border_style=NOIR_ACCENT,
                     expand=False,
                 )
@@ -124,17 +144,19 @@ class Renderer:
 
     def get_answer(self, max_choices: int) -> int:
         while True:
-            ans = Prompt.ask(f"[{NOIR_ACCENT}]Cevabınız (1-{max_choices})[/{NOIR_ACCENT}]")
+            prompt = self._s["get_answer"].format(n=max_choices)
+            ans = Prompt.ask(f"[{NOIR_ACCENT}]{prompt}[/{NOIR_ACCENT}]")
             if ans.isdigit() and 1 <= int(ans) <= max_choices:
                 return int(ans)
-            self.console.print("[red]Geçersiz seçim — lütfen geçerli bir numara girin.[/red]")
+            self.console.print(f"[red]{self._s['invalid']}[/red]")
 
     def show_result(self, is_correct: bool, correct: str, explanation: str) -> None:
         if is_correct:
-            self.console.print(f"\n[bold green]✓ Doğru! Müfettiş haklıydı![/bold green] {explanation}")
+            self.console.print(f"\n[bold green]{self._s['correct']}[/bold green] {explanation}")
         else:
             self.console.print(
-                f"\n[bold red]✗ Yanlış.[/bold red] Doğru cevap: [bold {NOIR_ACCENT}]{correct}[/bold {NOIR_ACCENT}].\n"
+                f"\n[bold red]{self._s['wrong']}[/bold red] "
+                f"{self._s['right_answer']} [bold {NOIR_ACCENT}]{correct}[/bold {NOIR_ACCENT}].\n"
                 f"[{NOIR_DIM}]{explanation}[/{NOIR_DIM}]"
             )
         time.sleep(2)

@@ -49,7 +49,11 @@ class EducationChampionQuestion(BaseQuestion):
         return f"edu_champ_{self._winner.lower().replace(' ', '_')}"
 
     def prompt_text(self) -> str:
-        return "🎓 Hangi departman şirketin lokal 'Think-Tank'ı?\n   (Lisansüstü mezun yüzdesi en yüksek departman)"
+        return (
+            "🎓 Which department is the company's local Think-Tank?\n"
+            "   (Highest percentage of postgraduate degree holders)"
+        )
+
 
     def choices(self) -> list[str]:
         return self._choices
@@ -72,6 +76,12 @@ class EducationChampionQuestion(BaseQuestion):
 
 class EducationChampionProvider(BaseQuestionProvider):
     name = "education_champion"
+    analyzing_hints = [
+        "Scanning education records...",
+        "Tallying degrees and diplomas...",
+        "Counting the PhDs...",
+        "Consulting the academic archives...",
+    ]
 
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
         people = self.data_provider.list_people(limit=200)
@@ -110,8 +120,9 @@ class EducationChampionProvider(BaseQuestionProvider):
         random.shuffle(choices)
 
         fun_fact = (
-            f"{winner_dept} departmanı %{winner_pct} lisansüstü oranıyla "
-            f"şirketin akademik gücünü temsil ediyor!"
+            f"{winner_dept} department has {winner_pct}% postgraduate holders — "
+            f"the company's academic powerhouse!"
         )
+
 
         return [EducationChampionQuestion(winner_dept, winner_ratio, choices, fun_fact)]

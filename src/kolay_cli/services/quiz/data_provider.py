@@ -16,6 +16,12 @@ class DataProvider(ABC):
     def list_leaves(self, start: str, end: str, limit: int = 200) -> list[dict[str, Any]]:
         ...
 
+    @abstractmethod
+    def get_company_start_date(self) -> str:
+        """Return the earliest known date for this tenant (YYYY-MM-DD)."""
+        ...
+
+
 
 class KolayAPIProvider(DataProvider):
     """Uses KolayClient. The real deal."""
@@ -33,9 +39,27 @@ class KolayAPIProvider(DataProvider):
         from ..leave import list_leaves
         return list_leaves(status="approved", start=start, end=end, limit=limit)
 
+    def get_company_start_date(self) -> str:
+        """Derive tenant start from the earliest employee hireDate."""
+        from datetime import date
+        people = self.list_people(limit=200)
+        dates: list[str] = []
+        for p in people:
+            d = p.get("hireDate") or p.get("startDate") or p.get("employmentStartDate") or ""
+            if d and len(d) >= 10:
+                dates.append(d[:10])
+        if dates:
+            return min(dates)
+        # Fallback: 3 years ago
+        today = date.today()
+        return f"{today.year - 3}-01-01"
+
 
 class MockProvider(DataProvider):
     """Reads from a fixture. For tests and demos."""
+
+    def get_company_start_date(self) -> str:
+        return "2021-01-15"
 
     def list_people(self, limit: int = 100) -> list[dict[str, Any]]:
         return [

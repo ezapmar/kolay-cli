@@ -1,5 +1,10 @@
-"""Case: The December Exodus — How many sunrises did we miss last December?"""
+"""Case: The Leave Time Machine — How many days off did we take in a random past month?
+
+Generalized from 'December Exodus'. Now picks any month since the tenant was created,
+so the question stays fresh and covers the company's full history.
+"""
 from __future__ import annotations
+import calendar
 import random
 import unicodedata
 from datetime import date
@@ -9,13 +14,17 @@ from ..base import BaseQuestionProvider, BaseQuestion, QuestionResult, QuestionM
 
 ANNUAL_LEAVE_KEYWORDS = {"yillik izin", "annual leave", "uzaktan calisma", "remote"}
 
+MONTH_NAMES_EN = {
+    1: "January", 2: "February", 3: "March", 4: "April",
+    5: "May", 6: "June", 7: "July", 8: "August",
+    9: "September", 10: "October", 11: "November", 12: "December",
+}
+
 
 def _normalize(s: str) -> str:
-    """Normalize Turkish string: decompose Unicode, remove combining marks, then replace chars."""
-    # NFKD decomposes İ (U+0130) into i + combining dot above, then we strip combining marks
+    """Normalize Turkish string: NFKD decomposition + remove combining marks."""
     decomposed = unicodedata.normalize("NFKD", s.lower())
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
-    # Also swap dotless-ı and other chars that survive
     return stripped.replace("\u0131", "i").replace("\u00fc", "u").replace("\u00f6", "o").replace("\u015f", "s").replace("\u00e7", "c").replace("\u011f", "g")
 
 
@@ -24,21 +33,55 @@ def _is_counted_leave(leave_type_name: str) -> bool:
     return any(k in name for k in ANNUAL_LEAVE_KEYWORDS)
 
 
-class DecemberExodusQuestion(BaseQuestion):
-    def __init__(self, real_days: int, choices: list[str], fun_fact: str, year: int) -> None:
+def _all_available_months(start_date_str: str) -> list[tuple[int, int]]:
+    """Return all (year, month) tuples from start_date to the last completed month."""
+    today = date.today()
+    # Last completed month: if today is Jan 2026 → Dec 2025
+    if today.month == 1:
+        last_year, last_month = today.year - 1, 12
+    else:
+        last_year, last_month = today.year, today.month - 1
+
+    try:
+        start = date.fromisoformat(start_date_str[:10])
+    except (ValueError, TypeError):
+        start = date(today.year - 3, 1, 1)
+
+    months = []
+    y, m = start.year, start.month
+    while (y, m) <= (last_year, last_month):
+        months.append((y, m))
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return months
+
+
+class LeaveTimeMachineQuestion(BaseQuestion):
+    def __init__(
+        self,
+        real_days: int,
+        choices: list[str],
+        fun_fact: str,
+        year: int,
+        month: int,
+    ) -> None:
         self._real_days = real_days
         self._choices = choices
         self._fun_fact = fun_fact
         self._year = year
+        self._month = month
 
     @property
     def id(self) -> str:
-        return f"december_exodus_{self._year}"
+        return f"leave_time_machine_{self._year}_{self._month:02d}"
 
     def prompt_text(self) -> str:
+        month_name = MONTH_NAMES_EN.get(self._month, str(self._month))
         return (
-            f"🌅 {self._year} Aralık'ında kaç kişi-günlük yıllık izin / uzaktan çalışma kullanıldı?\n"
-            "   (Aralık ayında 'kaybolan' güneş doğuşlarını tahmin edin!)"
+            f"🌅 In {month_name} {self._year}, how many person-days of annual leave\n"
+            "   or remote work were recorded? (Guess the absentee tally!)"
         )
 
     def choices(self) -> list[str]:
@@ -61,53 +104,95 @@ class DecemberExodusQuestion(BaseQuestion):
 
 
 class DecemberExodusProvider(BaseQuestionProvider):
+    # Keep name "december_exodus" for backwards-compat with CLI mode selection
     name = "december_exodus"
+    analyzing_hints = [
+        "Consulting the leave ledger...",
+        "Counting absent sunrises...",
+        "Paging through time-off records...",
+        "Tallying days away from the office...",
+    ]
 
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
-        # Use previous December
+        # Get all available months from tenant inception to last completed month
+        company_start = self.data_provider.get_company_start_date()
+        all_months = _all_available_months(company_start)
+
+        if not all_months:
+            return []
+
+        # Filter out already-seen months
+        unseen = [
+            (y, m) for y, m in all_months
+            if f"leave_time_machine_{y}_{m:02d}" not in seen_ids
+        ]
+
+        if not unseen:
+            return []
+
+        # Weighted random: prefer recent months (more interesting data), but allow any
+        # Simple weighting: last 24 months get 3× weight, rest get 1×
         today = date.today()
-        target_year = today.year - 1 if today.month < 12 else today.year
+        cutoff = (today.year - 2, today.month)
+        recent = [(y, m) for y, m in unseen if (y, m) >= cutoff]
+        older = [(y, m) for y, m in unseen if (y, m) < cutoff]
 
-        q_id = f"december_exodus_{target_year}"
-        if q_id in seen_ids:
-            return []
+        weighted_pool = (recent * 3 + older) if recent else older
+        random.shuffle(weighted_pool)
 
-        leaves = self.data_provider.list_leaves(
-            start=f"{target_year}-12-01",
-            end=f"{target_year}-12-31",
-            limit=500,
-        )
+        questions: list[BaseQuestion] = []
 
-        total_days = 0
-        for leave in leaves:
-            leave_type = (leave.get("leaveType") or {}).get("name") or ""
-            if _is_counted_leave(leave_type):
-                day_count = leave.get("dayCount") or leave.get("totalDays") or 0
-                total_days += int(day_count)
+        for year, month in weighted_pool:
+            if len(questions) >= count:
+                break
 
-        if total_days == 0:
-            return []
+            q_id = f"leave_time_machine_{year}_{month:02d}"
+            if q_id in seen_ids:
+                continue
 
-        # Generate 3 plausible distractor numbers
-        distractors = set()
-        for pct in [0.7, 1.3, 1.5]:
-            d = max(1, round(total_days * pct))
-            if d != total_days:
-                distractors.add(d)
-        while len(distractors) < 3:
-            offset = random.choice([-5, -3, 5, 8, 10, 15])
-            candidate = max(1, total_days + offset)
-            if candidate != total_days:
-                distractors.add(candidate)
+            last_day = calendar.monthrange(year, month)[1]
+            leaves = self.data_provider.list_leaves(
+                start=f"{year}-{month:02d}-01",
+                end=f"{year}-{month:02d}-{last_day:02d}",
+                limit=500,
+            )
 
-        distractor_list = random.sample(list(distractors), 3)
-        choices = [str(total_days)] + [str(d) for d in distractor_list]
-        random.shuffle(choices)
+            total_days = 0
+            for leave in leaves:
+                leave_type = (leave.get("leaveType") or {}).get("name") or ""
+                if _is_counted_leave(leave_type):
+                    day_count = leave.get("dayCount") or leave.get("totalDays") or 0
+                    total_days += int(day_count)
 
-        weeks = round(total_days / 5, 1)
-        fun_fact = (
-            f"{target_year} Aralık'ında toplam {total_days} kişi-günlük yıllık izin / "
-            f"uzaktan çalışma kullanıldı. Bu, {weeks} haftalık tam çalışma süresine eşdeğer!"
-        )
+            if total_days == 0:
+                continue  # Skip months with no data; try next
 
-        return [DecemberExodusQuestion(total_days, choices, fun_fact, target_year)]
+            # Generate 3 plausible distractor numbers
+            distractors: set[int] = set()
+            for pct in [0.65, 1.35, 1.6]:
+                d = max(1, round(total_days * pct))
+                if d != total_days:
+                    distractors.add(d)
+            attempts = 0
+            while len(distractors) < 3 and attempts < 50:
+                offset = random.choice([-10, -7, -4, -2, 3, 5, 8, 12, 18])
+                candidate = max(1, total_days + offset)
+                if candidate != total_days:
+                    distractors.add(candidate)
+                attempts += 1
+
+            distractor_list = random.sample(list(distractors), min(3, len(distractors)))
+            choices = [str(total_days)] + [str(d) for d in distractor_list]
+            random.shuffle(choices)
+
+            month_name = MONTH_NAMES_EN.get(month, str(month))
+            weeks = round(total_days / 5, 1)
+            fun_fact = (
+                f"In {month_name} {year}: {total_days} person-days of leave / remote work — "
+                f"equivalent to {weeks} full working weeks!"
+            )
+
+            questions.append(LeaveTimeMachineQuestion(total_days, choices, fun_fact, year, month))
+            seen_ids.add(q_id)
+
+        return questions

@@ -12,6 +12,27 @@ POINTS_CORRECT = 10
 POINTS_NO_HINT_BONUS = 5
 POINTS_HINT_PENALTY = -3
 
+_TITLE_LABELS = {
+    "en": "Data Detective",
+    "tr": "Veri Dedektifi",
+}
+_NO_DATA_LABELS = {
+    "en": "Not enough data to start a session. Try again later.",
+    "tr": "Yeterli veri bulunamadı. Lütfen daha sonra tekrar deneyin.",
+}
+_CASE_LABELS = {
+    "en": "Case",
+    "tr": "Dava",
+}
+_TOTAL_LABELS = {
+    "en": "Total",
+    "tr": "Toplam",
+}
+_SCORE_LABELS = {
+    "en": "Score",
+    "tr": "Puan",
+}
+
 
 @dataclass
 class SessionResult:
@@ -29,38 +50,45 @@ class QuizEngine:
         renderer: Renderer,
         state: QuizState,
         hints_enabled: bool = True,
+        lang: str = "en",
     ) -> None:
         self.provider = provider
         self.renderer = renderer
         self.state = state
         self.hints_enabled = hints_enabled
+        self.lang = lang
 
     def play(self, num_questions: int = 5) -> SessionResult:
         questions = self.provider.generate(num_questions, set(self.state.seen_question_ids))
 
         if not questions:
             self.renderer.clear()
-            self.renderer.show_title("Veri Dedektifi")
-            self.renderer.console.print("[yellow]Yeterli veri bulunamadı. Lütfen daha sonra tekrar deneyin.[/yellow]")
+            title_label = _TITLE_LABELS.get(self.lang, "Data Detective")
+            self.renderer.show_title(f"🔍 {title_label}")
+            self.renderer.console.print(f"[yellow]{_NO_DATA_LABELS.get(self.lang, '')}[/yellow]")
             return SessionResult(0, 0, 0, False)
 
         score = 0
         session_points = 0
+        case_label = _CASE_LABELS.get(self.lang, "Case")
+        score_label = _SCORE_LABELS.get(self.lang, "Score")
+        total_label = _TOTAL_LABELS.get(self.lang, "Total")
+        title_label = _TITLE_LABELS.get(self.lang, "Data Detective")
 
         for i, q in enumerate(questions, 1):
             self.renderer.clear()
-            title = self.provider.name.replace("_", " ").title()
-            self.renderer.show_title(f"🔍 Veri Dedektifi — {title}")
+            mode_title = self.provider.name.replace("_", " ").title()
+            self.renderer.show_title(f"🔍 {title_label} — {mode_title}")
             self.renderer.console.print(
-                f"[grey62]Dava {i} / {len(questions)}[/grey62]  "
-                f"Puan: [bold]{score}[/bold]  "
-                f"Toplam: [bold yellow]{self.state.total_case_points + session_points}[/bold yellow]\n"
+                f"[grey62]{case_label} {i} / {len(questions)}[/grey62]  "
+                f"{score_label}: [bold]{score}[/bold]  "
+                f"{total_label}: [bold yellow]{self.state.total_case_points + session_points}[/bold yellow]\n"
             )
 
-            self.renderer.show_analyzing()
+            # Use the provider's context-specific analyzing hints
+            self.renderer.show_analyzing(hints=self.provider.analyzing_hints)
             self.renderer.show_question(q)
 
-            # Hint flow
             hint_used = False
             if self.hints_enabled:
                 hint_used = self.renderer.offer_hint(q)

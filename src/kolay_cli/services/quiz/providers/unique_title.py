@@ -33,7 +33,11 @@ class UniqueTitleQuestion(BaseQuestion):
         return f"unique_title_{self._unique_title.lower().replace(' ', '_')[:30]}"
 
     def prompt_text(self) -> str:
-        return "🔍 Hangi unvan şirkette sadece tek bir kişi tarafından taşınıyor?\n   (En 'yalnız' unvanı bulun!)"
+        return (
+            "🔍 Which job title is held by exactly one person in the company?\n"
+            "   (Find the loneliest title in the org chart!)"
+        )
+
 
     def choices(self) -> list[str]:
         return self._choices
@@ -56,6 +60,12 @@ class UniqueTitleQuestion(BaseQuestion):
 
 class UniqueTitleProvider(BaseQuestionProvider):
     name = "unique_title"
+    analyzing_hints = [
+        "Scanning the org chart...",
+        "Counting job titles...",
+        "Looking for the lonely ones...",
+        "Inspecting position records...",
+    ]
 
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
         tree = self.data_provider.get_unit_tree()
@@ -87,9 +97,10 @@ class UniqueTitleProvider(BaseQuestionProvider):
             random.shuffle(choices)
 
             fun_fact = (
-                f"'{unique_title}' unvanı şirkette benzersiz — "
-                f"bu rolü üstlenen tek bir kişi var!"
+                f"'{unique_title}' is a truly unique title — "
+                f"only one person holds it in the entire company!"
             )
+
             questions.append(UniqueTitleQuestion(unique_title, choices, fun_fact))
             seen_ids.add(q_id)
 

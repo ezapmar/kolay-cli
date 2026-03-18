@@ -60,6 +60,12 @@ class BaseQuestion(ABC):
 class BaseQuestionProvider(ABC):
     """Produces questions. That's it. That's the interface."""
     name: str
+    # Override in subclasses with context-appropriate "scanning..." lines.
+    analyzing_hints: list[str] = [
+        "Scanning records...",
+        "Cross-referencing data...",
+        "Loading case file...",
+    ]
 
     def __init__(self, data_provider: DataProvider):
         self.data_provider = data_provider
@@ -67,3 +73,4 @@ class BaseQuestionProvider(ABC):
     @abstractmethod
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
         ...
+
