@@ -54,13 +54,15 @@ class QuizSession:
 _sessions: dict[str, QuizSession] = {}
 
 
-def _session_key(user_id: str, channel_id: str) -> str:
-    return f"{user_id}:{channel_id}"
+def _session_key(user_id: str, channel_id: str = "") -> str:
+    # Key by user only — a user can only have one quiz at a time.
+    # Using channel_id caused mismatches when _post falls back to DM.
+    return user_id
 
 
-def _session_hash(user_id: str, channel_id: str) -> str:
+def _session_hash(user_id: str, channel_id: str = "") -> str:
     """Short hash used in action_ids to tie button clicks to a session."""
-    return hashlib.md5(f"{user_id}{channel_id}".encode()).hexdigest()[:8]  # noqa: S324
+    return hashlib.md5(user_id.encode()).hexdigest()[:8]  # noqa: S324
 
 
 def _purge_expired() -> None:
