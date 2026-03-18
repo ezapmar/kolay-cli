@@ -1,0 +1,3 @@
+# Prevent Nixpacks from detecting uv and trying to use it
+# (uv is not available inside the Railway build container)
+uv.lock
