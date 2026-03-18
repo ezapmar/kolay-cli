@@ -22,14 +22,29 @@ class Renderer:
         media = q.media()
         if media:
             if media.type == MediaType.PHOTO_URL:
-                # ASCII fallback implementation. Real image proto could be added later.
-                self.console.print(
-                    Panel(
-                        f"🖼️  [link={media.content}]Photo link[/link]\n[grey62]Terminal image protocol support coming later.[/grey62]",
-                        border_style=PRIMARY,
-                        width=60,
+                try:
+                    import requests
+                    import base64
+                    import sys
+                    self.console.print(f"🖼️  [link={media.content}]Photo details (Cmd+Click to open)[/link]")
+                    
+                    # Fetch and convert to iTerm2 inline protocol (supported by VSCode, iTerm, WezTerm, etc.)
+                    resp = requests.get(media.content, timeout=5)
+                    if resp.status_code == 200:
+                        img_b64 = base64.b64encode(resp.content).decode("ascii")
+                        # height=12 forces it to take up about 12 lines of terminal vertical space
+                        sys.stdout.write(f"\033]1337;File=inline=1;height=12;preserveAspectRatio=1:{img_b64}\a\n")
+                        sys.stdout.flush()
+                    else:
+                        raise ValueError(f"HTTP {resp.status_code}")
+                except Exception as e:
+                    self.console.print(
+                        Panel(
+                            f"\n[grey62](Could not load terminal image: {e})[/grey62]",
+                            border_style=PRIMARY,
+                            width=60,
+                        )
                     )
-                )
             else:
                 self.console.print(Panel(media.content, border_style=PRIMARY, width=60))
 
