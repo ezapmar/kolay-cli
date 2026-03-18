@@ -152,9 +152,18 @@ class MockProvider(DataProvider):
             {"id": "mock_id_7", "firstName": "Emre", "lastName": "Çelik",
              "department": {"name": "Mühendislik"}, "educationLevel": "Doktora",
              "title": "Veri Bilimcisi", "photoUrl": "https://i.pravatar.cc/150?u=7"},
-            {"id": "mock_id_8", "firstName": "Selin", "lastName": "Yıldız",
-             "department": {"name": "Finans"}, "educationLevel": "Lisans Üstü",
+            {"id": "mock_id_8", "firstName": "Burcu", "lastName": "Güneş",
+             "department": {"name": "Finans"}, "educationLevel": "Lisans",
              "title": "Finans Analisti", "photoUrl": "https://i.pravatar.cc/150?u=8"},
+            # Extras to ensure some titles belong to >1 person (multi_titles) for distractors
+            {"id": "mock_id_9", "firstName": "Veli", "lastName": "Aslan",
+             "title": "Kıdemli Mühendis"},
+            {"id": "mock_id_10", "firstName": "Selma", "lastName": "Kısa",
+             "title": "Kıdemli Mühendis"},
+            {"id": "mock_id_11", "firstName": "Cem", "lastName": "Uzan",
+             "title": "UX Tasarımcı"},
+            {"id": "mock_id_12", "firstName": "Oktay", "lastName": "Keskin",
+             "title": "Satış Temsilcisi"},
         ][:limit]
 
     def get_unit_tree(self) -> list[dict[str, Any]]:

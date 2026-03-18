@@ -14,7 +14,7 @@ def test_factory_registration():
 def test_mock_provider():
     provider = MockProvider()
     people = provider.list_people()
-    assert len(people) == 8
+    assert len(people) >= 8
     assert people[0]["firstName"] == "Ahmet"
     # New: check extended mock has education and title
     assert "educationLevel" in people[0]

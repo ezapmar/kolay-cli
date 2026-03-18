@@ -71,10 +71,13 @@ class QuizEngine:
                 msg = (
                     "No employees with profile photos were found in this session.\n\n"
                     "  • Ask an admin to upload avatars in Kolay IK, or\n"
-                    "  • Try a different mode that doesn't need photos:\n"
-                    "    [bold]kolay quiz play --mode unique_title[/bold]\n"
-                    "    [bold]kolay quiz play --mode education_champion[/bold]\n"
-                    "    [bold]kolay quiz play --mode december_exodus[/bold]"
+                    "  • Try a different mode."
+                )
+            elif mode == "unique_title":
+                msg = (
+                    "Not enough unique tracking data found.\n\n"
+                    "  • Ask an admin to assign 'Position' titles to employees in Kolay IK org chart, or\n"
+                    "  • Try a different mode."
                 )
             else:
                 msg = _NO_DATA_LABELS.get(self.lang, "Not enough data. Try again later.")

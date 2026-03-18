@@ -7,19 +7,7 @@ from typing import Any
 from ..base import BaseQuestionProvider, BaseQuestion, QuestionResult, QuestionMedia
 
 
-def _flatten_titles(tree: list[dict]) -> list[str]:
-    """Recursively extract all titles from unit tree nodes."""
-    titles = []
-    for node in tree:
-        for item in node.get("items", []):
-            count = item.get("personCount", 0)
-            title = item.get("title") or item.get("unvan") or ""
-            if title:
-                titles.extend([title] * count)
-        # Recurse into sub-units
-        for child in node.get("children", node.get("subUnits", [])):
-            titles.extend(_flatten_titles([child]))
-    return titles
+# We no longer need _flatten_titles since we use employee profiles directly.
 
 
 class UniqueTitleQuestion(BaseQuestion):
@@ -68,11 +56,9 @@ class UniqueTitleProvider(BaseQuestionProvider):
     ]
 
     def generate(self, count: int, seen_ids: set[str]) -> list[BaseQuestion]:
-        tree = self.data_provider.get_unit_tree()
-        if not tree:
-            return []
+        all_people = self.data_provider.list_people(limit=200)
+        titles = [p.get("title") for p in all_people if p.get("title")]
 
-        titles = _flatten_titles(tree)
         if not titles:
             return []
 
