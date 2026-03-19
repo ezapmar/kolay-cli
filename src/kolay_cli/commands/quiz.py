@@ -77,7 +77,20 @@ def play(
     renderer = Renderer(console=console, lang=lang)
     engine = QuizEngine(provider, renderer, state, hints_enabled=hints, lang=lang)
 
-    result = engine.play(num_questions=count)
+    from ..api.errors import APIError
+    try:
+        result = engine.play(num_questions=count)
+    except APIError as exc:
+        status = getattr(exc, "status_code", None)
+        if status in (400, 401, 403):
+            console.print(
+                f"\n[bold red]Authentication error:[/bold red] {exc}\n"
+                "Your Kolay API token may be invalid or expired.\n"
+                "Run [bold]kolay auth login[/bold] to re-authenticate, then try again."
+            )
+        else:
+            console.print(f"\n[bold red]API error:[/bold red] {exc}")
+        raise typer.Exit(4)
 
     if result.total == 0:
         raise typer.Exit(0)
