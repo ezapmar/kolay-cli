@@ -224,17 +224,6 @@ def create_proxy_app():
     """Build the ASGI app with token injection middleware."""
     starlette_app = mcp.http_app()
     mcp_proxy = KolayProxyMiddleware(starlette_app)
-
-    # If Slack is configured (needs signing secret for HTTP mode),
-    # mount the Slack routes alongside the MCP proxy.
-    if os.environ.get("SLACK_SIGNING_SECRET"):
-        try:
-            from kolay_cli.slack.mount import create_combined_app
-            return create_combined_app(mcp_asgi=mcp_proxy)
-        except ImportError as e:
-            _log(f"[warn] Slack configured but missing dependencies: {e}")
-            pass
-
     return mcp_proxy
 
 
@@ -246,10 +235,8 @@ if __name__ == "__main__":
     api_key = os.environ.get("MCP_API_KEY")
     kolay_token = os.environ.get("KOLAY_API_TOKEN")
 
-    slack_active = os.environ.get("SLACK_SIGNING_SECRET")
     _log(f"\nKolay IK MCP Proxy (Universal Stateless)")
     _log(f"  Endpoint:     http://{host}:{port}/mcp")
-    _log(f"  Slack:        {'mounted at /slack/events' if slack_active else 'disabled (no SLACK_SIGNING_SECRET)'}")
     _log(f"  Gatekeeper:   {'enabled' if api_key else 'disabled (tools still protected by @require_auth)'}")
     _log(f"  Kolay Token:  {'set via env' if kolay_token else 'not set (clients must send X-Kolay-Token)'}")
     _log(f"  Rate Limit:   {'enabled' if os.environ.get('MCP_RATE_LIMIT_ENABLED', '').lower() in ('1', 'true', 'yes') else 'disabled (set MCP_RATE_LIMIT_ENABLED=true)'}")
