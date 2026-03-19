@@ -119,8 +119,9 @@ def main(
                                 f"Run [bold]kolay nudge status[/bold] to see your top priority."
                             )
                         nudge_svc.record_bare_nudge_shown()
-                except Exception:
-                    pass
+                except ImportError as exc:
+                    import logging
+                    logging.getLogger(__name__).debug("Failed to load nudge module: %s", exc)
 
 
 def _enable_debug_logging() -> None:

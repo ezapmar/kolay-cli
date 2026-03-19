@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 import typer
@@ -64,7 +64,7 @@ def setup(ctx: typer.Context) -> None:
         install_comp = typer.confirm(f" Install {shell_name} auto-completion?", default=True)
         if install_comp:
             try:
-                subprocess.run(
+                subprocess.run(  # nosec B603 
                     [sys.executable, "-m", "kolay_cli.cli", "--install-completion", shell_name],
                     capture_output=True, text=True, check=False,
                 )

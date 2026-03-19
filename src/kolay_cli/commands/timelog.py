@@ -113,8 +113,9 @@ def list_timelogs(
             pending = nudge_svc.analyze_pending_work()
             if pending:
                 print_cross_service_nudge(pending, "timelog")
-        except Exception:
-            pass
+        except ImportError as exc:
+            import logging
+            logging.getLogger(__name__).debug("Failed to load nudge module: %s", exc)
 
 
 def _resolve_timelog_id(value: str, *, limit: int = 50) -> str:

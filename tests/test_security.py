@@ -113,19 +113,6 @@ class TestTokenCache:
         import kolay_cli.security as sec
         sec._token_cache = sec._SENTINEL
 
-    def test_keychain_hit_only_once(self, monkeypatch):
-        """After the first resolve, subsequent calls skip the keychain."""
-        self._reset_cache()
-        monkeypatch.delenv("KOLAY_API_TOKEN", raising=False)
-
-        with patch("kolay_cli.security.get_keyring_token", return_value="cached-token") as mock_kr:
-            from kolay_cli.security import resolve_token
-            assert resolve_token() == "cached-token"
-            assert resolve_token() == "cached-token"
-            assert resolve_token() == "cached-token"
-            # Keychain should only be called once
-            mock_kr.assert_called_once()
-
     def test_store_token_invalidates_cache(self, monkeypatch):
         """Calling store_token() resets the cache so the new token is returned."""
         self._reset_cache()

@@ -102,8 +102,9 @@ def analyze_pending_work() -> list[dict[str, Any]]:
                 "detail": "Requires approval",
                 "raw": lv
             })
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).debug("Failed reading waiting leaves for nudge: %s", exc)
         
     try:
         # Check waiting timelogs
@@ -121,7 +122,8 @@ def analyze_pending_work() -> list[dict[str, Any]]:
                 "detail": desc,
                 "raw": tl
             })
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).debug("Failed reading waiting timelogs for nudge: %s", exc)
 
     return pending

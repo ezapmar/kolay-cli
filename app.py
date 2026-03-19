@@ -115,8 +115,8 @@ class KolayProxyMiddleware:
                 from kolay_cli.security import _SENTINEL
                 import kolay_cli.security as sec_mod
                 sec_mod._token_cache = _SENTINEL
-            except Exception:
-                pass
+            except ImportError as exc:
+                _log(f"[warn] Security module cache invalidation failed: {exc}")
 
             try:
                 await self.app(scope, receive, send)
@@ -128,8 +128,8 @@ class KolayProxyMiddleware:
                     os.environ.pop("KOLAY_API_TOKEN", None)
                 try:
                     sec_mod._token_cache = _SENTINEL  # type: ignore[possibly-undefined]
-                except Exception:
-                    pass
+                except ImportError as exc:
+                    _log(f"[warn] Security module cache teardown failed: {exc}")
             return
 
         # No per-request token — fall through to app.

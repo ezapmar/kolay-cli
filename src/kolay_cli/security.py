@@ -186,8 +186,8 @@ def is_first_run() -> bool:
         from .config import CONFIG_FILE_JSON, CONFIG_FILE_YAML
         if CONFIG_FILE_JSON.exists() or CONFIG_FILE_YAML.exists():
             return False
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        _log.warning("Could not verify run status due to file error: %s", exc)
     return resolve_token() is None
 
 
@@ -263,14 +263,14 @@ def _get_token_from_config_file() -> str | None:
                 with open(CONFIG_FILE_YAML, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f) or {}
                     return data.get("api_token")
-        except ImportError:
-            pass
+        except (OSError, yaml.YAMLError) as exc:
+            _log.warning("Failed reading YAML config file for token: %s", exc)
 
         if CONFIG_FILE_JSON.exists():
             with open(CONFIG_FILE_JSON, "r", encoding="utf-8") as f:
                 return _json.load(f).get("api_token")
-    except Exception:
-        pass
+    except (OSError, _json.JSONDecodeError) as exc:
+        _log.warning("Failed reading JSON config file for token: %s", exc)
     return None
 
 
@@ -287,8 +287,11 @@ def _migration_notice() -> None:
                 " [grey62]Token migrated from config file to OS Keychain  "
                 "(plaintext copy removed)[/grey62]"
             )
-        except Exception:
+        except ImportError:
             pass
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).debug("Failed to print migration notice: %s", exc)
 
 
 
