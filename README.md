@@ -678,6 +678,8 @@ Token resolution order:
 
 The server exposes these tools to AI clients:
 
+**Core HR Tools**
+
 | Tool | Description |
 |---|---|
 | `validate_connection` | Check if credentials are working |
@@ -697,6 +699,17 @@ The server exposes these tools to AI clients:
 | `approval_list` | View approval workflows |
 | `employee_health_check` | Cross-reference leaves, timelogs, and trainings in one call |
 
+**HR Analytics & Wellbeing Engine**
+
+| Tool | Description |
+|---|---|
+| `team_availability_analysis` | Peak absence days + operational risk for a team (Leave x Unit APIs) |
+| `turnover_risk_scan` | Scan employees for burnout and flight risk signals, ranked by score |
+| `payroll_anomaly_detect` | Detect duplicate transactions and statistical outliers in payroll |
+| `analyze_employee_wellbeing` | Per-employee burnout score (🔴/🟠/🟡/🟢), leave gap detection, and bridge-day opportunities cross-referenced with Turkish public holidays |
+| `get_smart_rest_plan` | Top-3 upcoming rest windows ranked by leave efficiency (rest days ÷ credits spent), budget-tier aware |
+| `quiz_challenge` | Generate a Kolay Quiz challenge to test knowledge of colleagues |
+
 ---
 
 ## MCP Prompts
@@ -711,6 +724,9 @@ Built-in prompts guide the AI through complex multi-step workflows:
 | `offboarding_plan` | Calculate leave payout, handover checklist, and exit interview questions |
 | `bulk_update_assistant` | Safe bulk data cleanup with mandatory human confirmation |
 | `manager_dashboard` | Morning briefing for a department manager |
+| `wellbeing_briefing` | Per-employee wellbeing report: burnout status, bridge-day opportunities, and smart rest plan |
+| `hr_trend_analysis` | Company-wide trend report combining turnover risk and payroll anomalies |
+| `risk_brief` | Concise availability and retention risk brief for a department |
 | `hr_capabilities` | Guided prompt explaining all available Kolay HR AI features |
 
 ---
@@ -833,6 +849,51 @@ AI:  → uses manager_dashboard prompt
      • Training "Cloud Security 101" starts next week (4 enrolled)
 ```
 
+#### Wellbeing & Burnout Analysis
+
+```
+You: How is Ayşe Yılmaz doing? Is she at risk of burnout?
+AI:  → calls analyze_employee_wellbeing(person_id="Ayşe Yılmaz")
+     🔴 Red Zone (Score: 5)
+     Signals:
+     • Unused annual leave > 20 days — burnout risk
+     • No rest taken in 94 days (90-day threshold exceeded)
+
+     Bridge Day Opportunities (next 90 days):
+     • Take 1 day off around Kurban Bayramı (2026-05-27) → 7-day break (7.0x efficiency)
+     • Take 2 days off around 23 Nisan → 5-day break (2.5x efficiency)
+
+     Recommendation: Ayşe is in the Red Zone. Since Kurban Bayramı starts on
+     Wednesday 27 May, taking Monday–Tuesday off gives a full 7-day break using
+     only 2 leave credits.
+```
+
+#### Smart Rest Planning
+
+```
+You: What are the best upcoming rest windows for Mehmet?
+AI:  → calls get_smart_rest_plan(person_id="Mehmet Demir")
+     Budget tier: generous (22 days remaining)
+
+     Top 3 rest opportunities:
+     1. Take 1 day (Mon 25 May) → 9-day break Sat 23 – Sun 31 May  (9.0x efficiency)
+     2. Take 1 day (Mon 23 Mar) → 5-day break Thu 19 – Mon 23 Mar  (5.0x efficiency)
+     3. Take 2 days (Mon–Tue 27–28 Apr) → 5-day break Sat 25 – Wed 29 Apr  (2.5x)
+```
+
+#### Kolay Quiz
+
+```
+You: Give me a quiz about my colleagues
+AI:  → calls quiz_challenge(mode="photo_match", count=5)
+     I'll show you 5 photos of your colleagues. Can you identify them?
+
+     Question 1: [photo displayed] Who is this person?
+     A) Ayşe Yılmaz   B) Zeynep Kara   C) Fatma Demir   D) Elif Şahin
+You: A
+AI:  Correct! That's Ayşe Yılmaz from Engineering. 4 more to go!
+```
+
 ---
 
 ## Test with curl
@@ -860,6 +921,11 @@ src/kolay_cli/
     person.py, leave.py, timelog.py, training.py,
     transaction.py, calendar.py, unit.py, approval.py, ...
   services/           # business logic (used by both CLI and MCP)
+    hr_analytics.py   # team availability, turnover risk, payroll anomaly detection
+    wellness.py       # wellbeing engine: burnout scoring, bridge-day finder, rest planner
+    turkish_holidays.py  # Turkish public holiday calendar (static 2024-2027 + Google Calendar overlay)
+    nudge.py          # contextual reminder hints for the CLI
+    quiz/             # Kolay Quiz game engine
   ui/
     formatters.py     # Rich tables, spinners
     output.py         # JSON mode
