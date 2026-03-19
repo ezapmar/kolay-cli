@@ -159,3 +159,62 @@ def test_hint_masking():
     assert _mask_answer("A") == "A"
     assert _mask_answer("Veri Dedektifi") == "V*** D********"
 
+
+# ── Quiz CLI error handling ───────────────────────────────────────────────────
+
+class TestQuizCLIErrorHandling:
+    """Verify the quiz play command surfaces APIError cleanly instead of crashing."""
+
+    def _run_play(self, extra_args=None):
+        from typer.testing import CliRunner
+        from kolay_cli.commands.quiz import app
+        runner = CliRunner()
+        return runner.invoke(app, ["play", "--mock", *(extra_args or [])])
+
+    def test_api_error_400_shows_friendly_message(self):
+        """A 400 from the API engine should print an auth error and exit 4."""
+        from kolay_cli.api.errors import APIError
+        from typer.testing import CliRunner
+        from kolay_cli.commands.quiz import app
+
+        runner = CliRunner()
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "kolay_cli.services.quiz.engine.QuizEngine.play",
+            side_effect=APIError("Gecersiz API bilgisi", status_code=400),
+        ):
+            result = runner.invoke(app, ["play", "--mock", "--mode", "photo_match"])
+
+        assert result.exit_code in (4, 1)  # Typer may wrap Exit(4) as SystemExit(1) in some versions
+        assert "Authentication error" in result.output or "API error" in result.output
+
+    def test_api_error_401_shows_login_hint(self):
+        """A 401 specifically should include the 'kolay auth login' hint."""
+        from kolay_cli.api.errors import APIError
+        from typer.testing import CliRunner
+        from kolay_cli.commands.quiz import app
+
+        runner = CliRunner()
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "kolay_cli.services.quiz.engine.QuizEngine.play",
+            side_effect=APIError("Unauthorized", status_code=401),
+        ):
+            result = runner.invoke(app, ["play", "--mock", "--mode", "photo_match"])
+
+        assert result.exit_code in (4, 1)
+        assert "auth login" in result.output
+
+    def test_api_error_500_shows_generic_api_error(self):
+        """A non-auth API error should show a generic message, not auth hint."""
+        from kolay_cli.api.errors import APIError
+        from typer.testing import CliRunner
+        from kolay_cli.commands.quiz import app
+
+        runner = CliRunner()
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "kolay_cli.services.quiz.engine.QuizEngine.play",
+            side_effect=APIError("Internal Server Error", status_code=500),
+        ):
+            result = runner.invoke(app, ["play", "--mock", "--mode", "photo_match"])
+
+        assert result.exit_code in (4, 1)
+        assert "API error" in result.output

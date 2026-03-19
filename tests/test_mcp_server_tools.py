@@ -400,3 +400,89 @@ class TestPayrollTools:
         m.assert_called_once_with("abc123", search="Ali", status=["ended"], salary_period=None)
         assert result == expected
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WELLBEING ENGINE TOOLS
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestWellbeingTools:
+    def test_analyze_employee_wellbeing_delegates_to_service(self):
+        from kolay_cli.mcp_server import analyze_employee_wellbeing
+        expected = {
+            "employee": {"id": "p1", "name": "Ayse Yilmaz"},
+            "burnout_status": "red_zone",
+            "burnout_score": 5,
+        }
+        with patch(_svc("wellness_svc.analyze_employee_wellbeing"), return_value=expected) as m:
+            result = analyze_employee_wellbeing("p1")
+        m.assert_called_once_with("p1")
+        assert result == expected
+
+    def test_analyze_employee_wellbeing_passes_person_id(self):
+        from kolay_cli.mcp_server import analyze_employee_wellbeing
+        with patch(_svc("wellness_svc.analyze_employee_wellbeing"), return_value={}) as m:
+            analyze_employee_wellbeing("some-uuid-123")
+        m.assert_called_once_with("some-uuid-123")
+
+    def test_get_smart_rest_plan_delegates_to_service(self):
+        from kolay_cli.mcp_server import get_smart_rest_plan
+        expected = {
+            "person_id": "p1",
+            "budget_tier": "generous",
+            "top_rest_opportunities": [],
+        }
+        with patch(_svc("wellness_svc.get_smart_rest_plan"), return_value=expected) as m:
+            result = get_smart_rest_plan("p1")
+        m.assert_called_once_with("p1", horizon_days=90)
+        assert result == expected
+
+    def test_get_smart_rest_plan_custom_horizon(self):
+        from kolay_cli.mcp_server import get_smart_rest_plan
+        with patch(_svc("wellness_svc.get_smart_rest_plan"), return_value={}) as m:
+            get_smart_rest_plan("p1", horizon_days=30)
+        m.assert_called_once_with("p1", horizon_days=30)
+
+    def test_get_smart_rest_plan_default_horizon_is_90(self):
+        from kolay_cli.mcp_server import get_smart_rest_plan
+        import inspect
+        sig = inspect.signature(get_smart_rest_plan)
+        assert sig.parameters["horizon_days"].default == 90
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW PROMPTS: wellbeing_briefing, hr_trend_analysis, risk_brief
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestNewPrompts:
+    def test_wellbeing_briefing_contains_tools(self):
+        from kolay_cli.mcp_server import wellbeing_briefing
+        result = wellbeing_briefing("Ayse")
+        assert "analyze_employee_wellbeing" in result
+        assert "get_smart_rest_plan" in result
+        assert "Ayse" in result
+
+    def test_wellbeing_briefing_has_table_template(self):
+        from kolay_cli.mcp_server import wellbeing_briefing
+        result = wellbeing_briefing()
+        # Should contain the table headers
+        assert "Bridge Day" in result
+        assert "Efficiency" in result
+
+    def test_hr_trend_analysis_contains_tools(self):
+        from kolay_cli.mcp_server import hr_trend_analysis
+        result = hr_trend_analysis("Engineering")
+        assert "turnover_risk_scan" in result
+        assert "payroll_anomaly_detect" in result
+        assert "Engineering" in result
+
+    def test_hr_trend_analysis_has_sections(self):
+        from kolay_cli.mcp_server import hr_trend_analysis
+        result = hr_trend_analysis()
+        assert "Retention" in result or "Burnout" in result
+        assert "Payroll" in result
+
+    def test_manager_dashboard_returns_string(self):
+        from kolay_cli.mcp_server import manager_dashboard
+        result = manager_dashboard("Sales")
+        assert "Sales" in result
+        assert "person_list" in result or "leave" in result.lower()
