@@ -708,13 +708,9 @@ def delete_person_file(file_id: str | None = typer.Argument(None, help="ID of th
     # 3.1: Resolve filename so confirm shows a human-readable label, not a UUID
     file_label = f"file …{file_id[-8:]}" if len(file_id) > 8 else file_id
     folder_label = ""
-    try:
-        # The file-view endpoint isn't documented; we infer details from list if available
-        # pick_person_file already knows the person — but we don't have person_id here.
-        # Best effort: use the id itself as label in the confirmation.
-        pass
-    except Exception:
-        pass
+    # The file-view endpoint isn't documented; we infer details from list if available
+    # pick_person_file already knows the person — but we don't have person_id here.
+    # Best effort: use the id itself as label in the confirmation.
 
     confirm_destructive_action(
         action=f"Delete {file_label}",
