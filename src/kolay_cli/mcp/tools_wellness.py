@@ -54,5 +54,13 @@ def get_smart_rest_plan(
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(analyze_employee_wellbeing, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(get_smart_rest_plan, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    # analyze_employee_wellbeing cross-references leave + timelogs — allow 60s
+    mcp.add_tool(Tool.from_function(analyze_employee_wellbeing,
+        annotations={"readOnlyHint": True, "openWorldHint": False},
+        timeout=60.0,
+    ))
+    # get_smart_rest_plan fanout across leave periods — allow 60s
+    mcp.add_tool(Tool.from_function(get_smart_rest_plan,
+        annotations={"readOnlyHint": True, "openWorldHint": False},
+        timeout=60.0,
+    ))

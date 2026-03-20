@@ -71,6 +71,18 @@ def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(team_availability_analysis, annotations={"readOnlyHint": True, "openWorldHint": True}))
-    mcp.add_tool(Tool.from_function(turnover_risk_scan, annotations={"readOnlyHint": True, "openWorldHint": True}))
-    mcp.add_tool(Tool.from_function(payroll_anomaly_detect, annotations={"readOnlyHint": True, "openWorldHint": True}))
+    # team_availability_analysis fans out to Leave + Unit APIs — allow up to 90s
+    mcp.add_tool(Tool.from_function(team_availability_analysis,
+        annotations={"readOnlyHint": True, "openWorldHint": True},
+        timeout=90.0,
+    ))
+    # turnover_risk_scan fetches leave balances per employee — up to 90s for large orgs
+    mcp.add_tool(Tool.from_function(turnover_risk_scan,
+        annotations={"readOnlyHint": True, "openWorldHint": True},
+        timeout=90.0,
+    ))
+    # payroll_anomaly_detect scans transaction history — 45s is sufficient
+    mcp.add_tool(Tool.from_function(payroll_anomaly_detect,
+        annotations={"readOnlyHint": True, "openWorldHint": True},
+        timeout=45.0,
+    ))

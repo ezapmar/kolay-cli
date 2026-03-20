@@ -113,6 +113,13 @@ mcp.add_middleware(ResponseLimitingMiddleware(max_size=500_000))
 # 5. SSE keep-alive ping (prevents proxy timeouts on long HTTP sessions)
 mcp.add_middleware(PingMiddleware(interval_ms=30_000))
 
+# 6. Expose prompts as tools for clients that don't support the prompts protocol
+from fastmcp.server.middleware.tool_injection import PromptToolMiddleware, ResourceToolMiddleware
+mcp.add_middleware(PromptToolMiddleware())
+
+# 7. Expose resources as tools for clients that don't support the resources protocol
+mcp.add_middleware(ResourceToolMiddleware())
+
 @mcp.resource("kolay://reason-codes")
 def reason_codes() -> str:
     """List of valid reason codes for employee termination."""
