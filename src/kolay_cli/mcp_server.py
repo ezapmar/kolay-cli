@@ -33,6 +33,7 @@ from .ui.search import filter_items_silent
 
 mcp = FastMCP(
     name="kolay-ik [Alpha]",
+    mask_error_details=True,
     instructions=(
         "Kolay IK HR platform tools. "
         "Use person_list to find employee IDs before calling other person tools. "
