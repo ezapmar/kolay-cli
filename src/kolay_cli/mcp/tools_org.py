@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -107,10 +108,10 @@ def approval_list(match: str | None = None) -> list[dict[str, Any]]:
 
 
 def register(mcp):
-    mcp.add_tool(calendar_list)
-    mcp.add_tool(calendar_view)
-    mcp.add_tool(calendar_create)
-    mcp.add_tool(calendar_update)
-    mcp.add_tool(calendar_delete)
-    mcp.add_tool(unit_tree)
-    mcp.add_tool(approval_list)
+    mcp.add_tool(Tool.from_function(calendar_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(calendar_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(calendar_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(calendar_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(calendar_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(unit_tree, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(approval_list, annotations={"readOnlyHint": True, "openWorldHint": False}))

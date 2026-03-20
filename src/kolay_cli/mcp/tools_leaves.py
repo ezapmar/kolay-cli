@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -114,8 +115,8 @@ def leave_types(person_id: str) -> str:
 def register(mcp):
     mcp.resource("kolay://leave-types/{person_id}")(leave_types)
 
-    mcp.add_tool(leave_list)
-    mcp.add_tool(leave_view)
-    mcp.add_tool(leave_create)
-    mcp.add_tool(leave_cancel)
-    mcp.add_tool(analyze_leave_impact)
+    mcp.add_tool(Tool.from_function(leave_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(leave_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(leave_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(leave_cancel, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(analyze_leave_impact, annotations={"readOnlyHint": True, "openWorldHint": False}))

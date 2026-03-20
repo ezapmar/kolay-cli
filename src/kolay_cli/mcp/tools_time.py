@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -73,7 +74,7 @@ def timelog_delete(timelog_id: str) -> dict[str, Any]:
 
 
 def register(mcp):
-    mcp.add_tool(timelog_list)
-    mcp.add_tool(timelog_view)
-    mcp.add_tool(timelog_create)
-    mcp.add_tool(timelog_delete)
+    mcp.add_tool(Tool.from_function(timelog_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(timelog_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(timelog_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(timelog_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))

@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -70,6 +71,6 @@ def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
 
 
 def register(mcp):
-    mcp.add_tool(team_availability_analysis)
-    mcp.add_tool(turnover_risk_scan)
-    mcp.add_tool(payroll_anomaly_detect)
+    mcp.add_tool(Tool.from_function(team_availability_analysis, annotations={"readOnlyHint": True, "openWorldHint": True}))
+    mcp.add_tool(Tool.from_function(turnover_risk_scan, annotations={"readOnlyHint": True, "openWorldHint": True}))
+    mcp.add_tool(Tool.from_function(payroll_anomaly_detect, annotations={"readOnlyHint": True, "openWorldHint": True}))

@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -71,5 +72,5 @@ def quiz_challenge(
 
 
 def register(mcp):
-    mcp.add_tool(validate_connection)
-    mcp.add_tool(quiz_challenge)
+    mcp.add_tool(Tool.from_function(validate_connection, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(quiz_challenge, annotations={"readOnlyHint": True, "openWorldHint": False}))

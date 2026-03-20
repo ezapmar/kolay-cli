@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -64,13 +65,6 @@ def training_update(
 
 
 @require_auth
-def person_list_trainings(person_id: str) -> list[dict[str, Any]]:
-    """[READ] List training assignments for an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Returns the employee's training history and pending assignments."""
-    return person_svc.list_trainings(person_id)
-
-
-
-@require_auth
 def person_training_manage(
     action: str,
     person_id: str | None = None,
@@ -101,8 +95,9 @@ def person_training_manage(
         if not assignment_id:
             return {"error": True, "message": "action='remove' requires assignment_id"}
         return person_svc.delete_training(assignment_id)
-    
+
     return {"error": True, "message": "Invalid action. Use 'assign', 'update', or 'remove'."}
+
 
 @require_auth
 def person_list_trainings(person_id: str) -> list[dict[str, Any]]:
@@ -111,12 +106,10 @@ def person_list_trainings(person_id: str) -> list[dict[str, Any]]:
 
 
 def register(mcp):
-    mcp.add_tool(person_training_manage)
-    mcp.add_tool(person_list_trainings)
-
-    mcp.add_tool(training_list)
-    mcp.add_tool(training_view)
-    mcp.add_tool(training_create)
-    mcp.add_tool(training_delete)
-    mcp.add_tool(training_update)
-    mcp.add_tool(person_list_trainings)
+    mcp.add_tool(Tool.from_function(training_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(training_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(training_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(training_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(training_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(person_training_manage, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(person_list_trainings, annotations={"readOnlyHint": True, "openWorldHint": False}))

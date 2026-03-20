@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -100,8 +101,8 @@ def payroll_sheet_view(
 
 
 def register(mcp):
-    mcp.add_tool(transaction_list)
-    mcp.add_tool(transaction_view)
-    mcp.add_tool(transaction_create)
-    mcp.add_tool(transaction_delete)
-    mcp.add_tool(payroll_sheet_view)
+    mcp.add_tool(Tool.from_function(transaction_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(transaction_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(transaction_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(transaction_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(payroll_sheet_view, annotations={"readOnlyHint": True, "openWorldHint": False}))

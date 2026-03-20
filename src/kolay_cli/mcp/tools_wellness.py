@@ -1,3 +1,4 @@
+from fastmcp.tools import Tool
 from typing import Any
 from fastmcp.server.context import Context
 from fastmcp.dependencies import CurrentContext
@@ -53,5 +54,5 @@ def get_smart_rest_plan(
 
 
 def register(mcp):
-    mcp.add_tool(analyze_employee_wellbeing)
-    mcp.add_tool(get_smart_rest_plan)
+    mcp.add_tool(Tool.from_function(analyze_employee_wellbeing, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(get_smart_rest_plan, annotations={"readOnlyHint": True, "openWorldHint": False}))
