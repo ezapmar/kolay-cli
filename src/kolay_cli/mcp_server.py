@@ -9,6 +9,11 @@ os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
 os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
+from fastmcp.server.middleware.rate_limiting import SlidingWindowRateLimitingMiddleware
+from fastmcp.server.middleware.timing import TimingMiddleware
+from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
+from fastmcp.server.middleware import PingMiddleware
 
 from .security import require_auth
 from .services import person as person_svc
@@ -58,7 +63,7 @@ mcp = FastMCP(
 
 
 from .mcp import (
-    tools_people, tools_leaves, tools_time, tools_training, tools_finance, 
+    tools_people, tools_leaves, tools_time, tools_training, tools_finance,
     tools_org, tools_analytics, tools_wellness, tools_misc, prompts
 )
 
@@ -73,6 +78,39 @@ tools_wellness.register(mcp)
 tools_misc.register(mcp)
 prompts.register(mcp)
 
+# ── FastMCP Middleware Stack ─────────────────────────────────────────────────
+#
+# Order: outermost (first-added) wraps all inner layers.
+# ────────────────────────────────────────────────────────────────────────────
+
+# 1. Error handler — catch exceptions before they leak internals
+mcp.add_middleware(ErrorHandlingMiddleware(include_traceback=False, transform_errors=True))
+
+# 2. Per-token rate limiter (opt-in, env-configurable)
+_rl_enabled = os.environ.get("MCP_RATE_LIMIT_ENABLED", "").lower() in ("1", "true", "yes")
+if _rl_enabled:
+    from .rate_limiter import token_key as _token_key
+    from .security import KOLAY_TOKEN_CTX as _TOKEN_CTX
+
+    def _get_client_id(ctx) -> str:  # noqa: ANN001
+        token = _TOKEN_CTX.get()
+        return _token_key(token) if token else "tok_…anonymous"
+
+    _per_min = int(os.environ.get("MCP_RATE_LIMIT_PER_MINUTE", "30"))
+    mcp.add_middleware(SlidingWindowRateLimitingMiddleware(
+        max_requests=_per_min,
+        window_minutes=1,
+        get_client_id=_get_client_id,
+    ))
+
+# 3. Request timing (logs duration per MCP operation)
+mcp.add_middleware(TimingMiddleware())
+
+# 4. Response size guard — truncate runaway tool responses at 500 KB
+mcp.add_middleware(ResponseLimitingMiddleware(max_size=500_000))
+
+# 5. SSE keep-alive ping (prevents proxy timeouts on long HTTP sessions)
+mcp.add_middleware(PingMiddleware(interval_ms=30_000))
 
 @mcp.resource("kolay://reason-codes")
 def reason_codes() -> str:
