@@ -65,7 +65,7 @@ mcp = FastMCP(
 
 from .mcp import (
     tools_people, tools_leaves, tools_time, tools_training, tools_finance,
-    tools_org, tools_analytics, tools_wellness, tools_misc, prompts
+    tools_org, tools_analytics, tools_wellness, tools_misc, tools_session, prompts
 )
 
 tools_people.register(mcp)
@@ -77,6 +77,7 @@ tools_org.register(mcp)
 tools_analytics.register(mcp)
 tools_wellness.register(mcp)
 tools_misc.register(mcp)
+tools_session.register(mcp)
 prompts.register(mcp)
 
 # ── FastMCP Middleware Stack ─────────────────────────────────────────────────

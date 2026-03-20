@@ -40,10 +40,44 @@ def person_list(
     return result
 
 
-@require_auth
-def person_view(person_id: str) -> dict[str, Any]:
-    """[READ] View full profile of an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""
-    return person_svc.view_person(person_id)
+
+def _inline_auth():
+    """Shared auth check for async tools that bypass @require_auth."""
+    from ..security import resolve_token, validate_token, _auth_error
+    token = resolve_token()
+    if not token:
+        return None, _auth_error(
+            "It seems we need a valid API token to proceed.",
+            hint="Please run 'kolay auth login' to get started.",
+        )
+    status = validate_token(token)
+    if not status:
+        return None, _auth_error(
+            f"We couldn't verify the current session: {status.reason}",
+            hint="Please run 'kolay auth login' to refresh your connection.",
+        )
+    return token, None
+
+
+async def person_view(person_id: str, ctx: Context) -> dict[str, Any]:
+    """[READ] View full profile of an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Automatically caches this person as 'last_person' in session state."""
+    token, err = _inline_auth()
+    if err:
+        return err
+
+    result = person_svc.view_person(person_id)
+
+    # Auto-cache: store last-viewed person for convenient cross-tool reuse
+    try:
+        name = f"{result.get('firstName', '')} {result.get('lastName', '')}".strip()
+        await ctx.set_state("last_person_id", result.get("id", person_id))
+        await ctx.set_state("last_person_name", name)
+        if email := result.get("workEmail") or result.get("email"):
+            await ctx.set_state("last_person_email", email)
+    except Exception:
+        pass  # State caching is best-effort — never break the main result
+
+    return result
 
 
 @require_auth

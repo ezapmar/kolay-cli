@@ -39,10 +39,14 @@ class TestPersonTools:
         assert result == expected
 
     def test_person_view(self):
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
         from kolay_cli.mcp.tools_people import person_view
         expected = {"id": "p1", "firstName": "Alice"}
+        mock_ctx = MagicMock()
+        mock_ctx.set_state = AsyncMock()
         with patch(_svc("person_svc.view_person"), return_value=expected) as m:
-            result = person_view("p1")
+            result = asyncio.run(person_view("p1", ctx=mock_ctx))
         m.assert_called_once_with("p1")
         assert result == expected
 
