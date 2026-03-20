@@ -171,11 +171,6 @@ def person_assign_training(
     )
 
 
-@require_auth
-def person_list_trainings(person_id: str) -> list[dict[str, Any]]:
-    """[READ] List training assignments for an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Returns the employee's training history and pending assignments."""
-    return person_svc.list_trainings(person_id)
-
 
 @require_auth
 def person_update_training(
@@ -206,6 +201,5 @@ def register(mcp):
     mcp.add_tool(Tool.from_function(person_update_fields, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
     mcp.add_tool(Tool.from_function(employee_health_check, annotations={"readOnlyHint": True, "openWorldHint": False}))
     mcp.add_tool(Tool.from_function(person_assign_training, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_list_trainings, annotations={"readOnlyHint": True, "openWorldHint": False}))
     mcp.add_tool(Tool.from_function(person_update_training, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
     mcp.add_tool(Tool.from_function(person_delete_training, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
