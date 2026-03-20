@@ -88,20 +88,55 @@ def _check_token() -> tuple[str, str]:
 
 
 def _check_api() -> tuple[str, str]:
-    """Check if the API is reachable and the token is valid."""
+    """Check if the API is reachable, latency, and the token is valid."""
     from ..security import resolve_token
     token = resolve_token()
     if not token:
         return _WARN, "API connectivity  [grey62](skipped — no token)[/grey62]"
     try:
+        import time
         from ..api import KolayClient
         client = KolayClient(token=token)
+        t0 = time.monotonic()
         resp = client.get("v2/profile/me")
+        t1 = time.monotonic()
+        ms = round((t1 - t0) * 1000)
         data = resp.get("data", {})
         name = f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()
-        return _OK, f"API connected  [grey62]{name}[/grey62]"
+        latency_str = f"[bold green]{ms}ms[/bold green]" if ms < 500 else f"[bold yellow]{ms}ms[/bold yellow]"
+        return _OK, f"API connected  [grey62]{name} (Latency: {latency_str})[/grey62]"
     except Exception as exc:
         return _FAIL, f"API connection failed  [grey62]({exc})[/grey62]"
+
+
+def _check_update() -> tuple[str, str]:
+    """Check PyPI if a newer version of the CLI exists."""
+    import json
+    import urllib.request
+    from .. import __version__
+    try:
+        req = urllib.request.Request(
+            "https://pypi.org/pypi/kolay-cli/json",
+            headers={"User-Agent": f"kolay-cli-doctor/{__version__}"}
+        )
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            data = json.loads(resp.read().decode())
+            latest = data.get("info", {}).get("version")
+            if not latest:
+                return _WARN, f"Update check failed  [grey62](could not read version)[/grey62]"
+            if __version__ != latest:
+                return _WARN, f"Update available: {latest}  [grey62](current: {__version__} — Run: pipx upgrade kolay-cli)[/grey62]"
+            return _OK, f"Up to date  [grey62](v{__version__})[/grey62]"
+    except Exception as exc:
+        return _WARN, f"Update check failed  [grey62]({exc})[/grey62]"
+
+
+def _check_rate_limit() -> tuple[str, str]:
+    """Check if the MCP proxy rate limits are configured."""
+    from ..rate_limiter import is_rate_limit_enabled, get_per_minute_limit, get_per_hour_limit
+    if is_rate_limit_enabled():
+        return _OK, f"Rate limits active  [grey62]({get_per_minute_limit()}/min, {get_per_hour_limit()}/hour)[/grey62]"
+    return _WARN, "Rate limits disabled  [grey62](MCP proxy might be vulnerable to abuse)[/grey62]"
 
 
 def _check_python() -> tuple[str, str]:
@@ -186,11 +221,13 @@ def doctor(ctx: typer.Context) -> None:
 
 
     checks = [
+        ("CLI Version", _check_update),
         ("PATH", _check_path),
         ("Config", _check_config_file),
         ("Keyring", _check_keyring),
         ("Token", _check_token),
-        ("API", _check_api),
+        ("API Latency", _check_api),
+        ("Rate Limits", _check_rate_limit),
         ("Python", _check_python),
         ("Completion", _check_shell_completion),
     ]

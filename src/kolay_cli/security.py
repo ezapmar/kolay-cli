@@ -21,11 +21,6 @@ _KEYRING_USERNAME = "api_token"
 
 
 
-_SENTINEL = object()          # distinct from None (= "no token found")
-_token_cache: object = _SENTINEL  # object type so mypy doesn't complain
-
-
-
 class TokenStatus:
     """Result of a token validation check."""
 
@@ -95,9 +90,7 @@ def _keyring_available() -> bool:
 
 
 def store_token(token: str) -> bool:
-    """Save API token to OS keychain and invalidate cache."""
-    global _token_cache
-    _token_cache = _SENTINEL  # invalidate so next resolve_token() reads fresh
+    """Save API token to OS keychain."""
     try:
         import keyring
         keyring.set_password(_KEYRING_SERVICE, _KEYRING_USERNAME, token)
@@ -124,13 +117,11 @@ def get_keyring_token() -> str | None:
 
 
 def delete_token() -> bool:
-    """Remove the API token from the OS keychain and invalidate the in-process cache.
+    """Remove the API token from the OS keychain.
 
     Returns:
         True if deleted, False if not found or keyring unavailable.
     """
-    global _token_cache
-    _token_cache = _SENTINEL  # invalidate immediately
     try:
         import keyring
         import keyring.errors
@@ -192,21 +183,14 @@ def is_first_run() -> bool:
 
 
 def resolve_token() -> str | None:
-    """Resolve API token — always fresh (no cache in server mode).
+    """Resolve API token.
 
     Priority:
-      0. Per-request ContextVar (multi-tenant MCP)
-      1. Env var KOLAY_API_TOKEN (set by Slack middleware per-tenant)
-      2. Keychain
-      3. Config file
+      0. Per-request ContextVar (multi-tenant MCP host)
+      1. Environment variable KOLAY_API_TOKEN
+      2. OS Keychain
+      3. Legacy config file
     """
-    # In server mode, the env var is dynamically set per-request by middleware.
-    # Caching would break multi-tenant, so always resolve fresh.
-    return _resolve_uncached()
-
-
-def _resolve_uncached() -> str | None:
-    """Internal: perform the full token resolution without cache."""
     # 0. Request context (multi-tenant MCP host)
     ctx_token = KOLAY_TOKEN_CTX.get()
     if ctx_token:
@@ -357,22 +341,6 @@ def validate_token(token: str) -> TokenStatus:
         if exp - now < 300:
             _log.warning("Token expires in less than 5 minutes.")
 
-    # from jwt import PyJWKClient
-    # import jwt
-    # try:
-    # jwks_url = os.getenv("KOLAY_JWKS_URI", "https://your-idp.com/.well-known/jwks.json")
-    # client = PyJWKClient(jwks_url)
-    # signing_key = client.get_signing_key_from_jwt(token)
-    # jwt.decode(
-    # token,
-    # signing_key.key,
-    # algorithms=["RS256", "RS384", "RS512"],
-    # audience=os.getenv("KOLAY_JWT_AUDIENCE", "kolay-mcp"),
-    # issuer=os.getenv("KOLAY_JWT_ISSUER"),
-    # )
-    # except jwt.InvalidTokenError as e:
-    # return TokenStatus(False, f"JWT signature invalid: {e}")
-
     return TokenStatus(True, "JWT is valid.")
 
 
@@ -407,15 +375,15 @@ def require_auth(fn: F) -> F:
 
         if not token:
             return _auth_error(
-                "No API token configured.",
-                hint="Run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable.",
+                "It seems we need a valid API token to proceed.",
+                hint="Please run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable to get started.",
             )
 
         status = validate_token(token)
         if not status:
             return _auth_error(
-                f"Token is invalid or expired: {status.reason}",
-                hint="Run 'kolay auth login' to refresh your token.",
+                f"We couldn't verify the current session: {status.reason}",
+                hint="Please run 'kolay auth login' to refresh your connection.",
             )
 
         key = rl_token_key(token)
@@ -425,7 +393,7 @@ def require_auth(fn: F) -> F:
             allowed, detail = check_rate_limit(key)
             if not allowed:
                 log_tool_call(key, fn.__name__, kwargs, 0.0, success=False, error="rate_limited")
-                return {"error": True, "code": 429, "message": "Rate limit exceeded.", **detail}
+                return {"error": True, "code": 429, "message": "It looks like we've reached the rate limit.", "hint": "Please wait a moment before trying the next request.", **detail}
 
         # ── Execute tool with timing + activity logging ──
         t0 = _time.monotonic()
@@ -439,8 +407,8 @@ def require_auth(fn: F) -> F:
             from .api.errors import APIError
             if isinstance(exc, APIError) and exc.status_code == 401:
                 return _auth_error(
-                    "API rejected the token (401 Unauthorized).",
-                    hint="Run 'kolay auth login' to update your token.",
+                    "It seems the API session has expired.",
+                    hint="Please run 'kolay auth login' to update your connection.",
                 )
             # Re-raise all other exceptions — MCP will handle them
             raise

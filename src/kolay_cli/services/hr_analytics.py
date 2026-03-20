@@ -15,12 +15,15 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from . import leave as leave_svc
 from . import person as person_svc
 from . import transaction as transaction_svc
 from . import unit as unit_svc
+
+# Type alias for optional progress callback: (step, total, message) -> None
+ProgressCallback = Callable[[int, int, str], None] | None
 
 
 # ---------------------------------------------------------------------------
@@ -73,20 +76,23 @@ def team_availability_analysis(
     unit_name: str,
     start_date: str,
     end_date: str,
+    on_progress: ProgressCallback = None,
 ) -> dict[str, Any]:
     """
     Multi-step team availability and operational risk assessment.
 
     Reasoning plan:
-      Step 1 — Resolve unit_name → member person IDs via unit_tree().
-      Step 2 — Fetch approved leaves in [start_date, end_date] for those members.
-      Step 3 — Iterate every calendar day to find peak concurrent absences.
-      Step 4 — Classify operational risk (normal / low / medium / high / critical).
+      Step 1 - Resolve unit_name -> member person IDs via unit_tree().
+      Step 2 - Fetch approved leaves in [start_date, end_date] for those members.
+      Step 3 - Iterate every calendar day to find peak concurrent absences.
+      Step 4 - Classify operational risk (normal / low / medium / high / critical).
     """
     chain: list[str] = []
+    _emit = on_progress or (lambda s, t, m: None)
 
     # ── Step 1: resolve unit ──────────────────────────────────────────────
     chain.append(f"Step 1: Calling unit_tree() to locate unit matching '{unit_name}'.")
+    _emit(1, 4, f"Resolving unit '{unit_name}'...")
     flat = _flatten_units(unit_svc.unit_tree())
     matched = next(
         (n for n in flat if unit_name.lower() in n.get("name", "").lower()),
@@ -95,7 +101,7 @@ def team_availability_analysis(
     if matched is None:
         return {
             "error": True,
-            "message": f"Unit '{unit_name}' not found in org chart.",
+            "message": f"We couldn't seem to find the organizational unit '{unit_name}'. Please double-check the spelling or try exploring the allowed units.",
             "available_units": [n.get("name", "") for n in flat],
             "reasoning_chain": chain,
         }
@@ -113,7 +119,7 @@ def team_availability_analysis(
     if headcount == 0:
         return {
             "error": True,
-            "message": f"Unit '{unit_name}' has no member records.",
+            "message": f"It seems the unit '{unit_name}' doesn't have any team members currently assigned.",
             "reasoning_chain": chain,
         }
 
@@ -122,6 +128,7 @@ def team_availability_analysis(
         f"Step 2: Calling leave_list(status='approved', start='{start_date}', "
         f"end='{end_date}', limit=200) and filtering to unit members."
     )
+    _emit(2, 4, f"Fetching leaves for {headcount} members...")
     all_leaves = leave_svc.list_leaves(
         status="approved", start=start_date, end=end_date, limit=200
     )
@@ -135,6 +142,7 @@ def team_availability_analysis(
 
     # ── Step 3: daily absence map ─────────────────────────────────────────
     chain.append("Step 3: Building daily absence map across the full date range.")
+    _emit(3, 4, "Computing daily absence map...")
     start_d, end_d = _parse_date(start_date), _parse_date(end_date)
     days_total = (end_d - start_d).days + 1
     absence_by_day: dict[str, list[str]] = {}
@@ -165,6 +173,7 @@ def team_availability_analysis(
 
     # ── Step 4: classify risk ─────────────────────────────────────────────
     chain.append("Step 4: Classifying operational risk from absence ratio and team size.")
+    _emit(4, 4, "Classifying operational risk...")
     ratio = peak_count / headcount
     risk_factors: list[str] = []
     score = 0
@@ -295,22 +304,25 @@ def _score_person(
 def turnover_risk_scan(
     search: str | None = None,
     limit: int = 50,
+    on_progress: ProgressCallback = None,
 ) -> dict[str, Any]:
     """
     Scan active employees for turnover and burnout risk signals.
 
     Reasoning plan:
-      Step 1 — Fetch active employees (optionally filtered by search/department name).
-      Step 2 — Fetch leave balances per employee via person_leave_status().
-      Step 3 — Apply risk signal heuristics and rank by score (highest first).
+      Step 1 - Fetch active employees (optionally filtered by search/department name).
+      Step 2 - Fetch leave balances per employee via person_leave_status().
+      Step 3 - Apply risk signal heuristics and rank by score (highest first).
     """
     chain: list[str] = []
+    _emit = on_progress or (lambda s, t, m: None)
 
     # ── Step 1 ────────────────────────────────────────────────────────────
     chain.append(
         f"Step 1: Calling person_list(status='active', limit={limit}"
         + (f", search='{search}')" if search else ").")
     )
+    _emit(1, 3, "Fetching employee list...")
     result = person_svc.list_people(status="active", search=search, limit=limit)
     people = result.get("items", [])
     total_active = result.get("totalCount", len(people))
@@ -321,7 +333,7 @@ def turnover_risk_scan(
     if not people:
         return {
             "error": True,
-            "message": "No active employees found.",
+            "message": "It looks like we couldn't find any active employees matching those criteria. Please try a different search term.",
             "reasoning_chain": chain,
         }
 
@@ -332,7 +344,9 @@ def turnover_risk_scan(
     )
     scored: list[dict[str, Any]] = []
     errors = 0
-    for person in people:
+    total_people = len(people)
+    for i, person in enumerate(people):
+        _emit(2, 3, f"Scanning employee {i + 1}/{total_people}...")
         try:
             balances = person_svc.leave_status(person["id"])
         except Exception:
@@ -347,6 +361,7 @@ def turnover_risk_scan(
 
     # ── Step 3 ────────────────────────────────────────────────────────────
     chain.append("Step 3: Ranking employees by risk_score descending and summarising distribution.")
+    _emit(3, 3, "Ranking results...")
     scored.sort(key=lambda e: e["risk_score"], reverse=True)
 
     dist: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "normal": 0}
@@ -373,16 +388,20 @@ def turnover_risk_scan(
 # Tool 3 — Payroll anomaly detection
 # ---------------------------------------------------------------------------
 
-def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
+def payroll_anomaly_detect(
+    months_back: int = 3,
+    on_progress: ProgressCallback = None,
+) -> dict[str, Any]:
     """
     Scan recent transactions for payroll anomalies.
 
     Reasoning plan:
-      Step 1 — Fetch transactions for the last `months_back` months.
-      Step 2 — Flag same-person / same-type / same-date duplicates.
-      Step 3 — Compute per-type mean + stdev; flag amounts > mean + 2σ.
+      Step 1 - Fetch transactions for the last `months_back` months.
+      Step 2 - Flag same-person / same-type / same-date duplicates.
+      Step 3 - Compute per-type mean + stdev; flag amounts > mean + 2sigma.
     """
     chain: list[str] = []
+    _emit = on_progress or (lambda s, t, m: None)
 
     # ── Step 1 ────────────────────────────────────────────────────────────
     cutoff = (date.today() - timedelta(days=months_back * 30)).isoformat()
@@ -390,6 +409,7 @@ def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
         f"Step 1: Calling transaction_list(limit=200) and filtering to transactions "
         f"on or after {cutoff} (last {months_back} month(s))."
     )
+    _emit(1, 3, "Fetching transaction data...")
     result = transaction_svc.list_transactions(limit=200)
     txns = [
         t for t in result.get("items", [])
@@ -411,6 +431,7 @@ def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
     chain.append(
         "Step 2: Grouping by (person_id, type, date) to detect same-day duplicate transactions."
     )
+    _emit(2, 3, "Checking for duplicates...")
     key_groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for t in txns:
         p = t.get("person") or {}
@@ -439,8 +460,9 @@ def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
 
     # ── Step 3: statistical outliers ─────────────────────────────────────
     chain.append(
-        "Step 3: Computing per-type amount statistics; flagging transactions > mean + 2σ."
+        "Step 3: Computing per-type amount statistics; flagging transactions > mean + 2sigma."
     )
+    _emit(3, 3, "Detecting statistical outliers...")
     by_type: dict[str, list[float]] = defaultdict(list)
     for t in txns:
         amt = float(t.get("amount") or 0)

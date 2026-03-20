@@ -47,7 +47,7 @@ def test_leave_list_empty(mock_client):
     assert "No approved leave records found" in result.output
 
 
-def test_leave_list_with_filters(mock_client):
+def test_leave_list_with_matchs(mock_client):
     mock_client.get.return_value = {"data": []}
     result = runner.invoke(app, ["leave", "list", "--status", "waiting", "--person-id", "pid1"])
     assert result.exit_code == 0
@@ -63,7 +63,7 @@ def test_leave_list_with_name_filter(mock_client):
     assert "Ali Veli" in result.output
 
 
-def test_leave_list_filter_no_match_shows_all(mock_client):
+def test_leave_list_match_no_match_shows_all(mock_client):
     """When --filter matches nothing, fall back to showing all records."""
     mock_client.get.return_value = LEAVE_LIST_RESPONSE
     result = runner.invoke(app, ["leave", "list", "--filter", "zzznomatch"])
@@ -147,7 +147,7 @@ def test_transaction_list_empty(mock_client):
     assert "No transactions found" in result.output
 
 
-def test_transaction_list_with_filter(mock_client):
+def test_transaction_list_with_match(mock_client):
     mock_client.post.return_value = TRX_LIST_RESPONSE
     result = runner.invoke(app, ["transaction", "list", "--filter", "Fatma"])
     assert result.exit_code == 0

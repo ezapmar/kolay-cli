@@ -49,7 +49,7 @@ Repository = "https://github.com/ezapmar/kolay-cli"
 Issues = "https://github.com/ezapmar/kolay-cli/issues"
 
 [project.scripts]
-kolay = "kolay_cli.cli:app"
+kolay = "kolay_cli.cli:run"
 kolay-mcp = "kolay_cli.mcp_server:mcp.run"
 
 

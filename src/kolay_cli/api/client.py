@@ -115,12 +115,40 @@ class KolayClient:
 
 
 
+    def _log_audit_trail(self, method: str, endpoint: str, status: int) -> None:
+        """Append write operations to local audit.log."""
+        import json, datetime
+        from pathlib import Path
+        try:
+            home = Path("~").expanduser() / ".config" / "kolay"
+            home.mkdir(parents=True, exist_ok=True)
+            audit_file = home / "audit.log"
+            entry = {
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()[:19] + "Z",
+                "method": method,
+                "endpoint": endpoint,
+                "status": status,
+            }
+            with open(audit_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            pass
+
     def _request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
         """Execute an API request with error handling and optional debug logging."""
         if ".." in endpoint or endpoint.startswith("/") or "://" in endpoint:
             raise APIError("Invalid API endpoint.")
 
         url = f"{self.base_url}/{endpoint}"
+
+        if method.upper() == "POST":
+            import hashlib, time
+            window = int(time.time() // 120)  # 2-minute deduplication window
+            payload = str(kwargs.get("json", {})) + str(kwargs.get("data", {}))
+            idx = hashlib.md5(f"{endpoint}:{payload}:{window}".encode()).hexdigest()
+            headers = kwargs.setdefault("headers", {})
+            if "Idempotency-Key" not in headers:
+                headers["Idempotency-Key"] = f"kolay-cli-{idx}"
 
         if self.debug:
             safe_hdrs = _redact_headers(dict(self.session.headers))
@@ -132,6 +160,9 @@ class KolayClient:
 
         try:
             response = self.session.request(method, url, timeout=30, **kwargs)
+
+            if method.upper() in ("POST", "PUT", "PATCH", "DELETE"):
+                self._log_audit_trail(method.upper(), endpoint, response.status_code)
 
             if self.debug:
                 _log.debug("%d  %s", response.status_code, response.text[:500])

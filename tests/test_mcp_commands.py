@@ -46,7 +46,7 @@ class TestMcpHelp:
     def test_help_lists_all_subcommands(self):
         result = runner.invoke(app, ["mcp", "--help"])
         assert result.exit_code == 0
-        for cmd in ("serve", "tools", "install", "clients"):
+        for cmd in ("serve", "inspect", "install", "clients"):
             assert cmd in result.output, f"'{cmd}' missing from mcp --help"
 
     def test_help_description_is_present(self):
@@ -242,23 +242,23 @@ class TestMcpInstall:
         assert "configured" in result.output.lower()
 
 
-# ── kolay mcp tools ───────────────────────────────────────────────────────────
+# ── kolay mcp inspect ─────────────────────────────────────────────────────────
 
 class TestMcpTools:
-    def test_tools_exits_zero(self, mock_client):
-        result = runner.invoke(app, ["mcp", "tools"])
+    def test_inspect_exits_zero(self, mock_client):
+        result = runner.invoke(app, ["mcp", "inspect"])
         assert result.exit_code == 0
 
-    def test_tools_output_contains_tool_header(self, mock_client):
-        result = runner.invoke(app, ["mcp", "tools"])
+    def test_inspect_output_contains_tool_header(self, mock_client):
+        result = runner.invoke(app, ["mcp", "inspect"])
         assert "Tool" in result.output or "MCP" in result.output
 
-    def test_tools_lists_person_list_tool(self, mock_client):
-        result = runner.invoke(app, ["mcp", "tools"])
+    def test_inspect_lists_person_list_tool(self, mock_client):
+        result = runner.invoke(app, ["mcp", "inspect"])
         assert "person_list" in result.output
 
-    def test_tools_lists_leave_create_tool(self, mock_client):
-        result = runner.invoke(app, ["mcp", "tools"])
+    def test_inspect_lists_leave_create_tool(self, mock_client):
+        result = runner.invoke(app, ["mcp", "inspect"])
         assert "leave_create" in result.output
 
 

@@ -321,3 +321,44 @@ class TestGetSmartRestPlan:
         opps = result["top_rest_opportunities"]
         effs = [o["efficiency"] for o in opps]
         assert effs == sorted(effs, reverse=True)
+
+
+# ── Progress callback tests ──────────────────────────────────────────────────
+
+class TestProgressCallbacks:
+    @patch("kolay_cli.services.wellness.leave_svc.list_leaves", return_value=_MOCK_LEAVES)
+    @patch("kolay_cli.services.wellness.person_svc.leave_status", return_value=_MOCK_BALANCE)
+    @patch("kolay_cli.services.wellness.person_svc.view_person", return_value=_MOCK_PROFILE)
+    def test_analyze_wellbeing_calls_progress(self, *_):
+        calls: list[tuple[int, int, str]] = []
+        def recorder(step: int, total: int, msg: str) -> None:
+            calls.append((step, total, msg))
+
+        analyze_employee_wellbeing("p1", on_progress=recorder)
+        # Should have 5 steps
+        assert len(calls) == 5
+        steps = [c[0] for c in calls]
+        assert steps == [1, 2, 3, 4, 5]
+        # All totals should be 5
+        assert all(c[1] == 5 for c in calls)
+
+    @patch("kolay_cli.services.wellness.person_svc.leave_status", return_value=_MOCK_BALANCE)
+    def test_smart_rest_plan_calls_progress(self, _):
+        calls: list[tuple[int, int, str]] = []
+        def recorder(step: int, total: int, msg: str) -> None:
+            calls.append((step, total, msg))
+
+        get_smart_rest_plan("p1", on_progress=recorder)
+        # Should have 3 steps
+        assert len(calls) == 3
+        steps = [c[0] for c in calls]
+        assert steps == [1, 2, 3]
+        assert all(c[1] == 3 for c in calls)
+
+    def test_no_progress_callback_does_not_crash(self):
+        """Ensure on_progress=None (default) works without errors."""
+        with patch("kolay_cli.services.wellness.person_svc.leave_status", return_value=_MOCK_BALANCE):
+            with patch("kolay_cli.services.wellness.person_svc.view_person", return_value=_MOCK_PROFILE):
+                with patch("kolay_cli.services.wellness.leave_svc.list_leaves", return_value=[]):
+                    result = analyze_employee_wellbeing("p1")
+        assert "error" not in result

@@ -10,13 +10,16 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from . import leave as leave_svc
 from . import person as person_svc
 from .turkish_holidays import get_holidays, is_off_day
 
 _log = logging.getLogger(__name__)
+
+# Type alias for optional progress callback: (step, total, message) -> None
+ProgressCallback = Callable[[int, int, str], None] | None
 
 # ---------------------------------------------------------------------------
 # Thresholds
@@ -244,7 +247,10 @@ def _scan_rest_opportunities(
 # Public API: analyze_employee_wellbeing
 # ---------------------------------------------------------------------------
 
-def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
+def analyze_employee_wellbeing(
+    person_id: str,
+    on_progress: ProgressCallback = None,
+) -> dict[str, Any]:
     """Deep per-employee wellbeing assessment.
 
     Reasoning steps:
@@ -255,15 +261,17 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
       5. Generate status, signals, and recommendation.
     """
     chain: list[str] = []
+    _emit = on_progress or (lambda s, t, m: None)
     today = date.today()
     six_months_ago = (today - timedelta(days=182)).isoformat()
 
-    # Step 1 — profile + balances
+    # Step 1 -- profile + balances
     chain.append("Step 1: Fetching employee profile and leave balances.")
+    _emit(1, 5, "Fetching employee profile...")
     try:
         profile = person_svc.view_person(person_id)
     except Exception as exc:
-        return {"error": True, "message": f"Person not found: {exc}", "reasoning_chain": chain}
+        return {"error": True, "message": f"We couldn't find the person requested: {exc}. Please verify the person ID.", "reasoning_chain": chain}
     try:
         balances = person_svc.leave_status(person_id)
     except Exception as exc:
@@ -288,8 +296,9 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
         f"{unused_days:.0f} unused annual leave days."
     )
 
-    # Step 2 — leave history
+    # Step 2 -- leave history
     chain.append(f"Step 2: Fetching approved leave history since {six_months_ago}.")
+    _emit(2, 5, "Fetching leave history...")
     try:
         history = leave_svc.list_leaves(
             status="approved", person_id=person_id,
@@ -305,8 +314,9 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
         f"Days since last rest: {days_since_rest if days_since_rest is not None else 'unknown'}."
     )
 
-    # Step 3 — score burnout signals
+    # Step 3 -- score burnout signals
     chain.append("Step 3: Computing burnout score from balance and recency signals.")
+    _emit(3, 5, "Scoring burnout signals...")
     signals: list[str] = []
     score = 0
 
@@ -348,11 +358,12 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
         f"Signals: {signals or ['none']}."
     )
 
-    # Step 4 — holidays + bridge opportunities
+    # Step 4 -- holidays + bridge opportunities
     chain.append(
         f"Step 4: Scanning next {_BRIDGE_HORIZON} days for Turkish public holidays "
         "and bridge opportunities."
     )
+    _emit(4, 5, "Scanning for bridge day opportunities...")
     horizon_end = today + timedelta(days=_BRIDGE_HORIZON)
     holidays = get_holidays(today, horizon_end)
     bridges = _scan_bridge_opportunities(holidays, unused_days)
@@ -361,8 +372,9 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
         f"{len(bridges)} bridge opportunities identified."
     )
 
-    # Step 5 — recommendation
+    # Step 5 -- recommendation
     chain.append("Step 5: Generating recommendation.")
+    _emit(5, 5, "Generating recommendation...")
     if bridges and score >= 2:
         best = bridges[0]
         rec = (
@@ -411,26 +423,29 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
 def get_smart_rest_plan(
     person_id: str,
     horizon_days: int = 90,
+    on_progress: ProgressCallback = None,
 ) -> dict[str, Any]:
     """Generate the top-3 upcoming rest opportunities ranked by leave efficiency.
 
     Budget tiers:
-      <5 days  → conservative (long weekends only)
-      5-15     → balanced (bridge days too)
-      15+      → generous (full weeks considered)
+      <5 days  -> conservative (long weekends only)
+      5-15     -> balanced (bridge days too)
+      15+      -> generous (full weeks considered)
     """
     _log.debug(
         "[wellness-engine] Calculating rest efficiency for person_id: %s", person_id
     )
     chain: list[str] = []
+    _emit = on_progress or (lambda s, t, m: None)
     today = date.today()
 
     # Fetch balance
     chain.append("Step 1: Fetching leave balance to determine budget tier.")
+    _emit(1, 3, "Fetching leave balance...")
     try:
         balances = person_svc.leave_status(person_id)
     except Exception as exc:
-        return {"error": True, "message": f"Could not fetch balances: {exc}", "reasoning_chain": chain}
+        return {"error": True, "message": f"We ran into a little trouble fetching the leave balance: {exc}. Please try again.", "reasoning_chain": chain}
 
     annual = next(
         (b for b in balances
@@ -452,12 +467,14 @@ def get_smart_rest_plan(
 
     # Fetch holidays
     chain.append(f"Step 2: Loading Turkish public holidays for next {horizon_days} days.")
+    _emit(2, 3, "Loading holiday calendar...")
     horizon_end = today + timedelta(days=horizon_days)
     holidays = get_holidays(today, horizon_end)
     chain.append(f"Step 2 result: {len(holidays)} holiday(s) in window.")
 
     # Compute opportunities
     chain.append("Step 3: Scanning rest windows and ranking by efficiency.")
+    _emit(3, 3, "Ranking rest opportunities...")
     opportunities = _scan_rest_opportunities(holidays, unused_days)
     chain.append(
         f"Step 3 result: Top {len(opportunities)} opportunity/ies returned."

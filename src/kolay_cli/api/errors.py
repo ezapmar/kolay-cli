@@ -4,44 +4,44 @@ from __future__ import annotations
 
 HTTP_ERRORS: dict[int, tuple[str, str]] = {
     400: (
-        "Bad request — the API didn't like what you sent.",
-        "Double-check your options and try again.",
+        "It looks like some of the details provided weren't quite right.",
+        "Please double-check your inputs or run with [bold]--help[/bold] to see the available options.",
     ),
     401: (
-        "Your session has expired or the token is invalid.",
-        "Run [bold]kolay auth login[/bold] to re-authenticate.",
+        "It seems we need a fresh login to continue.",
+        "Please run [bold]kolay auth login[/bold] to securely connect your session.",
     ),
     403: (
-        "Permission denied — you don't have access to this resource.",
-        "Ask your Kolay admin to grant the required role.",
+        "It seems this resource requires additional permissions.",
+        "Please check with your Kolay admin to help update your access role.",
     ),
     404: (
-        "That resource wasn't found.",
-        "The ID might be wrong. Use the interactive picker instead of copy-pasting.",
+        "We couldn't quite find the resource you're looking for.",
+        "You might find it helpful to use the interactive picker to select the correct ID.",
     ),
     422: (
-        "Validation error — some fields are missing or invalid.",
-        "Check the required fields with [bold]--help[/bold].",
+        "It looks like some required information is missing or formatted differently.",
+        "You can find the required fields by running the command with the [bold]--help[/bold] flag.",
     ),
     429: (
-        "Whoa, slow down! The API rate-limited you.",
-        "Wait a few seconds and try again.",
+        "It looks like we're sending requests a bit too fast to the API.",
+        "Please wait a moment, then we can try again.",
     ),
     500: (
-        "The Kolay API returned an internal error.",
-        "This is on their end. Try again in a minute.",
+        "The Kolay API encountered an unexpected hiccup on their end.",
+        "Please give it a minute, and we can try your request again.",
     ),
     502: (
-        "Bad gateway — the Kolay API might be updating.",
-        "Try again in 30 seconds.",
+        "We experienced a small connection interruption with the Kolay API.",
+        "It might be a temporary update. Let's try again in about 30 seconds.",
     ),
     503: (
-        "The Kolay API is temporarily unavailable.",
-        "It'll be back soon — grab a coffee.",
+        "The Kolay API is taking a brief pause and is currently unavailable.",
+        "It should be back up shortly! Let's try again in a little bit.",
     ),
     504: (
-        "Gateway timeout — the API took too long to respond.",
-        "Try again in a moment.",
+        "It took a bit too long for the API to process our request.",
+        "Let's try again in a moment to see if it goes through.",
     ),
 }
 
@@ -79,10 +79,10 @@ class APIError(Exception):
         if hint is None:
             # Special case for Kolay's weird 400 for bad API keys
             if status_code == 400 and "API anahtarını kontrol edin" in str(message):
-                self.hint = "Your API token is invalid. Run [bold]kolay auth login[/bold] to re-authenticate."
+                self.hint = "It seems we need a fresh login to continue. Please run [bold]kolay auth login[/bold] to securely connect your session."
             elif "Deneme süreniz" in str(message):
-                self.message = "Your Kolay IK workspace's free trial has expired."
-                self.hint = "You must upgrade to a paid plan in the Kolay web app, or use an active API token."
+                self.message = "It looks like your Kolay IK workspace's free trial has ended."
+                self.hint = "To continue using the service, please activate a paid plan in the Kolay web app, or connect using an active API token."
                 if status_code == 400:
                     self.status_code = 403  # Semantically it's a Forbidden error
             elif status_code and status_code in HTTP_ERRORS:

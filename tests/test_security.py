@@ -106,49 +106,6 @@ class TestTokenResolution:
                 assert resolve_token() is None
 
 
-class TestTokenCache:
-    """Tests for in-process caching in resolve_token()."""
-
-    def _reset_cache(self):
-        import kolay_cli.security as sec
-        sec._token_cache = sec._SENTINEL
-
-    def test_store_token_invalidates_cache(self, monkeypatch):
-        """Calling store_token() resets the cache so the new token is returned."""
-        self._reset_cache()
-        monkeypatch.delenv("KOLAY_API_TOKEN", raising=False)
-
-        with patch("kolay_cli.security.get_keyring_token", side_effect=["old", "new"]):
-            with patch("keyring.set_password"):
-                with patch("kolay_cli.security._remove_token_from_config_file"):
-                    from kolay_cli.security import resolve_token, store_token
-                    assert resolve_token() == "old"
-                    store_token("new-token")        # invalidates cache
-                    assert resolve_token() == "new" # reads keychain again
-
-    def test_delete_token_invalidates_cache(self, monkeypatch):
-        """Calling delete_token() resets the cache."""
-        self._reset_cache()
-        monkeypatch.delenv("KOLAY_API_TOKEN", raising=False)
-
-        with patch("kolay_cli.security.get_keyring_token", side_effect=["token", None]):
-            with patch("keyring.delete_password"):
-                from kolay_cli.security import resolve_token, delete_token
-                assert resolve_token() == "token"
-                delete_token()                  # invalidates cache
-                assert resolve_token() is None  # no token after logout
-
-    def test_none_not_cached(self, monkeypatch):
-        """A None result (no token) is never cached — retries always hit the source."""
-        self._reset_cache()
-        monkeypatch.delenv("KOLAY_API_TOKEN", raising=False)
-
-        with patch("kolay_cli.security.get_keyring_token", side_effect=[None, "appeared"]):
-            from kolay_cli.security import resolve_token
-            assert resolve_token() is None      # first call: no token
-            assert resolve_token() == "appeared" # token appeared since, should be found
-
-
 
 # ── JWT validation ────────────────────────────────────────────────────────────
 

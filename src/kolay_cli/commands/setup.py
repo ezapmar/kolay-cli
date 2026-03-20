@@ -81,9 +81,36 @@ def setup(ctx: typer.Context) -> None:
         console.print(f" [bold]kolay --install-completion[/bold]\n")
 
 
-    console.print(f" [bold {_PRIMARY}]Step 3[/bold {_PRIMARY}]  Verifying installation\n")
-    from .doctor import doctor as run_doctor
-    run_doctor(ctx)
+    console.print(f" [bold {_PRIMARY}]Step 3[/bold {_PRIMARY}]  Analytics (Opt-in)\n")
+    console.print("  Help improve Kolay CLI by anonymously logging command usage.")
+    console.print("  [grey62]Data never leaves your machine! Saved to ~/.config/kolay/analytics.json[/grey62]")
+    enable_analytics = typer.confirm("  Enable local usage analytics?", default=True)
+    from ..config import set_config_value
+    set_config_value("analytics_enabled", enable_analytics)
+    console.print(f" [bold {_SUCCESS}][/bold {_SUCCESS}]  Analytics {'enabled' if enable_analytics else 'disabled'}.\n")
+
+    console.print(f" [bold {_PRIMARY}]Step 4[/bold {_PRIMARY}]  Scope Check\n")
+    with console.status("Checking API token permissions...", spinner="dots"):
+        from ..api.client import KolayClient
+        from ..api.errors import APIError
+        client = KolayClient()
+        scopes = {
+            "Employee Directory (person:view)": "v2/person/list?limit=1",
+            "Time Off (leave:view)": "v2/leave/list?limit=1",
+            "Finance (transaction:view)": "v2/transaction/list?limit=1",
+        }
+        for name, endpoint in scopes.items():
+            try:
+                client.get(endpoint)
+                console.print(f" [bold {_SUCCESS}]✔[/bold {_SUCCESS}]  {name}")
+            except APIError as e:
+                if e.status_code in (403, 401):
+                    console.print(f" [bold red]✘[/bold red]  {name}  [grey62](restricted)[/grey62]")
+                else:
+                    console.print(f" [bold {_SUCCESS}]✔[/bold {_SUCCESS}]  {name}")
+            except Exception:
+                console.print(f" [bold red]✘[/bold red]  {name}  [grey62](error)[/grey62]")
+    console.print()
 
 
     console.print(

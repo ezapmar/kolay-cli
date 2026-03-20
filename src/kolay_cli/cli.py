@@ -9,7 +9,7 @@ from . import __version__
 from .commands import (
     auth, person, leave, timelog, training, transaction, calendar,
     unit, approval, payroll, expense, nudge, schema, doctor, setup,
-    quiz
+    quiz, status, analytics
 )
 from .commands import config as config_cmd
 from .commands import mcp as mcp_cmd
@@ -41,9 +41,21 @@ app.add_typer(unit.app,         name="unit",        rich_help_panel="Organisatio
 app.add_typer(setup.app,        name="setup",       rich_help_panel="Getting Started")
 app.add_typer(doctor.app,       name="doctor",      rich_help_panel="Getting Started")
 app.add_typer(nudge.app,        name="nudge",       rich_help_panel="Productivity")
+app.add_typer(analytics.app,    name="analytics",   rich_help_panel="Productivity")
 app.add_typer(quiz.app,         name="quiz",        rich_help_panel="Fun")
 app.add_typer(mcp_cmd.app,      name="mcp",         rich_help_panel="Agent / Dev")
-app.add_typer(schema.app,       name="schema",      rich_help_panel="Agent / Dev", hidden=True)
+app.add_typer(schema.app,       name="schema",      rich_help_panel="Agent / Dev")
+
+@app.command(rich_help_panel="Getting Started")
+def status() -> None:
+    """Print a compact dashboard of your current HR status."""
+    from .commands.status import run_status
+    run_status()
+@app.command(rich_help_panel="Authentication")
+def whoami() -> None:
+    """Shortcut for 'kolay auth me'. Shows your currently authenticated profile."""
+    auth.me()
+
 
 
 @app.callback(invoke_without_command=True)
@@ -54,9 +66,19 @@ def main(
         help="Print the CLI version.",
         is_eager=True,
     ),
+    changelog: bool = typer.Option(
+        False, "--changelog",
+        help="View the latest release changes.",
+        is_eager=True,
+    ),
     json_flag: bool = typer.Option(
         False, "--json",
         help="Output machine-readable JSON to stdout (for AI agents / scripts).",
+        is_eager=True,
+    ),
+    format_opt: str = typer.Option(
+        "", "--format", "-f",
+        help="Output format: table, json, csv, tsv.",
         is_eager=True,
     ),
     yes: bool = typer.Option(
@@ -74,18 +96,53 @@ def main(
     """Kolay IK CLI / MCP (ALPHA RELEASE)
     Unofficial tool. Use with caution.
     """
-    from .ui.output import set_json_mode, set_yes_mode, is_json_mode, json_output
+    from .ui.output import set_json_mode, set_yes_mode, set_format_mode, is_json_mode, json_output
 
     if json_flag:
         set_json_mode(True)
+    if format_opt:
+        set_format_mode(format_opt)
     if yes:
         set_yes_mode(True)
+
+    if not is_json_mode() and ctx.invoked_subcommand not in {None, "setup", "auth", "mcp"}:
+        from .security import resolve_token, _is_jwt, _decode_jwt_claims
+        import time
+        token = resolve_token()
+        if token and _is_jwt(token):
+            claims = _decode_jwt_claims(token)
+            if claims and claims.get("exp"):
+                rem = claims["exp"] - int(time.time())
+                if 0 < rem < 3600:
+                    console.print(f" [bold #FFD93D]Warning:[/bold #FFD93D] Your API token expires in {rem // 60} mins. Run [bold]kolay auth login[/bold] soon.\n")
 
     if version:
         if is_json_mode():
             json_output({"version": __version__})
         else:
             console.print(f"Kolay CLI version [bold {_PRIMARY}]{__version__}[/bold {_PRIMARY}]")
+        raise typer.Exit()
+
+    if changelog:
+        with console.status("Fetching latest changelog...", spinner="dots"):
+            import requests # default dep
+            try:
+                resp = requests.get(
+                    "https://api.github.com/repos/ezapmar/kolay-cli/releases",
+                    timeout=5,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not data:
+                    console.print("[yellow]No releases found.[/yellow]")
+                    raise typer.Exit()
+                
+                latest = data[0]
+                from rich.markdown import Markdown
+                console.print(f"\n[bold {_PRIMARY}]Kolay CLI — What's New ({latest.get('tag_name')})[/bold {_PRIMARY}]\n")
+                console.print(Markdown(latest.get("body", "No release notes available.")))
+            except Exception as e:
+                console.print(f"[red]Could not fetch changelog: {e}[/red]")
         raise typer.Exit()
 
     if debug:
@@ -148,5 +205,30 @@ def _enable_debug_logging() -> None:
     console.print(f"[grey62]  Debug logging enabled {log_file}[/grey62]")
 
 
+def run() -> None:
+    """CLI entry point wrapper for hooking global usage analytics."""
+    import sys
+    import time
+    from . import analytics
+
+    start = time.monotonic()
+    success = True
+    try:
+        app()
+    except SystemExit as e:
+        success = (e.code == 0 or e.code is None)
+        raise
+    except Exception:
+        success = False
+        raise
+    finally:
+        try:
+            if analytics.is_enabled():
+                cmd = " ".join([arg for arg in sys.argv[1:3] if not arg.startswith("-")])
+                cmd = cmd.strip() or "main"
+                analytics.record(cmd, duration_ms=(time.monotonic() - start) * 1000, success=success)
+        except Exception:
+            pass
+
 if __name__ == "__main__":
-    app()
+    run()

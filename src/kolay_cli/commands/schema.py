@@ -1,99 +1,105 @@
-"""
-Schema export — ``kolay schema``
-
-Dumps the full CLI command tree as JSON so agents can discover
-available commands, arguments, and options programmatically.
-"""
+"""Schema export commands."""
 from __future__ import annotations
 
 import json
-import click
 import typer
+from rich.console import Console
 
-# Option names containing any of these strings will have their defaults omitted
-# to avoid leaking sensitive values (tokens, URLs, secrets).
-_SENSITIVE = frozenset({"token", "password", "secret", "key", "url"})
-
-app = typer.Typer(
-    help="Export CLI schema for agent discovery.",
-    hidden=True,
-    invoke_without_command=True,
-)
+app = typer.Typer(help="Export OpenAPI schemas for the Kolay IK MCP tools.")
+console = Console(highlight=False)
 
 
-@app.callback(invoke_without_command=True)
-def _run_default(ctx: typer.Context) -> None:
-    """Run the schema export when invoked as `kolay schema`."""
-    if ctx.invoked_subcommand is None:
-        export_schema()
+@app.command(name="export")
+def export(
+    format: str = typer.Option(
+        "openapi",
+        "--format", "-f",
+        help="Export format (only 'openapi' is currently supported).",
+    )
+) -> None:
+    """Generate and print an OpenAPI specification from the MCP tool registry."""
+    if format.lower() != "openapi":
+        console.print(f"[bold red]Unsupported format '[/bold red]{format}[bold red]'.[/bold red] Use 'openapi'.")
+        raise typer.Exit(1)
 
-
-def _opt_entry(p: click.Option) -> dict:
-    """Serialise a Click option, omitting defaults for sensitive-looking names."""
-    name = p.opts[0] if p.opts else (p.name or "")
-    entry: dict = {"name": name, "type": p.type.name, "required": p.required}
-    is_sensitive = any(s in name.lower() for s in _SENSITIVE)
-    if p.default is not None and not is_sensitive:
-        entry["default"] = p.default
-    if p.help:
-        entry["help"] = p.help
-    return entry
-
-
-def _walk(group: click.Group) -> dict:
-    """Recursively extract commands, arguments, and options from a Click group."""
-    tree: dict = {}
-    for name, cmd in sorted(group.commands.items()):
-        node: dict = {}
-        if cmd.help:
-            node["help"] = cmd.help.split("\n")[0]
-
-        opts = [
-            _opt_entry(p)
-            for p in cmd.params
-            if isinstance(p, click.Option) and "--help" not in p.opts
-        ]
-        if opts:
-            node["options"] = opts
-
-        args = [
-            {"name": p.name, "required": p.required}
-            for p in cmd.params
-            if isinstance(p, click.Argument)
-        ]
-        if args:
-            node["arguments"] = args
-
-        if isinstance(cmd, click.Group):
-            children = _walk(cmd)
-            if children:
-                node["commands"] = children
-
-        tree[name] = node
-    return tree
-
-
-@app.command(name="schema")
-def export_schema() -> None:
-    """Dump the full CLI command tree as JSON (for agent tool discovery)."""
-    from ..cli import app as root_app
-
-    click_app = typer.main.get_command(root_app)
-    tree = _walk(click_app)
-    # Remove self-reference — agents don't need to discover `kolay schema` recursively
-    tree.pop("schema", None)
-
-    payload = {
-        "name": "kolay",
-        "version": _get_version(),
-        "commands": tree,
-    }
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
-
-
-def _get_version() -> str:
+    import asyncio
     try:
-        from .. import __version__
-        return __version__
-    except Exception:
-        return "unknown"
+        from ..mcp_server import mcp
+    except ImportError:
+        console.print("\n[bold red]fastmcp is not installed.[/bold red]\n")
+        raise typer.Exit(1)
+
+    tools = asyncio.run(mcp.list_tools())
+    
+    # OpenAPI shell
+    spec = {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Kolay IK MCP API",
+            "version": "1.0.0",
+            "description": "Auto-generated OpenAPI schema from Kolay IK FastMCP tools.",
+        },
+        "servers": [
+            {
+                "url": "http://localhost:8080/mcp",
+                "description": "Local / proxy MCP Server HTTP endpoint"
+            }
+        ],
+        "paths": {},
+        "components": {
+            "schemas": {}
+        }
+    }
+
+    for tool in tools:
+        is_write = any(w in tool.name.lower() for w in ("create", "update", "delete", "terminate", "rehire", "manage", "assign"))
+        method = "post" if is_write else "get"
+        path = f"/tools/{tool.name}"
+
+        operation = {
+            "summary": tool.name,
+            "description": getattr(tool, "description", ""),
+            "operationId": tool.name,
+            "responses": {
+                "200": {
+                    "description": "Successful response",
+                    "content": {
+                        "application/json": {}
+                    }
+                }
+            }
+        }
+
+        # Handle parameters
+        if getattr(tool, "parameters", None) and tool.parameters.get("properties"):
+            schema_name = f"{tool.name.capitalize()}Input"
+            spec["components"]["schemas"][schema_name] = tool.parameters
+            
+            if method == "post":
+                operation["requestBody"] = {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": f"#/components/schemas/{schema_name}"
+                            }
+                        }
+                    }
+                }
+            else:
+                parameters = []
+                for prop_name, prop_schema in tool.parameters.get("properties", {}).items():
+                    parameters.append({
+                        "name": prop_name,
+                        "in": "query",
+                        "required": prop_name in tool.parameters.get("required", []),
+                        "schema": prop_schema,
+                    })
+                operation["parameters"] = parameters
+
+        spec["paths"][path] = {
+            method: operation
+        }
+
+    # Use standard print to allow piping to file without rich formatting
+    print(json.dumps(spec, indent=2))

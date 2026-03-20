@@ -20,19 +20,33 @@ def strip_markup(text: str) -> str:
 
 _json_mode: ContextVar[bool] = ContextVar("_json_mode", default=False)
 _yes_mode: ContextVar[bool] = ContextVar("_yes_mode", default=False)
-
+_format_mode: ContextVar[str] = ContextVar("_format_mode", default="")
 
 def set_json_mode(enabled: bool) -> None:
     _json_mode.set(enabled)
 
+def set_format_mode(fmt: str) -> None:
+    _format_mode.set(fmt.lower())
+    if fmt:
+        _json_mode.set(True)
 
 def set_yes_mode(enabled: bool) -> None:
     _yes_mode.set(enabled)
 
+def get_format() -> str:
+    env = os.environ.get("KOLAY_OUTPUT", "").lower()
+    if env in ("json", "csv", "tsv"):
+        return env
+    fmt = _format_mode.get()
+    if fmt:
+        return fmt
+    if _json_mode.get():
+        return "json"
+    return "table"
 
 def is_json_mode() -> bool:
-    """Return True if JSON output is active."""
-    return _json_mode.get() or os.environ.get("KOLAY_OUTPUT", "").lower() == "json"
+    """Return True if machine-readable (JSON, CSV, TSV) output is active."""
+    return get_format() in ("json", "csv", "tsv")
 
 
 def is_yes_mode() -> bool:
@@ -89,7 +103,53 @@ def require_arg(value: Any, name: str) -> None:
 
 
 def json_output(data: Any, *, stderr_msg: str | None = None) -> None:
-    """Write a JSON payload to stdout."""
+    """Write a structured payload to stdout (JSON, CSV, or TSV)."""
+    fmt = get_format()
+    if fmt in ("csv", "tsv"):
+        import csv
+        import io
+        if isinstance(data, dict):
+            if "items" in data and isinstance(data["items"], list):
+                items = data["items"]
+            else:
+                items = [data]
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = []
+            
+        if not items:
+            return
+            
+        def flatten(item):
+            flat = {}
+            for k, v in item.items():
+                if isinstance(v, dict):
+                    for subk, subv in v.items():
+                        flat[f"{k}.{subk}"] = subv
+                elif isinstance(v, list):
+                    flat[k] = json.dumps(v, ensure_ascii=False)
+                else:
+                    flat[k] = v
+            return flat
+            
+        flat_items = [flatten(i) for i in items]
+        keys = set()
+        for i in flat_items:
+            keys.update(i.keys())
+        keys = sorted(list(keys))
+        
+        out = io.StringIO()
+        writer = csv.DictWriter(out, fieldnames=keys, delimiter='\t' if fmt == 'tsv' else ',')
+        writer.writeheader()
+        for i in flat_items:
+            writer.writerow(i)
+            
+        if stderr_msg:
+            print(stderr_msg, file=sys.stderr)
+        print(out.getvalue(), end="")
+        return
+
     if stderr_msg:
         print(stderr_msg, file=sys.stderr)
 

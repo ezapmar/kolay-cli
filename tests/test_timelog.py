@@ -43,7 +43,7 @@ def test_timelog_list(mock_client):
     assert "work" in result.output
 
 
-def test_timelog_list_with_filters(mock_client):
+def test_timelog_list_with_matchs(mock_client):
     mock_client.post.return_value = {"data": {"items": [], "totalCount": 0}}
     result = runner.invoke(app, ["timelog", "list", "--type", "overtime", "--status", "waiting"])
     assert result.exit_code == 0

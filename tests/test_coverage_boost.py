@@ -33,82 +33,31 @@ runner = CliRunner()
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestSchema:
-    def test_schema_command_exits_zero(self):
-        result = runner.invoke(app, ["schema"])
+    def test_schema_export_exits_zero(self):
+        result = runner.invoke(app, ["schema", "export"])
         assert result.exit_code == 0
 
-    def test_schema_output_is_valid_json(self):
-        result = runner.invoke(app, ["schema"])
+    def test_schema_export_output_is_valid_json(self):
+        result = runner.invoke(app, ["schema", "export"])
         data = json.loads(result.output)
         assert isinstance(data, dict)
 
-    def test_schema_contains_name_and_version(self):
-        result = runner.invoke(app, ["schema"])
+    def test_schema_export_contains_openapi_version(self):
+        result = runner.invoke(app, ["schema", "export"])
         data = json.loads(result.output)
-        assert data["name"] == "kolay"
-        assert "version" in data
+        assert "openapi" in data
+        assert data["info"]["title"] == "Kolay IK MCP API"
 
-    def test_schema_contains_commands_key(self):
-        result = runner.invoke(app, ["schema"])
+    def test_schema_export_contains_paths(self):
+        result = runner.invoke(app, ["schema", "export"])
         data = json.loads(result.output)
-        assert "commands" in data
-        assert isinstance(data["commands"], dict)
+        assert "paths" in data
+        assert isinstance(data["paths"], dict)
 
-    def test_schema_lists_person_command(self):
-        result = runner.invoke(app, ["schema"])
-        data = json.loads(result.output)
-        assert "person" in data["commands"]
-
-    def test_schema_lists_mcp_command(self):
-        result = runner.invoke(app, ["schema"])
-        data = json.loads(result.output)
-        assert "mcp" in data["commands"]
-
-    def test_schema_does_not_self_reference(self):
-        """schema must pop itself from the output tree."""
-        result = runner.invoke(app, ["schema"])
-        data = json.loads(result.output)
-        assert "schema" not in data["commands"]
-
-    def test_schema_version_matches_package(self):
-        from kolay_cli import __version__
-        result = runner.invoke(app, ["schema"])
-        data = json.loads(result.output)
-        assert data["version"] == __version__
-
-    def test_opt_entry_omits_sensitive_defaults(self):
-        """_opt_entry must not include defaults for token/password/url options."""
-        import click
-        from kolay_cli.commands.schema import _opt_entry
-        opt = click.Option(["--api-token"], default="my-secret", type=click.STRING, help="Token")
-        entry = _opt_entry(opt)
-        assert "default" not in entry
-
-    def test_opt_entry_includes_nonsensitive_defaults(self):
-        import click
-        from kolay_cli.commands.schema import _opt_entry
-        opt = click.Option(["--limit"], default=20, type=click.INT, help="Limit results")
-        entry = _opt_entry(opt)
-        assert entry["default"] == 20
-
-    def test_opt_entry_includes_required_flag(self):
-        import click
-        from kolay_cli.commands.schema import _opt_entry
-        opt = click.Option(["--name"], required=True, type=click.STRING)
-        entry = _opt_entry(opt)
-        assert entry["required"] is True
-
-    def test_get_version_returns_string(self):
-        from kolay_cli.commands.schema import _get_version
-        v = _get_version()
-        assert isinstance(v, str)
-        assert len(v) > 0
-
-    def test_schema_help_shows_up_in_help(self):
-        result = runner.invoke(app, ["--help"])
-        # schema is hidden=True — should not appear in public help
-        # This just verifies --help still works cleanly
-        assert result.exit_code == 0
+    def test_schema_export_unsupported_format_exits_1(self):
+        result = runner.invoke(app, ["schema", "export", "--format", "xml"])
+        assert result.exit_code == 1
+        assert "Unsupported format" in result.output
 
 
 # ══════════════════════════════════════════════════════════════════════════════

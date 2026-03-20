@@ -56,7 +56,7 @@ def test_unit_create_item_with_flags(mock_client):
     assert payload["unitItemName"] == "Amsterdam"
 
 
-def test_unit_tree_with_filter(mock_client):
+def test_unit_tree_with_match(mock_client):
     """--filter flattens the tree and shows only matching nodes."""
     mock_client.get.return_value = UNIT_TREE_RESPONSE
     result = runner.invoke(app, ["unit", "tree", "--filter", "Istanbul"])
@@ -64,7 +64,7 @@ def test_unit_tree_with_filter(mock_client):
     assert "Istanbul" in result.output
 
 
-def test_unit_tree_filter_no_match_shows_all(mock_client):
+def test_unit_tree_match_no_match_shows_all(mock_client):
     """When --filter matches nothing, fall back to showing all."""
     mock_client.get.return_value = UNIT_TREE_RESPONSE
     result = runner.invoke(app, ["unit", "tree", "--filter", "zzznomatch"])
@@ -139,7 +139,7 @@ def test_approval_list_empty(mock_client):
     assert "No approval processes" in result.output
 
 
-def test_approval_list_with_filter(mock_client):
+def test_approval_list_with_match(mock_client):
     mock_client.get.return_value = APPROVAL_LIST_RESPONSE
     result = runner.invoke(app, ["approval", "list", "--filter", "Leave"])
     assert result.exit_code == 0

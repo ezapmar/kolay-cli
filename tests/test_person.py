@@ -227,14 +227,14 @@ def test_update_person_fields(mock_client):
 
 
 def test_update_person_fields_empty(mock_client):
-    """Empty fields dict is handled safely by the MCP tool layer (no API call)."""
-    from kolay_cli.mcp_server import person_update_fields
+    """Empty extra_fields dict is handled safely by the MCP tool layer (no API call)."""
+    from kolay_cli.mcp.tools_people import person_update
     from unittest.mock import patch, MagicMock
 
     with patch("kolay_cli.security.resolve_token", return_value="fake-token"), \
          patch("kolay_cli.security.validate_token", return_value=MagicMock(valid=True, __bool__=lambda s: True)):
-        result = person_update_fields(person_id="someid", update_fields={})
+        result = person_update(person_id="someid", extra_fields={})
 
     assert result.get("error") is True
-    assert "No fields" in result.get("message", "")
+    assert "no fields" in result.get("message", "")
 

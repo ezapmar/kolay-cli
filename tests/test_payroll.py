@@ -81,7 +81,7 @@ class TestPayrollCLI:
         # The search value should be somewhere in the call
         assert "Ali" in result.output
 
-    def test_payroll_view_with_filter(self, mock_client):
+    def test_payroll_view_with_match(self, mock_client):
         mock_client.post.return_value = PAYROLL_SHEET_RESPONSE
         result = runner.invoke(app, ["payroll", "view", "abc123def456", "--filter", "Ali"])
         assert result.exit_code == 0
@@ -89,7 +89,7 @@ class TestPayrollCLI:
         # Ayşe should be filtered out by client-side filter
         assert "Ayşe" not in result.output
 
-    def test_payroll_view_filter_no_match(self, mock_client):
+    def test_payroll_view_match_no_match(self, mock_client):
         """When --filter matches nothing, fall back to showing all records."""
         mock_client.post.return_value = PAYROLL_SHEET_RESPONSE
         result = runner.invoke(app, ["payroll", "view", "abc123def456", "--filter", "zzznomatch"])
@@ -212,32 +212,32 @@ class TestPayrollMCPEdgeCases:
 
     def test_payroll_filter_non_dict_passthrough(self):
         """If service returns a non-dict, filter is skipped gracefully."""
-        from kolay_cli.mcp_server import payroll_sheet_view
+        from kolay_cli.mcp.tools_finance import payroll_sheet_view
         with patch(self._svc("payroll_svc.view_payroll_sheet"), return_value=[{"a": 1}]):
-            result = payroll_sheet_view("abc123", filter="Ali")
+            result = payroll_sheet_view("abc123", match="Ali")
         # Should return the result unchanged — no crash
         assert result == [{"a": 1}]
 
     def test_payroll_filter_empty_items(self):
         """Filter with empty items list should not crash."""
-        from kolay_cli.mcp_server import payroll_sheet_view
+        from kolay_cli.mcp.tools_finance import payroll_sheet_view
         data = {"items": []}
         with patch(self._svc("payroll_svc.view_payroll_sheet"), return_value=data):
-            result = payroll_sheet_view("abc123", filter="Ali")
+            result = payroll_sheet_view("abc123", match="Ali")
         assert result == {"items": []}
 
     def test_payroll_filter_no_person_key(self):
         """Rows without person/employee key should be handled gracefully."""
-        from kolay_cli.mcp_server import payroll_sheet_view
+        from kolay_cli.mcp.tools_finance import payroll_sheet_view
         data = {"items": [{"gross": 100, "status": "ended"}]}
         with patch(self._svc("payroll_svc.view_payroll_sheet"), return_value=data):
-            result = payroll_sheet_view("abc123", filter="Ali")
+            result = payroll_sheet_view("abc123", match="Ali")
         # No person key → empty name → filter removes it, fallback shows all
         assert "items" in result
 
     def test_payroll_no_filter_returns_raw(self):
         """Without filter param, result passes through unchanged."""
-        from kolay_cli.mcp_server import payroll_sheet_view
+        from kolay_cli.mcp.tools_finance import payroll_sheet_view
         data = {"items": [{"person": {"firstName": "A", "lastName": "B"}}], "extra": True}
         with patch(self._svc("payroll_svc.view_payroll_sheet"), return_value=data):
             result = payroll_sheet_view("abc123")

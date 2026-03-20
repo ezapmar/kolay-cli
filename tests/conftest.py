@@ -30,11 +30,8 @@ def reset_output_modes():
 
 @pytest.fixture(autouse=True)
 def reset_token_cache():
-    """Reset the in-process token cache between tests to prevent state leaking."""
-    import kolay_cli.security as sec
-    sec._token_cache = sec._SENTINEL
+    """No-op since token cache was removed."""
     yield
-    sec._token_cache = sec._SENTINEL
 
 
 

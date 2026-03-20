@@ -91,7 +91,10 @@ class TestSetup:
         from kolay_cli.security import TokenStatus
         mock_validate.return_value = TokenStatus(True)
 
-        result = runner.invoke(app, ["setup"], input="n\nn\n")
+        with patch("kolay_cli.api.client.KolayClient.get") as mock_get:
+            mock_get.return_value = {}  # Mock scope check passes
+            result = runner.invoke(app, ["setup"], input="n\nn\nn\n")
+        
         assert result.exit_code == 0
         assert "already configured" in result.output
 
@@ -133,11 +136,11 @@ class TestVersion:
 class TestMcpEntrypoint:
     """Tests for the kolay-mcp binary UX."""
 
-    def test_mcp_tools_command(self, mock_client):
-        """kolay mcp tools works and lists registered tools."""
-        result = runner.invoke(app, ["mcp", "tools"])
+    def test_mcp_inspect_command(self, mock_client):
+        """kolay mcp inspect works and lists registered tools."""
+        result = runner.invoke(app, ["mcp", "inspect"])
         assert result.exit_code == 0
-        assert "MCP Tools" in result.output or "Tool" in result.output
+        assert "MCP" in result.output or "Tool" in result.output
 
 
 # ── CLI registration ──────────────────────────────────────────────────────────

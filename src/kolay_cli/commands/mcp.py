@@ -28,6 +28,8 @@ def _hint(ctx: typer.Context) -> None:
     no_command_help(ctx)
 
 
+import os
+
 @app.command(name="serve")
 def serve(
     transport: str = typer.Option(
@@ -36,14 +38,19 @@ def serve(
         help="Transport protocol: 'stdio' (default, for Claude Desktop / local) or 'http' (for remote / multi-client).",
     ),
     host: str = typer.Option(
-        "0.0.0.0" if "PORT" in __import__("os").environ else "127.0.0.1", 
+        "0.0.0.0" if "PORT" in os.environ else "127.0.0.1", 
         "--host", 
         help="Host for HTTP transport."
     ),
     port: int = typer.Option(
-        int(__import__("os").environ.get("PORT", 8000)), 
+        int(os.environ.get("PORT", 8000)), 
         "--port", "-p", 
         help="Port for HTTP transport."
+    ),
+    mock: bool = typer.Option(
+        False,
+        "--mock",
+        help="Start the MCP server with a mocked API client (no network requests).",
     ),
 ) -> None:
     """Start the Kolay IK MCP server.
@@ -75,6 +82,15 @@ def serve(
         )
         raise typer.Exit(1)
 
+    if mock:
+        from ..api.mock_client import MockKolayClient
+        from ..api import client as api_client
+        import sys
+        
+        # Globally monkey-patch KolayClient for the isolated mock mode
+        api_client.KolayClient = MockKolayClient  # type: ignore
+        sys.modules["kolay_cli.api.client"].KolayClient = MockKolayClient
+
     if transport == "http":
         from ..mcp_server import create_secured_http_app
         import uvicorn
@@ -92,9 +108,9 @@ def serve(
         mcp.run()
 
 
-@app.command(name="tools")
-def list_tools() -> None:
-    """List all available MCP tools on the server.""" # Issue #8: consistent verb
+@app.command(name="inspect")
+def inspect() -> None:
+    """List all available MCP tools with their signatures and permissions."""
     try:
         from ..mcp_server import mcp
     except ImportError:
@@ -112,17 +128,38 @@ def list_tools() -> None:
         header_style=f"bold {_PRIMARY}", border_style=_PRIMARY,
         box=None, show_edge=False,
     )
-    table.add_column("#", style="grey62", justify="right", width=4)
-    table.add_column("Tool", style="bold white", min_width=28)
+    table.add_column("Type", style="bold", justify="center", width=7)
+    table.add_column("Tool", style="bold white", min_width=22)
+    table.add_column("Signature", style="cyan", min_width=20)
     table.add_column("Description", style="grey85")
 
-    for i, tool in enumerate(sorted(tools, key=lambda t: t.name), 1):
-        desc = (tool.description or "").split("\n")[0][:80]
-        table.add_row(str(i), tool.name, desc)
+    for tool in sorted(tools, key=lambda t: t.name):
+        is_write = any(w in tool.name.lower() for w in ("create", "update", "delete", "terminate", "rehire"))
+        tag = "[red]WRITE[/red]" if is_write else "[green]READ[/green]"
+        
+        props = tool.parameters.get("properties", {}) if tool.parameters else {}
+        req = set(tool.parameters.get("required", [])) if getattr(tool, "parameters", None) else set()
+        
+        params = []
+        for pk, pv in props.items():
+            star = "*" if pk in req else ""
+            
+            # parse out complex types like anyOf or lists
+            t = pv.get("type", "any")
+            if isinstance(t, list):
+                t = " | ".join(t)
+            elif "anyOf" in pv:
+                t = " | ".join([sub.get("type", "any") for sub in pv["anyOf"]])
+            
+            params.append(f"{pk}{star}: {t}")
+        sig = ", ".join(params)
+        
+        desc = (tool.description or "").split("\n")[0][:60]
+        table.add_row(tag, tool.name, sig, desc)
 
-    console.print(f"\n[bold {_PRIMARY}]Kolay IK MCP Tools[/bold {_PRIMARY}] [grey62]({len(tools)} registered)[/grey62]\n")
+    console.print(f"\n[bold {_PRIMARY}]MCP Tool Inspector[/bold {_PRIMARY}] [grey62]({len(tools)} tools registered)[/grey62]\n")
     console.print(table)
-    console.print()
+    console.print(" [grey62]* indicates a required parameter[/grey62]\n")
 
 
 @app.command(name="install")

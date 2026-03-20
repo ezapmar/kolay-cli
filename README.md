@@ -120,6 +120,19 @@ kolay doctor
 
 ---
 
+## Shell Autocompletion
+
+Kolay CLI natively supports shell autocompletion for `bash`, `zsh`, and `fish`.
+To enable it, run:
+
+```bash
+kolay --install-completion
+```
+
+Follow the prompt and restart your shell for it to take effect. If you use the interactive `kolay setup` wizard, it will offer to install completions automatically.
+
+---
+
 ## CLI Usage
 
 Commands follow a `kolay <resource> <action>` pattern.
@@ -686,13 +699,12 @@ The server exposes these tools to AI clients:
 | `person_list`, `person_view`, `person_summary` | Read employee data |
 | `person_leave_status` | View leave balances for an employee |
 | `person_create`, `person_update`, `person_terminate` | Write employee data |
-| `person_rehire`, `person_update_fields` | Rehire or patch arbitrary fields |
-| `leave_list`, `leave_view`, `leave_create`, `leave_cancel` | Manage leaves |
-| `request_time_off` | Natural language leave creation |
+| `person_rehire` | Rehire employee |
+| `leave_list`, `leave_view`, `leave_create`, `leave_cancel` | Manage leaves and holidays |
 | `analyze_leave_impact` | Dry-run balance check before booking leave |
 | `timelog_list`, `timelog_view`, `timelog_create`, `timelog_delete` | Manage timelogs |
 | `training_list`, `training_view`, `training_create`, `training_delete` | Training catalogue |
-| `person_assign_training`, `person_list_trainings`, `person_update_training` | Training assignments |
+| `person_training_manage`, `person_list_trainings` | Assign, update, or remove assignments |
 | `transaction_list`, `transaction_view`, `transaction_create`, `transaction_delete` | Manage payroll |
 | `calendar_list`, `calendar_view`, `calendar_create`, `calendar_update`, `calendar_delete` | Manage events |
 | `unit_tree` | View organisational structure |
@@ -787,7 +799,7 @@ AI:  → calls analyze_leave_impact(person_id="...", leave_type_id="...", reques
      You have 8.5 days remaining. After this request: 6.5 days.
      Shall I go ahead and submit this?
 You: Yes
-AI:  → calls request_time_off(person_id="...", leave_type_id="...",
+AI:  → calls leave_create(person_id="...", leave_type_id="...",
          start_date="2026-03-16", end_date="2026-03-17")
      Leave request submitted for March 16-17.
 ```
