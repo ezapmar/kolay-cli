@@ -74,7 +74,15 @@ def timelog_delete(timelog_id: str) -> dict[str, Any]:
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(timelog_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(timelog_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(timelog_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(timelog_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(timelog_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(timelog_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(timelog_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(timelog_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive"},
+    ))

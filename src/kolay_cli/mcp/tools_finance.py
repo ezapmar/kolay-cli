@@ -101,8 +101,18 @@ def payroll_sheet_view(
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(transaction_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(transaction_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(transaction_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(transaction_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(payroll_sheet_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(transaction_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(transaction_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(transaction_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(transaction_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive"},
+    ))
+    mcp.add_tool(Tool.from_function(payroll_sheet_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))

@@ -58,9 +58,11 @@ def register(mcp):
     mcp.add_tool(Tool.from_function(analyze_employee_wellbeing,
         annotations={"readOnlyHint": True, "openWorldHint": False},
         timeout=60.0,
+        tags={"read", "wellness"},
     ))
     # get_smart_rest_plan fanout across leave periods — allow 60s
     mcp.add_tool(Tool.from_function(get_smart_rest_plan,
         annotations={"readOnlyHint": True, "openWorldHint": False},
         timeout=60.0,
+        tags={"read", "wellness"},
     ))

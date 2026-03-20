@@ -108,10 +108,24 @@ def approval_list(match: str | None = None) -> list[dict[str, Any]]:
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(calendar_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(calendar_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(calendar_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(calendar_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(calendar_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(unit_tree, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(approval_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(calendar_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(calendar_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(calendar_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(calendar_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(calendar_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive"},
+    ))
+    mcp.add_tool(Tool.from_function(unit_tree, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(approval_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))

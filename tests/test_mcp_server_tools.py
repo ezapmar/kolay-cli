@@ -81,10 +81,16 @@ class TestPersonTools:
         assert result == expected
 
     def test_person_terminate(self):
+        import asyncio
         from kolay_cli.mcp.tools_people import person_terminate
+        from unittest.mock import AsyncMock, MagicMock
         expected = {"status": "terminated"}
-        with patch(_svc("person_svc.terminate_person"), return_value=expected) as m:
-            result = person_terminate("p1", "2026-03-08", "03")
+        mock_ctx = MagicMock()
+        elicit_result = MagicMock(action="accept", data=True)
+        mock_ctx.elicit = AsyncMock(return_value=elicit_result)
+        with patch(_svc("person_svc.view_person"), return_value={"firstName": "Jane", "lastName": "Doe"}), \
+             patch(_svc("person_svc.terminate_person"), return_value=expected) as m:
+            result = asyncio.run(person_terminate("p1", "2026-03-08", "03", ctx=mock_ctx))
         m.assert_called_once_with("p1", termination_date="2026-03-08", reason_code="03")
         assert result == expected
 
@@ -206,10 +212,17 @@ class TestTrainingTools:
         assert result == expected
 
     def test_training_delete(self):
+        import asyncio
         from kolay_cli.mcp.tools_training import training_delete
+        from unittest.mock import AsyncMock, MagicMock
         expected = {"status": "deleted"}
-        with patch(_svc("training_svc.delete_training"), return_value=expected) as m:
-            result = training_delete("tr1")
+        mock_ctx = MagicMock()
+        elicit_result = MagicMock(action="accept", data=True)
+        mock_ctx.elicit = AsyncMock(return_value=elicit_result)
+        with patch(_svc("training_svc.view_training"), return_value={"name": "Safety Training"}), \
+             patch(_svc("training_svc.delete_training"), return_value=expected) as m:
+            result = asyncio.run(training_delete("tr1", ctx=mock_ctx))
+        m.assert_called_once_with("tr1")
         assert result == expected
 
     def test_person_training_manage(self):

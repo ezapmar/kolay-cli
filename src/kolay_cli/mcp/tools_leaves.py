@@ -115,8 +115,18 @@ def leave_types(person_id: str) -> str:
 def register(mcp):
     mcp.resource("kolay://leave-types/{person_id}")(leave_types)
 
-    mcp.add_tool(Tool.from_function(leave_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(leave_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(leave_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(leave_cancel, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(analyze_leave_impact, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(leave_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(leave_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(leave_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(leave_cancel, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive"},
+    ))
+    mcp.add_tool(Tool.from_function(analyze_leave_impact, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))

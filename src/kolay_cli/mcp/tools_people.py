@@ -100,14 +100,66 @@ def person_update(
     )
 
 
-@require_auth
-def person_terminate(
+async def person_terminate(
     person_id: str,
     termination_date: str,
     reason_code: str,
+    ctx: Context,
 ) -> dict[str, Any]:
     """[DESTRUCTIVE] Terminate employee. Cannot be undone. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Dates in YYYY-MM-DD. Reason codes: '01' probation, '03' voluntary resignation (istifa), '04' termination without notice, '10' end of contract, '11' retirement, '22' employer termination, '23' death, '30' other."""
-    return person_svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason_code)
+    from ..security import resolve_token, validate_token, _auth_error
+    from ..rate_limiter import token_key as rl_token_key
+    from ..activity_log import log_tool_call
+    import time as _time
+
+    token = resolve_token()
+    if not token:
+        return _auth_error("It seems we need a valid API token to proceed.",
+                           hint="Please run 'kolay auth login' to get started.")
+    status = validate_token(token)
+    if not status:
+        return _auth_error(f"We couldn't verify the current session: {status.reason}",
+                           hint="Please run 'kolay auth login' to refresh your connection.")
+
+    # Look up the person so we can show their name in the confirmation prompt
+    try:
+        person = person_svc.view_person(person_id)
+        display = f"{person.get('firstName', '')} {person.get('lastName', '')}".strip() or person_id
+    except Exception:
+        display = person_id
+
+    # Human-in-the-loop confirmation via elicitation
+    try:
+        result = await ctx.elicit(
+            f"CONFIRM TERMINATION: Permanently terminate {display} on {termination_date} "
+            f"(reason code {reason_code})? This action cannot be undone.",
+            response_type=bool,
+        )
+        if result.action != "accept" or not result.data:
+            return {"cancelled": True, "message": f"Termination of {display} was not confirmed. No changes made."}
+    except Exception:
+        # Client does not support elicitation — require the caller to re-confirm via a flag
+        return {
+            "error": True,
+            "message": (
+                f"Termination of {display} requires explicit confirmation, but this client "
+                "does not support interactive prompts. Re-call with confirm=True to proceed."
+            ),
+        }
+
+    key = rl_token_key(token)
+    t0 = _time.monotonic()
+    try:
+        res = person_svc.terminate_person(person_id, termination_date=termination_date, reason_code=reason_code)
+        log_tool_call(key, "person_terminate", {"person_id": person_id, "termination_date": termination_date, "reason_code": reason_code}, _time.monotonic() - t0, success=True)
+        return res
+    except Exception as exc:
+        log_tool_call(key, "person_terminate", {}, _time.monotonic() - t0, success=False, error=str(exc))
+        from ..api.errors import APIError
+        if isinstance(exc, APIError) and exc.status_code == 401:
+            return _auth_error("It seems the API session has expired.",
+                               hint="Please run 'kolay auth login' to update your connection.")
+        raise
 
 
 @require_auth
@@ -190,16 +242,42 @@ def person_delete_training(assignment_id: str) -> dict[str, Any]:
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(person_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_summary, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_leave_status, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_terminate, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_rehire, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_update_fields, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(employee_health_check, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_assign_training, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_update_training, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_delete_training, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(person_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(person_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(person_summary, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(person_leave_status, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(person_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(person_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(person_terminate, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive", "admin"},
+    ))
+    mcp.add_tool(Tool.from_function(person_rehire, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(person_update_fields, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(employee_health_check, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(person_assign_training, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(person_update_training, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(person_delete_training, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive"},
+    ))

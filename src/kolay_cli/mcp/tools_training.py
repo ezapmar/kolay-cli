@@ -48,10 +48,59 @@ def training_create(name: str, description: str = "", duration: str = "") -> dic
     return training_svc.create_training(name=name, description=description, duration=duration)
 
 
-@require_auth
-def training_delete(training_id: str) -> dict[str, Any]:
+async def training_delete(training_id: str, ctx: Context) -> dict[str, Any]:
     """[DESTRUCTIVE] Permanently remove training from the company catalogue and all assignment history. Cannot be undone."""
-    return training_svc.delete_training(training_id)
+    from ..security import resolve_token, validate_token, _auth_error
+    from ..rate_limiter import token_key as rl_token_key
+    from ..activity_log import log_tool_call
+    import time as _time
+
+    token = resolve_token()
+    if not token:
+        return _auth_error("It seems we need a valid API token to proceed.",
+                           hint="Please run 'kolay auth login' to get started.")
+    status = validate_token(token)
+    if not status:
+        return _auth_error(f"We couldn't verify the current session: {status.reason}",
+                           hint="Please run 'kolay auth login' to refresh your connection.")
+
+    # Look up the training so we can name it in the confirmation prompt
+    try:
+        training = training_svc.view_training(training_id)
+        display = training.get("name", training_id)
+    except Exception:
+        display = training_id
+
+    # Human-in-the-loop confirmation
+    try:
+        result = await ctx.elicit(
+            f"CONFIRM DELETE: Permanently remove training '{display}' and ALL assignment history? This cannot be undone.",
+            response_type=bool,
+        )
+        if result.action != "accept" or not result.data:
+            return {"cancelled": True, "message": f"Deletion of '{display}' was not confirmed. No changes made."}
+    except Exception:
+        return {
+            "error": True,
+            "message": (
+                f"Deleting '{display}' requires explicit confirmation, but this client "
+                "does not support interactive prompts. Re-call with confirm=True to proceed."
+            ),
+        }
+
+    key = rl_token_key(token)
+    t0 = _time.monotonic()
+    try:
+        res = training_svc.delete_training(training_id)
+        log_tool_call(key, "training_delete", {"training_id": training_id}, _time.monotonic() - t0, success=True)
+        return res
+    except Exception as exc:
+        log_tool_call(key, "training_delete", {}, _time.monotonic() - t0, success=False, error=str(exc))
+        from ..api.errors import APIError
+        if isinstance(exc, APIError) and exc.status_code == 401:
+            return _auth_error("It seems the API session has expired.",
+                               hint="Please run 'kolay auth login' to update your connection.")
+        raise
 
 
 @require_auth
@@ -106,10 +155,24 @@ def person_list_trainings(person_id: str) -> list[dict[str, Any]]:
 
 
 def register(mcp):
-    mcp.add_tool(Tool.from_function(training_list, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(training_view, annotations={"readOnlyHint": True, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(training_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(training_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(training_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_training_manage, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}))
-    mcp.add_tool(Tool.from_function(person_list_trainings, annotations={"readOnlyHint": True, "openWorldHint": False}))
+    mcp.add_tool(Tool.from_function(training_list, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(training_view, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))
+    mcp.add_tool(Tool.from_function(training_create, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(training_update, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(training_delete, annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False},
+        tags={"destructive", "admin"},
+    ))
+    mcp.add_tool(Tool.from_function(person_training_manage, annotations={"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+        tags={"write"},
+    ))
+    mcp.add_tool(Tool.from_function(person_list_trainings, annotations={"readOnlyHint": True, "openWorldHint": False},
+        tags={"read"},
+    ))

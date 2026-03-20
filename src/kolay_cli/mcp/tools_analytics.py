@@ -75,14 +75,17 @@ def register(mcp):
     mcp.add_tool(Tool.from_function(team_availability_analysis,
         annotations={"readOnlyHint": True, "openWorldHint": True},
         timeout=90.0,
+        tags={"read", "analytics"},
     ))
     # turnover_risk_scan fetches leave balances per employee — up to 90s for large orgs
     mcp.add_tool(Tool.from_function(turnover_risk_scan,
         annotations={"readOnlyHint": True, "openWorldHint": True},
         timeout=90.0,
+        tags={"read", "analytics"},
     ))
     # payroll_anomaly_detect scans transaction history — 45s is sufficient
     mcp.add_tool(Tool.from_function(payroll_anomaly_detect,
         annotations={"readOnlyHint": True, "openWorldHint": True},
         timeout=45.0,
+        tags={"read", "analytics"},
     ))
