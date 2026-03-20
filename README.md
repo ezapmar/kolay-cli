@@ -22,7 +22,7 @@
                 █████████████████████                                                                   ███ 
 ```
 
-CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves, timelogs, trainings, and payroll from your terminal or through any AI assistant that supports MCP.
+CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves, timelogs, trainings, and payroll from your terminal — or through any AI assistant that speaks MCP.
 
 ---
 
@@ -36,10 +36,10 @@ CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves
   - [Leaves](#leaves)
   - [Timelogs](#timelogs)
   - [Trainings](#trainings)
-  - [Fun (Kolay Quiz)](#fun-kolay-quiz)
   - [Transactions & Payroll](#transactions--payroll)
+  - [Fun (Kolay Quiz)](#fun-kolay-quiz)
   - [Other Resources](#other-resources)
-- [User Experience](#-user-experience)
+- [User Experience](#user-experience)
 - [Output Modes](#output-modes)
 - [MCP Server (AI Integration)](#mcp-server-ai-integration)
   - [Quick Start — Which setup is right for me?](#quick-start--which-setup-is-right-for-me)
@@ -47,6 +47,7 @@ CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves
   - [Option 2: Local Mode (stdio)](#option-2-local-mode-stdio)
   - [Option 3: Self-Host (Railway / Docker)](#option-3-self-host-railway--docker)
   - [Proxy Monitoring & Limits](#proxy-monitoring--limits)
+  - [MCP Server Architecture](#mcp-server-architecture)
 - [Client Setup Guides](#client-setup-guides)
   - [ChatGPT (OpenAI)](#chatgpt-openai)
   - [Perplexity AI](#perplexity-ai)
@@ -60,6 +61,7 @@ CLI and MCP server for [Kolay IK](https://kolayik.com). Manage employees, leaves
   - [Any Other MCP Client](#any-other-mcp-client)
 - [How Authentication Works](#how-authentication-works)
 - [Available MCP Tools](#available-mcp-tools)
+- [Session Memory Tools](#session-memory-tools)
 - [MCP Prompts](#mcp-prompts)
 - [Usage Examples (AI Conversations)](#usage-examples-ai-conversations)
 - [Test with curl](#test-with-curl)
@@ -122,14 +124,13 @@ kolay doctor
 
 ## Shell Autocompletion
 
-Kolay CLI natively supports shell autocompletion for `bash`, `zsh`, and `fish`.
-To enable it, run:
+Kolay CLI supports shell autocompletion for `bash`, `zsh`, and `fish`. Run once:
 
 ```bash
 kolay --install-completion
 ```
 
-Follow the prompt and restart your shell for it to take effect. If you use the interactive `kolay setup` wizard, it will offer to install completions automatically.
+Restart your shell. The `kolay setup` wizard offers to do this automatically.
 
 ---
 
@@ -212,18 +213,16 @@ kolay transaction list
 kolay transaction create --person-id abc123def456 \
   --type bonus --amount 5000 --date 2026-03-01
 
-# view the full payroll sheet (Çarşaf Bordro) for a run
+# view the full payroll sheet (Carsaf Bordro) for a run
 kolay payroll view abc123def456
 
 # search/filter rows within a payroll run
 kolay payroll view abc123def456 --search "Ahmet" --filter "Dev"
 ```
 
-```
-
 ### Fun (Kolay Quiz)
 
-Take a break and test your knowledge of your colleagues with Kolay Quiz! Currently features the "Who Is This?" photo matching game. Renders high-res images directly in modern terminals (iTerm2, VSCode, WezTerm) or beautiful Braille ASCII art in standard terminals.
+Take a break and test your knowledge of your colleagues. Renders high-res images in modern terminals (iTerm2, VSCode, WezTerm) or Braille ASCII art in standard terminals.
 
 ```bash
 # play a new session
@@ -250,15 +249,16 @@ kolay expense list                        # expense records
 
 ---
 
-## 🛠️ User Experience
+## User Experience
 
-This CLI is designed with a **"People First"** philosophy. We hate digging for UUIDs and getting cold errors.
+This CLI is built with a **People First** philosophy. No UUIDs hunted. No cold errors.
 
-- **Interactive Fallbacks:** Every command that requires an ID (view, delete, update) will launch an interactive fuzzy picker if you omit the argument.
-- **Smart Hints:** If a command fails, we don't just show a stack trace. We suggest next steps, missing scopes, or dashboard paths.
-- **Structured Error Handling:** When running with `--json`, we provide machine-readable error shapes for robust automation.
-- **Client-Side Magic:** Most `list` commands support `--filter` (regex/substring) to instantly narrow down results locally without re-fetching from the API.
-- **Rich Visualization:** We use [Rich](https://github.com/Textualize/rich) to render beautiful tables, status badges, and panels that make HR data human-readable.
+- **Interactive Fallbacks.** Every command that needs an ID launches a fuzzy picker if you omit it.
+- **Name Resolution.** You can pass a person's name instead of a UUID to most MCP tools. The server resolves it.
+- **Smart Hints.** A failure suggests next steps, not a stack trace.
+- **Structured Error Handling.** With `--json`, every error has a machine-readable shape for automation.
+- **Client-Side Filtering.** Most `list` commands support `--filter` to narrow results locally without re-fetching.
+- **Rich Visualization.** Tables, status badges, and panels make HR data readable at a glance.
 
 ---
 
@@ -352,6 +352,9 @@ Deploy your own private instance for full control.
 | `KOLAY_API_TOKEN` | Your Kolay IK API token (single-tenant mode) |
 | `PYTHONUNBUFFERED` | `1` |
 | `MCP_API_KEY` | Optional gateway key for abuse prevention |
+| `MCP_RATE_LIMIT_ENABLED` | `true` to enable per-token rate limiting |
+| `MCP_RATE_LIMIT_PER_MINUTE` | Max tool calls per minute per token (default: 30) |
+| `MCP_RATE_LIMIT_PER_HOUR` | Max tool calls per hour per token (default: 500) |
 
 4. Enable public networking in Railway settings
 5. Your endpoint: `https://<your-app>.up.railway.app/mcp`
@@ -367,30 +370,68 @@ kolay mcp serve --transport http --port 8000
 
 ### Proxy Monitoring & Limits
 
-When hosting the MCP proxy (e.g., on Railway), you can enable rate limiting and monitor activities.
+When hosting the MCP proxy, you can enable rate limiting and monitor activities.
 
 #### Rate Limiting (Opt-in)
 
-The proxy supports per-token sliding-window rate limiting. It tracks requests by a privacy-safe hash of each Kolay API token. To enable, set:
-
-```bash
-MCP_RATE_LIMIT_ENABLED=true
-MCP_RATE_LIMIT_PER_MINUTE=30    # Default: 30
-MCP_RATE_LIMIT_PER_HOUR=500     # Default: 500
-```
+The proxy supports per-token sliding-window rate limiting. It is tracked by a privacy-safe hash of each Kolay API token. To enable, set the environment variables above.
 
 #### Activity Logging
 
-The proxy outputs structured JSON logs for every tool invocation to `stdout`. These logs include:
-- Hashed token key (last 8 chars)
-- Tool name and duration
-- Redacted argument summary (no PII or long strings)
-- Success/failure status
+The proxy outputs structured JSON logs for every tool invocation to `stdout`:
 
-Example log record:
 ```json
-{"ts": "2026-03-17T12:00:00Z", "event": "mcp.tool_call", "token_key": "tok_…a1b2c3d4", "tool": "person_list", "duration_ms": 142.5, "success": true}
+{"ts": "2026-03-17T12:00:00Z", "event": "mcp.tool_call", "token_key": "tok_...a1b2c3d4", "tool": "person_list", "duration_ms": 142.5, "success": true}
 ```
+
+Response payloads are never logged. Argument values longer than 64 characters are redacted.
+
+---
+
+### MCP Server Architecture
+
+The server runs on [FastMCP 3.x](https://gofastmcp.com) and is hardened for production:
+
+**Middleware stack (in order):**
+
+| Layer | What it does |
+|---|---|
+| `ErrorHandlingMiddleware` | Masks internal tracebacks — only your explicit error messages reach clients |
+| `SlidingWindowRateLimitingMiddleware` | Per-token rate limiting (opt-in, env-configurable) |
+| `TimingMiddleware` | Logs duration of every MCP operation |
+| `ResponseLimitingMiddleware` | Truncates tool responses larger than 500 KB |
+| `PingMiddleware` | 30-second keep-alive for long SSE sessions |
+| `PromptToolMiddleware` | Exposes all 10 prompts as callable tools (for clients that only support tools) |
+| `ResourceToolMiddleware` | Exposes all resources as callable tools |
+
+**Tool annotations (machine-readable hints to LLM clients):**
+
+Every tool carries `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint` so client-side safety layers can distinguish reads from writes without reading documentation.
+
+**Component tags for filtering:**
+
+Every tool is tagged: `read`, `write`, `destructive`, `admin`, `analytics`, or `wellness`. MCP clients that support tag filtering can expose only the tools appropriate to the current user's role.
+
+**Tool timeouts:**
+
+Long-running analytics tools have enforced timeouts to prevent sessions from hanging:
+
+| Tool | Timeout |
+|---|---|
+| `team_availability_analysis` | 90 s |
+| `turnover_risk_scan` | 90 s |
+| `payroll_anomaly_detect` | 45 s |
+| `analyze_employee_wellbeing` | 60 s |
+| `get_smart_rest_plan` | 60 s |
+
+**Human-in-the-loop confirmation:**
+
+The two highest-risk destructive tools require explicit user confirmation before executing:
+
+- `person_terminate` — shows the employee name and termination date, asks for confirmation
+- `training_delete` — shows the training name, asks for confirmation
+
+If the client does not support interactive confirmation (elicitation), the tool refuses to proceed and tells you why.
 
 ---
 
@@ -400,107 +441,62 @@ Step-by-step instructions for connecting Kolay MCP to popular AI clients.
 
 ### ChatGPT (OpenAI)
 
-ChatGPT supports remote MCP servers as **Apps** (formerly called "connectors"). Available on all plans including Plus, Pro, Business, Enterprise, and Education. Requires **Developer Mode** to add custom servers.
+ChatGPT supports remote MCP servers as **Apps**. Available on all plans. Requires **Developer Mode**.
 
-> **Important:** ChatGPT connects to *remote* MCP servers only — it cannot run local stdio servers. Your MCP server must be reachable over HTTPS.
+> **Important:** ChatGPT connects to remote MCP servers only. Your MCP server must be reachable over HTTPS.
 
 **Step 1 — Enable Developer Mode:**
 
-1. Open [chatgpt.com](https://chatgpt.com) → click your profile icon → **Settings**
-2. Go to **Apps & Connectors** → scroll to **Advanced settings** (bottom of the page)
+1. Open [chatgpt.com](https://chatgpt.com) -> your profile icon -> **Settings**
+2. Go to **Apps & Connectors** -> scroll to **Advanced settings**
 3. Toggle **Developer mode** ON
-4. You should now see a **Create** button at the top of the Apps & Connectors page
 
 **Step 2 — Create the connector:**
 
-1. In **Settings → Apps & Connectors**, click **Create**
-2. Fill in the connector details:
+1. In **Settings -> Apps & Connectors**, click **Create**
+2. Fill in:
    - **Connector name**: `Kolay IK`
    - **Description**: `HR management — employees, leaves, timelogs, trainings, payroll`
    - **Connector URL**: `https://kolay.up.railway.app/mcp`
 3. Click **Create**
-4. If the connection succeeds, you'll see a list of tools the server advertises
 
-> **Authentication note:** ChatGPT Apps support OAuth 2.1 for user-level auth. For Kolay IK, the simplest approach is to deploy with `KOLAY_API_TOKEN` set as an environment variable on the server (single-tenant mode), which requires no user-side auth setup. If you need per-user tokens, see the [self-host option](#option-3-self-host-railway--docker).
+**Step 3 — Use it:**
 
-**Step 3 — Use it in a conversation:**
+1. Open a new chat -> click **+** -> **More** -> select **Kolay IK**
+2. Ask: `Show me all active employees`
 
-1. Open a **new chat** in ChatGPT
-2. Click the **+** button near the message composer, then click **More**
-3. Select **Kolay IK** from the list of available tools
-4. Ask a question like `"Show me all active employees"`
-
-ChatGPT will display tool-call payloads so you can confirm inputs and outputs. Write operations require manual confirmation.
-
-> **Tip:** After updating your MCP server, refresh the connector metadata: go to **Settings → Apps & Connectors**, click into your connector, and choose **Refresh**.
-
-📖 *Full docs: [developers.openai.com/apps-sdk/deploy/connect-chatgpt](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt)*
+> **Tip:** After redeploying your server, go to **Settings -> Apps & Connectors** -> your connector -> **Refresh** to reload the tool list.
 
 ---
 
 ### Perplexity AI
 
-Perplexity supports remote MCP servers via **Connectors**. Requires a **Perplexity Pro** or **Enterprise** plan.
+Requires a **Perplexity Pro** or **Enterprise** plan. Remote servers only.
 
-> **Important:** Perplexity connects to *remote* MCP servers only — it does not run local stdio servers. Your MCP server must be reachable over HTTPS.
-
-**Step 1 — Open connector settings:**
-
-1. Go to [perplexity.ai](https://www.perplexity.ai) and sign in
-2. Click your profile icon → **Settings**
-3. Navigate to **Connectors**
-
-**Step 2 — Add a remote connector:**
-
-1. Click **+ Custom connector** → select **Remote**
-2. Fill in the connector details:
+1. Go to [perplexity.ai](https://www.perplexity.ai) -> **Settings** -> **Connectors**
+2. Click **+ Custom connector** -> select **Remote**
+3. Fill in:
    - **Name**: `Kolay IK`
    - **MCP Server URL**: `https://kolay.up.railway.app/mcp`
-   - **Description** *(optional)*: `HR management — employees, leaves, timelogs, trainings, payroll`
    - **Transport**: `Streamable HTTP`
-   - **Authentication**: select one of:
-     - **None** — if the server has `KOLAY_API_TOKEN` set (single-tenant mode)
-     - **API Key** — enter your Kolay IK API token if using multi-tenant mode
-3. Click **Save**
-
-**Step 3 — Use it in a conversation:**
-
-1. Open a new thread on Perplexity
-2. Make sure the **Kolay IK** connector is enabled (check the connectors panel)
-3. Ask a question like:
-   ```
-   Show me all active employees in the Engineering department
-   ```
-
-Perplexity will automatically discover the available tools from the MCP server and invoke them as needed.
-
-> **Tip:** If you update or redeploy the MCP server, re-open the connector settings and verify the connection is still active.
-
-📖 *Full docs: [perplexity.ai/help-center — Local and Remote MCPs](https://www.perplexity.ai/help-center/en/articles/11502712-local-and-remote-mcps-for-perplexity)*
+   - **Authentication**: None (single-tenant) or API Key (multi-tenant)
+4. Click **Save**
+5. Open a new thread, enable the **Kolay IK** connector, and ask away.
 
 ---
 
 ### Mistral Le Chat
 
-1. Open [chat.mistral.ai](https://chat.mistral.ai) and go to **Intelligence** → **Connectors** (or [chat.mistral.ai/connections](https://chat.mistral.ai/connections))
-2. Click **Add Connector** → **Custom MCP Connector**
+1. Open [chat.mistral.ai](https://chat.mistral.ai) -> **Intelligence** -> **Connectors**
+2. Click **Add Connector** -> **Custom MCP Connector**
 3. Fill in:
    - **Name**: `Kolay IK`
    - **URL**: `https://kolay.up.railway.app/mcp`
-   - **Description** *(optional)*: HR management tools for Kolay IK
-4. For authentication, select:
-   - **No Authentication** — if the server has `KOLAY_API_TOKEN` set (single-tenant)
-   - **HTTP Bearer Token** — enter your Kolay IK API token if using multi-tenant mode
-5. Click **Connect**
-6. In any chat, make sure the Kolay IK connector is enabled (toggle it on in the connectors panel)
+   - **Authentication**: No Authentication (single-tenant) or HTTP Bearer Token (multi-tenant)
+4. Click **Connect**
+5. In any chat, toggle the Kolay IK connector on and ask.
 
-Now ask Le Chat:
-
-```
-Who are the employees in the engineering department?
-```
-
-> **Tip:** Le Chat auto-detects available tools from the MCP server. You don't need to configure individual tools.
+> **Tip:** Le Chat auto-detects available tools. No per-tool configuration needed.
 
 ---
 
@@ -512,12 +508,12 @@ Who are the employees in the engineering department?
 kolay mcp install
 ```
 
-This writes the correct config to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows). Restart Claude Desktop.
+This writes the correct config and restarts cleanly.
 
 **Manual:**
 
-1. Open Claude Desktop → **Settings** → **Developer** → **Edit Config**
-2. Add the following to `claude_desktop_config.json`:
+1. Open Claude Desktop -> **Settings** -> **Developer** -> **Edit Config**
+2. Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -530,14 +526,14 @@ This writes the correct config to `~/Library/Application Support/Claude/claude_d
 }
 ```
 
-3. Save and restart Claude Desktop
-4. You should see "kolay-ik" in the MCP servers list (🔌 icon)
+3. Save and restart Claude Desktop.
 
 **Remote mode (no local install):**
 
-1. In Claude Desktop → **Settings** → **Connectors** → **Add custom connector**
+1. Claude Desktop -> **Settings** -> **Connectors** -> **Add custom connector**
 2. Enter URL: `https://kolay.up.railway.app/mcp`
-3. Optionally add your `X-Kolay-Token` in the URL as a query parameter or configure the Authorization header
+
+> **Note:** Claude Desktop supports user elicitation. When you ask it to terminate an employee, it will pause and ask for your confirmation before executing.
 
 ---
 
@@ -593,7 +589,7 @@ kolay mcp install
 
 ### VS Code (GitHub Copilot)
 
-1. Open VS Code → **Settings** (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)")
+1. Open VS Code -> **Settings** (Ctrl+Shift+P -> "Preferences: Open User Settings (JSON)")
 2. Add to `mcp.servers`:
 
 ```json
@@ -608,8 +604,6 @@ kolay mcp install
   }
 }
 ```
-
-3. Alternatively, use the remote URL via the MCP extension settings
 
 ---
 
@@ -657,7 +651,7 @@ Edit `~/.config/zed/settings.json` and add under `"context_servers"`:
 
 ### Any Other MCP Client
 
-Any client that supports the MCP standard can connect using either:
+Any client that supports MCP can connect using either:
 
 - **Remote (HTTP/SSE):** Point to `https://kolay.up.railway.app/mcp` with an `X-Kolay-Token` header
 - **Local (stdio):** Run the `kolay-mcp` binary (installed with `pip install kolay-cli`)
@@ -675,10 +669,10 @@ AI Client --> POST /mcp --> MCP Handshake (always succeeds)
                            /           \
                      token found     no token
                           |              |
-                     Kolay API     401 error to AI
+                     Kolay API     error returned to AI
 ```
 
-The MCP session always connects successfully. Authentication happens at the **tool level** — every HR tool checks for a valid token before accessing data. This means AI clients can discover available tools before authenticating.
+The MCP session always connects. Authentication happens at the **tool level** — every HR tool checks for a valid token before accessing data. AI clients can discover tools without authenticating first.
 
 Token resolution order:
 1. `X-Kolay-Token` header (per-request, multi-tenant)
@@ -689,54 +683,96 @@ Token resolution order:
 
 ## Available MCP Tools
 
-The server exposes these tools to AI clients:
+The server exposes 53 tools to AI clients.
 
 **Core HR Tools**
 
-| Tool | Description |
-|---|---|
-| `validate_connection` | Check if credentials are working |
-| `person_list`, `person_view`, `person_summary` | Read employee data |
-| `person_leave_status` | View leave balances for an employee |
-| `person_create`, `person_update`, `person_terminate` | Write employee data |
-| `person_rehire` | Rehire employee |
-| `leave_list`, `leave_view`, `leave_create`, `leave_cancel` | Manage leaves and holidays |
-| `analyze_leave_impact` | Dry-run balance check before booking leave |
-| `timelog_list`, `timelog_view`, `timelog_create`, `timelog_delete` | Manage timelogs |
-| `training_list`, `training_view`, `training_create`, `training_delete` | Training catalogue |
-| `person_training_manage`, `person_list_trainings` | Assign, update, or remove assignments |
-| `transaction_list`, `transaction_view`, `transaction_create`, `transaction_delete` | Manage payroll |
-| `calendar_list`, `calendar_view`, `calendar_create`, `calendar_update`, `calendar_delete` | Manage events |
-| `unit_tree` | View organisational structure |
-| `approval_list` | View approval workflows |
-| `employee_health_check` | Cross-reference leaves, timelogs, and trainings in one call |
+| Tool | Tags | Description |
+|---|---|---|
+| `validate_connection` | read | Check if credentials are working |
+| `person_list` | read | List employees with search and filter |
+| `person_view` | read | View full employee profile (auto-caches as last_person in session) |
+| `person_summary` | read | Compact profile summary |
+| `person_leave_status` | read | View leave balances |
+| `employee_health_check` | read | Cross-reference leaves, timelogs, and trainings in one call |
+| `person_create` | write | Create a new employee |
+| `person_update` | write | Update employee fields |
+| `person_update_fields` | write | Update arbitrary fields by raw API name |
+| `person_rehire` | write | Rehire a terminated employee |
+| `person_assign_training` | write | Assign training to an employee |
+| `person_update_training` | write | Update a training assignment |
+| `person_terminate` | destructive, admin | Terminate employee (requires confirmation) |
+| `person_delete_training` | destructive | Remove a training assignment |
+| `leave_list` | read | List leave requests |
+| `leave_view` | read | View a single leave request |
+| `analyze_leave_impact` | read | Dry-run balance check before booking leave |
+| `leave_types` | read | List available leave types |
+| `leave_create` | write | Submit a leave request |
+| `leave_cancel` | destructive | Cancel a leave request |
+| `timelog_list` | read | List timelogs |
+| `timelog_view` | read | View a single timelog |
+| `timelog_create` | write | Create a timelog entry |
+| `timelog_delete` | destructive | Delete a timelog |
+| `training_list` | read | List training catalogue |
+| `training_view` | read | View a single training |
+| `person_list_trainings` | read | List training assignments for an employee |
+| `person_training_manage` | write | Assign, update, or remove training (unified) |
+| `training_create` | write | Add training to the catalogue |
+| `training_update` | write | Update a training record |
+| `training_delete` | destructive, admin | Delete training and all history (requires confirmation) |
+| `transaction_list` | read | List transactions |
+| `transaction_view` | read | View a single transaction |
+| `payroll_sheet_view` | read | View the full payroll sheet |
+| `transaction_create` | write | Create a transaction (bonus, deduction, etc.) |
+| `transaction_delete` | destructive | Delete a transaction |
+| `calendar_list` | read | List calendar events |
+| `calendar_view` | read | View a single event |
+| `unit_tree` | read | View the organisational chart |
+| `approval_list` | read | List approval workflows |
+| `calendar_create` | write | Create a calendar event |
+| `calendar_update` | write | Update a calendar event |
+| `calendar_delete` | destructive | Delete a calendar event |
 
 **HR Analytics & Wellbeing Engine**
 
+| Tool | Tags | Description |
+|---|---|---|
+| `team_availability_analysis` | read, analytics | Peak absence days + operational risk for a team |
+| `turnover_risk_scan` | read, analytics | Scan employees for burnout and flight risk, ranked by score |
+| `payroll_anomaly_detect` | read, analytics | Detect duplicate transactions and statistical outliers |
+| `analyze_employee_wellbeing` | read, wellness | Per-employee burnout score, leave gap detection, bridge-day opportunities |
+| `get_smart_rest_plan` | read, wellness | Top upcoming rest windows ranked by leave efficiency |
+| `quiz_challenge` | read | Generate a Kolay Quiz challenge |
+
+---
+
+## Session Memory Tools
+
+These three tools give the AI explicit, LLM-controlled memory across tool calls within a session. No data is written to disk. Memory clears when the session ends.
+
 | Tool | Description |
 |---|---|
-| `team_availability_analysis` | Peak absence days + operational risk for a team (Leave x Unit APIs) |
-| `turnover_risk_scan` | Scan employees for burnout and flight risk signals, ranked by score |
-| `payroll_anomaly_detect` | Detect duplicate transactions and statistical outliers in payroll |
-| `analyze_employee_wellbeing` | Per-employee burnout score (🔴/🟠/🟡/🟢), leave gap detection, and bridge-day opportunities cross-referenced with Turkish public holidays |
-| `get_smart_rest_plan` | Top-3 upcoming rest windows ranked by leave efficiency (rest days ÷ credits spent), budget-tier aware |
-| `quiz_challenge` | Generate a Kolay Quiz challenge to test knowledge of colleagues |
+| `session_remember(key, value)` | Store a named value — e.g. `session_remember("focus_person", "abc123")` |
+| `session_recall(key)` | Retrieve a stored value — e.g. `session_recall("focus_person")` |
+| `session_forget(key)` | Remove a stored value |
+
+**Auto-caching.** After every `person_view` call, the server automatically stores `last_person_id`, `last_person_name`, and `last_person_email` in session state. The AI can then call `session_recall("last_person_id")` without the user repeating a UUID.
 
 ---
 
 ## MCP Prompts
 
-Built-in prompts guide the AI through complex multi-step workflows:
+Built-in prompts guide the AI through complex multi-step workflows. All prompts are also exposed as callable tools for clients that only support the tools protocol.
 
 | Prompt | What it does |
 |---|---|
 | `employee_snapshot` | Full profile + leave balance report for one employee |
 | `burnout_analyzer` | Scan a department for burnout risk based on unused annual leave |
-| `onboarding_plan` | Generate welcome email, IT checklist, and meeting schedule for a new hire |
-| `offboarding_plan` | Calculate leave payout, handover checklist, and exit interview questions |
+| `onboarding_plan` | Welcome email, IT checklist, and meeting schedule for a new hire |
+| `offboarding_plan` | Leave payout calculation, handover checklist, and exit interview questions |
 | `bulk_update_assistant` | Safe bulk data cleanup with mandatory human confirmation |
 | `manager_dashboard` | Morning briefing for a department manager |
-| `wellbeing_briefing` | Per-employee wellbeing report: burnout status, bridge-day opportunities, and smart rest plan |
+| `wellbeing_briefing` | Per-employee wellbeing report with burnout status and smart rest plan |
 | `hr_trend_analysis` | Company-wide trend report combining turnover risk and payroll anomalies |
 | `risk_brief` | Concise availability and retention risk brief for a department |
 | `hr_capabilities` | Guided prompt explaining all available Kolay HR AI features |
@@ -745,16 +781,16 @@ Built-in prompts guide the AI through complex multi-step workflows:
 
 ## Usage Examples (AI Conversations)
 
-Here are real-world examples of what you can ask any AI assistant connected to Kolay MCP:
+Real-world examples of what you can ask any connected AI assistant.
 
 #### Listing Employees
 
 ```
 You: Show me all active employees
-AI:  → calls person_list(status="active", limit=20)
+AI:  -> calls person_list(status="active", limit=20)
      Found 47 employees. Here are the first 20:
-     1. Ayşe Yılmaz — Engineering — ayse@company.com
-     2. Mehmet Demir — Marketing — mehmet@company.com
+     1. Ayse Yilmaz — Engineering
+     2. Mehmet Demir — Marketing
      ...
 ```
 
@@ -762,148 +798,111 @@ AI:  → calls person_list(status="active", limit=20)
 
 ```
 You: Find the employee named Ahmet
-AI:  → calls person_list(search="Ahmet")
+AI:  -> calls person_list(search="Ahmet")
      Found 2 matches:
      1. Ahmet Kaya (ID: abc123) — Engineering
-     2. Ahmet Yıldız (ID: def456) — Sales
+     2. Ahmet Yildiz (ID: def456) — Sales
 ```
 
 #### Viewing an Employee Profile
 
 ```
-You: Show me Ayşe Yılmaz's full profile
-AI:  → calls person_view(person_id="Ayşe Yılmaz")
-     Name: Ayşe Yılmaz
+You: Show me Ayse Yilmaz's full profile
+AI:  -> calls person_view(person_id="Ayse Yilmaz")
+     Name: Ayse Yilmaz
      Department: Engineering
      Start Date: 2023-01-15
      Email: ayse@company.com
-     Phone: +90 555 123 4567
      ...
+     (Session updated: last_person_id = abc-123, last_person_name = Ayse Yilmaz)
 ```
 
-#### Checking Leave Balances
+#### Cross-Tool Reuse via Session Memory
 
 ```
-You: How many days of annual leave does Mehmet have left?
-AI:  → calls person_leave_status(person_id="Mehmet Demir")
+You: Now show me her leave balances
+AI:  -> calls session_recall("last_person_id")
+     -> calls person_leave_status(person_id="abc-123")
      Annual Leave: 8.5 days remaining (out of 14)
      Sick Leave: 10 days remaining
-     ...
 ```
 
 #### Requesting Time Off
 
 ```
 You: I want to take next Monday and Tuesday off as annual leave
-AI:  → calls analyze_leave_impact(person_id="...", leave_type_id="...", requested_days=2)
+AI:  -> calls analyze_leave_impact(person_id="...", requested_days=2)
      You have 8.5 days remaining. After this request: 6.5 days.
      Shall I go ahead and submit this?
 You: Yes
-AI:  → calls leave_create(person_id="...", leave_type_id="...",
-         start_date="2026-03-16", end_date="2026-03-17")
+AI:  -> calls leave_create(...)
      Leave request submitted for March 16-17.
 ```
 
-#### Listing Pending Leaves
+#### Terminating an Employee (with confirmation)
 
 ```
-You: Show me all pending leave requests
-AI:  → calls leave_list(status="waiting")
-     3 pending requests:
-     1. Ayşe Yılmaz — Annual Leave — Mar 20–22
-     2. Mehmet Demir — Sick Leave — Mar 18
-     3. Zeynep Kara — Annual Leave — Apr 1–5
-```
-
-#### Creating a New Employee
-
-```
-You: Add a new employee: Ali Veli, ali@company.com, starting April 1st
-AI:  [WARN] This will create a real employee record. Confirm?
+You: Terminate Ahmet Kaya effective March 31, reason: voluntary resignation
+AI:  -> calls person_terminate(person_id="abc123", termination_date="2026-03-31", reason_code="03")
+     [CONFIRM TERMINATION] Permanently terminate Ahmet Kaya on 2026-03-31 (reason code 03)?
+     This action cannot be undone.
 You: Yes
-AI:  → calls person_create(first_name="Ali", last_name="Veli",
-         email="ali@company.com", employment_start="2026-04-01")
-     Employee created: Ali Veli (ID: ghi789)
+AI:  Termination recorded. Ahmet Kaya is now inactive.
 ```
 
-#### Employee Health Check
+#### Burnout & Wellbeing Check
 
 ```
-You: Give me a quick health check on Ayşe Yılmaz
-AI:  → calls employee_health_check(person_id="Ayşe Yılmaz")
-     Upcoming leaves: Annual Leave Mar 20-22
-     Recent timelogs: 42h this week (8h overtime)
-     Training: "AWS Security" -- completed
-```
-
-#### Organisation Chart
-
-```
-You: Show me the company org chart
-AI:  -> calls unit_tree()
-     Acme Corp
-     +-- Engineering (12 people)
-     |   +-- Backend Team (5)
-     |   \-- Frontend Team (4)
-     +-- Marketing (8 people)
-     \-- Finance (5 people)
-```
-
-#### Manager Morning Briefing (using prompt)
-
-```
-You: Give me a morning briefing for the Engineering department
-AI:  → uses manager_dashboard prompt
-     Engineering Department -- Morning Briefing
-     • 2 people on leave today (Ayşe, Mehmet)
-     • 1 pending leave request to approve
-     • 3 overtime entries logged yesterday
-     • Training "Cloud Security 101" starts next week (4 enrolled)
-```
-
-#### Wellbeing & Burnout Analysis
-
-```
-You: How is Ayşe Yılmaz doing? Is she at risk of burnout?
-AI:  → calls analyze_employee_wellbeing(person_id="Ayşe Yılmaz")
-     🔴 Red Zone (Score: 5)
+You: How is Ayse doing? Is she at risk of burnout?
+AI:  -> calls analyze_employee_wellbeing(person_id="Ayse Yilmaz")
+     Red Zone (Score: 5)
      Signals:
-     • Unused annual leave > 20 days — burnout risk
-     • No rest taken in 94 days (90-day threshold exceeded)
+     - Unused annual leave > 20 days
+     - No rest taken in 94 days (90-day threshold exceeded)
 
-     Bridge Day Opportunities (next 90 days):
-     • Take 1 day off around Kurban Bayramı (2026-05-27) → 7-day break (7.0x efficiency)
-     • Take 2 days off around 23 Nisan → 5-day break (2.5x efficiency)
+     Bridge Day Opportunities:
+     - Take 1 day off around Kurban Bayramı (2026-05-27) -> 7-day break (7.0x efficiency)
 
-     Recommendation: Ayşe is in the Red Zone. Since Kurban Bayramı starts on
-     Wednesday 27 May, taking Monday–Tuesday off gives a full 7-day break using
-     only 2 leave credits.
+     Recommendation: Take Monday-Tuesday before Kurban Bayramı for a full 7-day break
+     using only 2 leave credits.
 ```
 
 #### Smart Rest Planning
 
 ```
 You: What are the best upcoming rest windows for Mehmet?
-AI:  → calls get_smart_rest_plan(person_id="Mehmet Demir")
+AI:  -> calls get_smart_rest_plan(person_id="Mehmet Demir")
      Budget tier: generous (22 days remaining)
 
      Top 3 rest opportunities:
-     1. Take 1 day (Mon 25 May) → 9-day break Sat 23 – Sun 31 May  (9.0x efficiency)
-     2. Take 1 day (Mon 23 Mar) → 5-day break Thu 19 – Mon 23 Mar  (5.0x efficiency)
-     3. Take 2 days (Mon–Tue 27–28 Apr) → 5-day break Sat 25 – Wed 29 Apr  (2.5x)
+     1. Take 1 day (Mon 25 May) -> 9-day break (9.0x efficiency)
+     2. Take 1 day (Mon 23 Mar) -> 5-day break (5.0x efficiency)
+     3. Take 2 days (Mon-Tue 27-28 Apr) -> 5-day break (2.5x efficiency)
+```
+
+#### Manager Morning Briefing (using prompt)
+
+```
+You: Give me a morning briefing for the Engineering department
+AI:  -> uses manager_dashboard prompt
+     Engineering Department — Morning Briefing
+     - 2 people on leave today (Ayse, Mehmet)
+     - 1 pending leave request to approve
+     - 3 overtime entries logged yesterday
+     - Training "Cloud Security 101" starts next week (4 enrolled)
 ```
 
 #### Kolay Quiz
 
 ```
 You: Give me a quiz about my colleagues
-AI:  → calls quiz_challenge(mode="photo_match", count=5)
-     I'll show you 5 photos of your colleagues. Can you identify them?
+AI:  -> calls quiz_challenge(mode="photo_match", count=5)
+     I'll show you 5 photos. Can you identify them?
 
      Question 1: [photo displayed] Who is this person?
-     A) Ayşe Yılmaz   B) Zeynep Kara   C) Fatma Demir   D) Elif Şahin
+     A) Ayse Yilmaz   B) Zeynep Kara   C) Fatma Demir   D) Elif Sahin
 You: A
-AI:  Correct! That's Ayşe Yılmaz from Engineering. 4 more to go!
+AI:  Correct! That's Ayse Yilmaz from Engineering. 4 more to go!
 ```
 
 ---
@@ -924,19 +923,27 @@ curl -X POST https://kolay.up.railway.app/mcp \
 ```
 src/kolay_cli/
   cli.py              # entry point, global flags
-  mcp_server.py       # FastMCP server with all tools and prompts
+  mcp_server.py       # FastMCP server — tools, prompts, middleware stack
   security.py         # token storage, validation, @require_auth
+  server_middleware.py # ASGI token-injection middleware (KolayProxyMiddleware)
+  rate_limiter.py     # sliding-window per-token rate limiter
+  activity_log.py     # structured JSON activity logging
   api/
     client.py         # HTTP client (requests + retry)
     errors.py         # APIError + exit codes
   commands/           # one module per resource group
     person.py, leave.py, timelog.py, training.py,
     transaction.py, calendar.py, unit.py, approval.py, ...
-  services/           # business logic (used by both CLI and MCP)
+  mcp/                # MCP tool modules (one file per resource group)
+    tools_people.py, tools_leaves.py, tools_time.py,
+    tools_training.py, tools_finance.py, tools_org.py,
+    tools_analytics.py, tools_wellness.py, tools_misc.py,
+    tools_session.py, prompts.py
+  services/           # business logic (shared between CLI and MCP)
     hr_analytics.py   # team availability, turnover risk, payroll anomaly detection
-    wellness.py       # wellbeing engine: burnout scoring, bridge-day finder, rest planner
-    turkish_holidays.py  # Turkish public holiday calendar (static 2024-2027 + Google Calendar overlay)
-    nudge.py          # contextual reminder hints for the CLI
+    wellness.py       # burnout scoring, bridge-day finder, rest planner
+    turkish_holidays.py  # Turkish public holiday calendar (2024-2027 + Google Calendar)
+    nudge.py          # contextual reminder hints
     quiz/             # Kolay Quiz game engine
   ui/
     formatters.py     # Rich tables, spinners
