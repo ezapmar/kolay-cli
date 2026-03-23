@@ -15,6 +15,9 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
+import hashlib
+import hmac
+import os
 
 _logger = logging.getLogger("kolay.activity")
 
@@ -43,6 +46,20 @@ def _redact_args(args: dict[str, Any]) -> dict[str, Any]:
     return redacted
 
 
+def generate_receipt(token_key: str, tool_name: str, status: str) -> str | None:
+    """Generate an HMAC-SHA256 receipt for verifiable execution proof."""
+    secret = os.environ.get("MCP_RECEIPT_SECRET")
+    if not secret:
+        return None
+        
+    # Standardized payload: [timestamp | token_key | tool | status]
+    ts = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    msg = f"{ts}|{token_key}|{tool_name}|{status}"
+    
+    h = hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    return f"{msg}|{h}"
+
+
 def log_tool_call(
     token_key: str,
     tool_name: str,
@@ -51,17 +68,9 @@ def log_tool_call(
     *,
     success: bool = True,
     error: str | None = None,
+    receipt: str | None = None,
 ) -> None:
-    """Emit a single structured JSON log line for a tool invocation.
-
-    Args:
-        token_key:  Privacy-safe token identifier (e.g. ``tok_…a1b2c3d4``).
-        tool_name:  Name of the MCP tool function.
-        args:       Keyword arguments passed to the tool (will be redacted).
-        duration_s: Wall-clock duration in seconds (monotonic).
-        success:    Whether the call completed without exception.
-        error:      Error message string if ``success`` is False.
-    """
+    """Emit a single structured JSON log line for a tool invocation."""
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "event": "mcp.tool_call",
@@ -72,4 +81,6 @@ def log_tool_call(
         "success": success,
         "error": error,
     }
+    if receipt:
+        record["receipt_hash"] = receipt.split("|")[-1]
     _logger.info(json.dumps(record, ensure_ascii=False, default=str))

@@ -355,6 +355,9 @@ Deploy your own private instance for full control.
 | `MCP_RATE_LIMIT_ENABLED` | `true` to enable per-token rate limiting |
 | `MCP_RATE_LIMIT_PER_MINUTE` | Max tool calls per minute per token (default: 30) |
 | `MCP_RATE_LIMIT_PER_HOUR` | Max tool calls per hour per token (default: 500) |
+| `MCP_PII_MASKING_ENABLED` | `true` to mask names, emails, IDs in LLM responses |
+| `MCP_PAYLOAD_PADDING` | `true` to pad responses to uniform size (anti-traffic-analysis) |
+| `KOLAY_ENCRYPT_CONFIG` | `true` to encrypt config files at rest |
 
 4. Enable public networking in Railway settings
 5. Your endpoint: `https://<your-app>.up.railway.app/mcp`
@@ -368,15 +371,31 @@ kolay mcp serve --transport http --port 8000
 
 ---
 
-### Proxy Monitoring & Limits
+---
+
+### <u>Emphatic UX Help Guide</u>
+
+We want your experience with `kolay-cli` to be seamless. If you're stuck, try these quick steps:
+
+*   **Authentication issues?** Run `kolay auth login` to refresh your token. If you're on a headless Linux server, install `keyrings.alt` for secure local storage.
+*   **Need more info?** Add `--help` to any command (e.g., `kolay person list --help`) to see all available flags and filters.
+*   **Unexpected output?** Use `--json` to get raw data that you can pipe to `jq` for advanced processing.
+*   **Slow responses?** Check your internet connection or the Kolay IK status page. The CLI uses `httpx` internally for efficient requests.
+*   **Feeling lost?** Run `kolay config show` to see your current base URL and active environment variables.
+
+We're here to help you get the most out of your HR data. Don't hesitate to reach out if you encounter any bugs!
+
+---
+
+### <u>Proxy Monitoring & Limits</u>
 
 When hosting the MCP proxy, you can enable rate limiting and monitor activities.
 
-#### Rate Limiting (Opt-in)
+#### <u>Rate Limiting (Opt-in)</u>
 
 The proxy supports per-token sliding-window rate limiting. It is tracked by a privacy-safe hash of each Kolay API token. To enable, set the environment variables above.
 
-#### Activity Logging
+#### <u>Activity Logging</u>
 
 The proxy outputs structured JSON logs for every tool invocation to `stdout`:
 
@@ -385,6 +404,37 @@ The proxy outputs structured JSON logs for every tool invocation to `stdout`:
 ```
 
 Response payloads are never logged. Argument values longer than 64 characters are redacted.
+
+#### <u>PII Masking / Pseudonymization (Opt-in)</u>
+
+The proxy includes a **<u>zero-trust masking layer</u>** to prevent sending Personally Identifiable Information (PII) to LLM clients. When enabled, sensitive data in tool responses is masked **before** it leaves the server. 
+
+To enable this feature, set `MCP_PII_MASKING_ENABLED=true`.
+
+- **Names** (`firstName`, `lastName`) are deterministically hashed to pseudonyms like `EMP-8F92`. The LLM can still correlate identities across multiple tools within a session, but cannot see real names.
+- **Emails** are masked to `user-8F92@masked.local`.
+- **National IDs and phone numbers** are fully redacted to `***MASKED***`.
+- **Financial amounts** (salaries, net amounts) are left untouched by default so analytics tools work correctly. To bucket financial amounts into ranges (e.g., `15000-16000`), set **<u>`MCP_PII_MASK_AMOUNTS=true`</u>**.
+- **Custom fields** can be redacted by setting `MCP_PII_MASK_FIELDS=customField1,customField2`. 
+
+**Note:** Masking is an opt-in feature. It is the user's explicit responsibility to control their data anonymity and toggle this feature on if they require it for compliance or privacy reasons.
+
+#### <u>Payload Padding (Opt-in)</u>
+
+Even with HTTPS, network observers can sometimes infer which API endpoints are being called based on encrypted packet sizes. The proxy can **<u>pad all tool responses</u>** to a uniform size with cryptographically random noise, defeating traffic analysis.
+
+To enable: `MCP_PAYLOAD_PADDING=true`. Target size is configurable via `MCP_PAD_TARGET_KB` (default: 64 KB). Responses already larger than the target are left untouched.
+
+#### <u>Config Encryption at Rest (Opt-in)</u>
+
+The config file (`~/.config/kolay/config.yaml` or `.json`) can be **<u>encrypted at rest</u>** using Fernet (AES-128-CBC + HMAC-SHA256). The encryption key is derived from your machine identity via PBKDF2 and is never stored on disk.
+
+To enable: `KOLAY_ENCRYPT_CONFIG=true`. Existing plaintext configs continue to work — encryption is applied on the next write. If you move to a different machine, the derived key changes; the CLI will warn and ask you to re-authenticate.
+
+#### <u>Mutual TLS / mTLS (Infrastructure)</u>
+
+For networked deployments, you can enforce **<u>Mutual TLS (mTLS)</u>** using the provided NGINX sidecar config in `infra/nginx-mtls/`. This requires connecting AI clients to present a valid client certificate signed by your CA before the TCP handshake completes. See `infra/nginx-mtls/README.md` for setup instructions.
+
 
 ---
 
@@ -400,6 +450,8 @@ The server runs on [FastMCP 3.x](https://gofastmcp.com) and is hardened for prod
 | `SlidingWindowRateLimitingMiddleware` | Per-token rate limiting (opt-in, env-configurable) |
 | `TimingMiddleware` | Logs duration of every MCP operation |
 | `ResponseLimitingMiddleware` | Truncates tool responses larger than 500 KB |
+| `PIIMaskingMiddleware` | Pseudonymizes names, emails, IDs in tool responses (opt-in) |
+| `PayloadPaddingMiddleware` | Pads responses to uniform size against traffic analysis (opt-in) |
 | `PingMiddleware` | 30-second keep-alive for long SSE sessions |
 | `PromptToolMiddleware` | Exposes all 10 prompts as callable tools (for clients that only support tools) |
 | `ResourceToolMiddleware` | Exposes all resources as callable tools |

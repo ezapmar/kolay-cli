@@ -24,9 +24,10 @@ _KEYRING_USERNAME = "api_token"
 class TokenStatus:
     """Result of a token validation check."""
 
-    def __init__(self, valid: bool, reason: str = "") -> None:
+    def __init__(self, valid: bool, reason: str = "", claims: dict[str, Any] | None = None) -> None:
         self.valid = valid
         self.reason = reason
+        self.claims = claims
 
     def __bool__(self) -> bool:
         return self.valid
@@ -323,8 +324,17 @@ def validate_token(token: str) -> TokenStatus:
         # Opaque bearer token — trust it; API validates on each call
         return TokenStatus(True, "Opaque token (not a JWT) — accepted as-is.")
 
-    # JWT path — decode without verifying signature
-    claims = _decode_jwt_claims(token)
+    # JWT path — verify signature if secret configured
+    secret = os.getenv("MCP_JWT_SECRET")
+    if secret:
+        try:
+            import jwt
+            claims = jwt.decode(token, secret, algorithms=["HS256"], options={"verify_exp": False})
+        except Exception as exc:
+            return TokenStatus(False, f"JWT signature verification failed: {exc}")
+    else:
+        claims = _decode_jwt_claims(token)
+
     if claims is None:
         return TokenStatus(False, "JWT payload could not be decoded.")
 
@@ -341,7 +351,7 @@ def validate_token(token: str) -> TokenStatus:
         if exp - now < 300:
             _log.warning("Token expires in less than 5 minutes.")
 
-    return TokenStatus(True, "JWT is valid.")
+    return TokenStatus(True, "JWT is valid.", claims)
 
 
 
@@ -369,7 +379,7 @@ def require_auth(fn: F) -> F:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         import time as _time
         from .rate_limiter import token_key as rl_token_key
-        from .activity_log import log_tool_call
+        from .activity_log import log_tool_call, generate_receipt
 
         token = resolve_token()
 
@@ -392,10 +402,14 @@ def require_auth(fn: F) -> F:
         t0 = _time.monotonic()
         try:
             result = fn(*args, **kwargs)
-            log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=True)
+            receipt = generate_receipt(key, fn.__name__, "success")
+            log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=True, receipt=receipt)
+            if receipt and isinstance(result, dict) and "_receipt" not in result:
+                result["_receipt"] = receipt
             return result
         except Exception as exc:
-            log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc))
+            receipt = generate_receipt(key, fn.__name__, "error")
+            log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc), receipt=receipt)
             from .api.errors import APIError
             if isinstance(exc, APIError) and exc.status_code == 401:
                 return _auth_error(
@@ -405,4 +419,74 @@ def require_auth(fn: F) -> F:
             raise
 
     return wrapper  # type: ignore[return-value]
+
+
+def requires_permission(*permissions: str) -> Callable[[F], F]:
+    """Decorator that guards an MCP tool function with cryptographic permission checking."""
+    def decorator(fn: F) -> F:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            import time as _time
+            from .rate_limiter import token_key as rl_token_key
+            from .activity_log import log_tool_call, generate_receipt
+
+            token = resolve_token()
+
+            if not token:
+                return _auth_error(
+                    "It seems we need a valid API token to proceed.",
+                    hint="Please run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable to get started.",
+                )
+
+            status = validate_token(token)
+            if not status:
+                return _auth_error(
+                    f"We couldn't verify the current session: {status.reason}",
+                    hint="Please run 'kolay auth login' to refresh your connection.",
+                )
+
+            # Permission check
+            if status.claims:
+                granted: set[str] = set()
+                perm_claim = status.claims.get("permissions", [])
+                if isinstance(perm_claim, list):
+                    granted.update(perm_claim)
+                
+                scope_claim = status.claims.get("scope", "")
+                if isinstance(scope_claim, str):
+                    granted.update(scope_claim.split())
+
+                missing = [p for p in permissions if p not in granted]
+                if missing:
+                    return {
+                        "error": True,
+                        "code": 403,
+                        "message": f"Cryptographic policy validation failed. Missing permission: {', '.join(missing)}",
+                        "hint": "Contact your administrator to grant this permission."
+                    }
+
+            key = rl_token_key(token)
+
+            # ── Execute tool with timing + activity logging ──
+            t0 = _time.monotonic()
+            try:
+                result = fn(*args, **kwargs)
+                receipt = generate_receipt(key, fn.__name__, "success")
+                log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=True, receipt=receipt)
+                if receipt and isinstance(result, dict) and "_receipt" not in result:
+                    result["_receipt"] = receipt
+                return result
+            except Exception as exc:
+                receipt = generate_receipt(key, fn.__name__, "error")
+                log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc), receipt=receipt)
+                from .api.errors import APIError
+                if isinstance(exc, APIError) and exc.status_code == 401:
+                    return _auth_error(
+                        "It seems the API session has expired.",
+                        hint="Please run 'kolay auth login' to update your connection.",
+                    )
+                raise
+
+        return wrapper  # type: ignore[return-value]
+    return decorator
 

@@ -72,6 +72,9 @@ if __name__ == "__main__":
     print(f"  Gatekeeper:   {'enabled' if api_key else 'disabled (tools still protected by @require_auth)'}", flush=True)
     print(f"  Kolay Token:  {'set via env' if kolay_token else 'not set (clients must send X-Kolay-Token)'}", flush=True)
     print(f"  Rate Limit:   {'enabled' if os.environ.get('MCP_RATE_LIMIT_ENABLED', '').lower() in ('1', 'true', 'yes') else 'disabled (set MCP_RATE_LIMIT_ENABLED=true)'}", flush=True)
+    print(f"  PII Masking:  {'enabled' if os.environ.get('MCP_PII_MASKING_ENABLED', '').lower() in ('1', 'true', 'yes') else 'disabled (set MCP_PII_MASKING_ENABLED=true)'}", flush=True)
+    print(f"  Padding:      {'enabled (' + os.environ.get('MCP_PAD_TARGET_KB', '64') + ' KB)' if os.environ.get('MCP_PAYLOAD_PADDING', '').lower() in ('1', 'true', 'yes') else 'disabled (set MCP_PAYLOAD_PADDING=true)'}", flush=True)
+    print(f"  Config Crypt: {'enabled' if os.environ.get('KOLAY_ENCRYPT_CONFIG', '').lower() in ('1', 'true', 'yes') else 'disabled (set KOLAY_ENCRYPT_CONFIG=true)'}", flush=True)
     print(f"  Activity Log: always on (structured JSON to stdout)", flush=True)
     print("", flush=True)
 

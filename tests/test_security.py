@@ -284,3 +284,144 @@ class TestCLIAuthCommands:
         assert result.exit_code == 0
         assert "not logged in" in result.output.lower() or "No API token" in result.output
 
+# ── Cryptographic Guardrails (Zero-Trust) ─────────────────────────────────────
+
+def _make_signed_jwt(secret: str, permissions: list[str] | None = None, scope: str | None = None) -> str:
+    import jwt
+    payload: dict[str, Any] = {"exp": int(time.time()) + 3600, "sub": "test-user"}
+    if permissions is not None:
+        payload["permissions"] = permissions
+    if scope is not None:
+        payload["scope"] = scope
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+
+class TestCryptoGuardrails:
+    """Tests for zero-trust enhancements: JWT signature, permissions, recipes."""
+
+    def test_jwt_signature_verified_when_secret_set(self, monkeypatch):
+        monkeypatch.setenv("MCP_JWT_SECRET", "supersecret")
+        from kolay_cli.security import validate_token
+        
+        token = _make_signed_jwt("supersecret")
+        status = validate_token(token)
+        assert status.valid is True
+
+    def test_jwt_signature_rejected_when_secret_set(self, monkeypatch):
+        monkeypatch.setenv("MCP_JWT_SECRET", "supersecret")
+        from kolay_cli.security import validate_token
+        
+        token = _make_signed_jwt("wrongsecret")
+        status = validate_token(token)
+        assert status.valid is False
+        assert "verification failed" in status.reason.lower()
+
+    def test_jwt_signature_skipped_when_no_secret(self, monkeypatch):
+        monkeypatch.delenv("MCP_JWT_SECRET", raising=False)
+        from kolay_cli.security import validate_token
+        
+        # Original _make_jwt creates a structurally valid JWT with "fakesignature"
+        token = _make_jwt()
+        status = validate_token(token)
+        assert status.valid is True
+
+    def test_opaque_token_bypasses_signature_check(self, monkeypatch):
+        monkeypatch.setenv("MCP_JWT_SECRET", "supersecret")
+        from kolay_cli.security import validate_token
+        
+        token = "opaque-token-no-dots"
+        status = validate_token(token)
+        assert status.valid is True
+
+
+class TestRequiresPermission:
+    """Tests for @requires_permission decorator."""
+
+    def test_requires_permission_grants_access(self, monkeypatch):
+        from kolay_cli.security import requires_permission
+        
+        # We need a token in the mocked resolution
+        token = _make_signed_jwt("secret", permissions=["view_salary"])
+        monkeypatch.setenv("MCP_JWT_SECRET", "secret")
+        
+        @requires_permission("view_salary")
+        def my_tool():
+            return {"data": "ok"}
+            
+        with patch("kolay_cli.security.resolve_token", return_value=token):
+            result = my_tool()
+        
+        assert result.get("data") == "ok"
+
+    def test_requires_permission_denies_access(self, monkeypatch):
+        from kolay_cli.security import requires_permission
+        
+        token = _make_signed_jwt("secret", permissions=["other_permission"])
+        monkeypatch.setenv("MCP_JWT_SECRET", "secret")
+        
+        @requires_permission("view_salary")
+        def my_tool():
+            return {"data": "ok"}
+            
+        with patch("kolay_cli.security.resolve_token", return_value=token):
+            result = my_tool()
+        
+        assert result.get("error") is True
+        assert result.get("code") == 403
+        assert "view_salary" in result.get("message")
+
+    def test_requires_permission_opaque_token_grants_all(self, monkeypatch):
+        from kolay_cli.security import requires_permission
+        
+        token = "opaque-trusted-token"
+        
+        @requires_permission("view_salary")
+        def my_tool():
+            return {"data": "ok"}
+            
+        with patch("kolay_cli.security.resolve_token", return_value=token):
+            result = my_tool()
+        
+        assert result.get("data") == "ok"
+
+
+class TestHMACReceipts:
+    """Tests for cryptographically signed execution receipts."""
+
+    def test_receipt_generated_on_success(self, monkeypatch):
+        monkeypatch.setenv("MCP_RECEIPT_SECRET", "receiptsecret")
+        from kolay_cli.security import require_auth
+        
+        token = "opaque-token"
+        
+        @require_auth
+        def my_tool():
+            return {"data": "ok"}
+            
+        with patch("kolay_cli.security.resolve_token", return_value=token):
+            result = my_tool()
+            
+        assert result.get("data") == "ok"
+        assert "_receipt" in result
+        assert "success" in result["_receipt"]
+
+    def test_receipt_logged_in_activity(self, monkeypatch):
+        monkeypatch.setenv("MCP_RECEIPT_SECRET", "receiptsecret")
+        from kolay_cli.security import require_auth
+        import logging
+        
+        token = "opaque-token"
+        
+        @require_auth
+        def my_tool():
+            return {"data": "ok"}
+            
+        with patch("kolay_cli.security.resolve_token", return_value=token):
+            with patch("logging.Logger.info") as mock_info:
+                my_tool()
+                
+        # The activity log should have been called with a JSON string containing "receipt_hash"
+        mock_info.assert_called_once()
+        log_str = mock_info.call_args[0][0]
+        assert "receipt_hash" in log_str
+

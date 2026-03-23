@@ -30,22 +30,29 @@ class Config:
         self._data: dict[str, Any] = self._load()
 
     def _load(self) -> dict[str, Any]:
-        """Load configuration from files, preferring YAML over JSON."""
+        """Load configuration from files, preferring YAML over JSON.
+
+        Transparently decrypts files that were encrypted at rest
+        by :mod:`config_crypto` (detected by Fernet prefix).
+        """
+        from .config_crypto import decrypt_config_file
         data: dict[str, Any] = {}
 
         # 1. Load JSON if it exists
         if CONFIG_FILE_JSON.exists():
             try:
-                with open(CONFIG_FILE_JSON, "r", encoding="utf-8") as f:
-                    data.update(json.load(f))
+                raw = decrypt_config_file(CONFIG_FILE_JSON)
+                if raw:
+                    data.update(json.loads(raw))
             except (json.JSONDecodeError, OSError):
                 pass
 
         # 2. Load YAML if it exists and PyYAML is available (takes precedence)
         if _HAS_YAML and CONFIG_FILE_YAML.exists():
             try:
-                with open(CONFIG_FILE_YAML, "r", encoding="utf-8") as f:
-                    yaml_data = yaml.safe_load(f)
+                raw = decrypt_config_file(CONFIG_FILE_YAML)
+                if raw:
+                    yaml_data = yaml.safe_load(raw)
                     if isinstance(yaml_data, dict):
                         data.update(yaml_data)
             except (yaml.YAMLError, OSError):
@@ -100,16 +107,11 @@ class Config:
 
         self._data[key] = value
 
+        from .config_crypto import encrypt_and_write
         if _HAS_YAML:
-            target = CONFIG_FILE_YAML
-            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                yaml.dump(self._data, f, default_flow_style=False)
+            encrypt_and_write(CONFIG_FILE_YAML, self._data, use_yaml=True)
         else:
-            target = CONFIG_FILE_JSON
-            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, indent=2)
+            encrypt_and_write(CONFIG_FILE_JSON, self._data, use_yaml=False)
 
     @property
     def api_token(self) -> str | None:
