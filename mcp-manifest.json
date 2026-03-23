@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0",
+  "server": {
+    "name": "kolay-ik",
+    "display_name": "Kolay IK MCP Server",
+    "version": "0.13.0-alpha",
+    "vendor": "Kolay IK (https://kolayik.com)",
+    "description": "HR platform tools for employee, leave, payroll, and analytics management."
+  },
+  "transport": {
+    "protocol": "mcp",
+    "endpoints": [
+      "/mcp"
+    ],
+    "auth_methods": [
+      "bearer_token",
+      "x-api-key"
+    ]
+  },
+  "tools": [
+    {
+      "name": "search_employees",
+      "category": "read",
+      "description": "Filtered, projected employee search with hard-limit truncation."
+    },
+    {
+      "name": "get_employee_statistics",
+      "category": "read",
+      "description": "Server-side aggregations (headcount, average_age, distributions)."
+    },
+    {
+      "name": "get_cache_status",
+      "category": "diagnostic",
+      "description": "TTL cache health check."
+    },
+    {
+      "name": "person_list",
+      "category": "read",
+      "description": "Raw paginated employee listing."
+    },
+    {
+      "name": "person_view",
+      "category": "read",
+      "description": "Full employee profile by ID."
+    },
+    {
+      "name": "leave_list",
+      "category": "read",
+      "description": "Leave records with filters."
+    },
+    {
+      "name": "team_availability_analysis",
+      "category": "analytics",
+      "description": "Multi-step operational risk assessment."
+    },
+    {
+      "name": "turnover_risk_scan",
+      "category": "analytics",
+      "description": "Burnout and turnover signal scan."
+    },
+    {
+      "name": "payroll_anomaly_detect",
+      "category": "analytics",
+      "description": "Duplicate and outlier transaction detection."
+    }
+  ],
+  "data_policies": {
+    "no_llm_training": true,
+    "pii_masking_available": true,
+    "max_response_size_bytes": 500000,
+    "rate_limiting": "sliding_window_per_token",
+    "audit_logging": "structured_json_stdout",
+    "data_retention": "none_stateless_proxy"
+  },
+  "issued_at": "2026-03-23T21:54:19+00:00"
+}

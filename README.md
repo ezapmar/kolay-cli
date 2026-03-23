@@ -373,17 +373,17 @@ kolay mcp serve --transport http --port 8000
 
 ---
 
-### <u>Emphatic UX Help Guide</u>
+### 💡 Emphatic UX Help Guide
 
-We want your experience with `kolay-cli` to be seamless. If you're stuck, try these quick steps:
+**STOP! Don't let a technical hurdle slow you down.** We are obsessed with making your HR workflow feel effortless. If things aren't "just working," here is exactly how to fix it:
 
-*   **Authentication issues?** Run `kolay auth login` to refresh your token. If you're on a headless Linux server, install `keyrings.alt` for secure local storage.
-*   **Need more info?** Add `--help` to any command (e.g., `kolay person list --help`) to see all available flags and filters.
-*   **Unexpected output?** Use `--json` to get raw data that you can pipe to `jq` for advanced processing.
-*   **Slow responses?** Check your internet connection or the Kolay IK status page. The CLI uses `httpx` internally for efficient requests.
-*   **Feeling lost?** Run `kolay config show` to see your current base URL and active environment variables.
+- **🔑 SHRUNKEN KEYS?** If your tools aren't returning data, your token has likely expired. **RE-ARM IMMEDIATELY** with `kolay auth login`. If you're on a headless server, the `keyrings.alt` package is your best friend for secure, file-backed storage!
+- **🧐 NEED MORE EYES?** Every single command is documented for you. Append `--help` (e.g., `kolay person list --help`) to reveal the full hidden power of filters, limits, and flags!
+- **🤖 TALK TO THE MACHINE?** Switching to `--json` transforms beautiful tables into perfectly structured data. Pipe it to `jq` and become a terminal wizard!
+- **🐌 FEELING THE LAG?** We use the blazing-fast `httpx` client under the hood. If things aren't snappy, check the Kolay status page or your network — we're built for speed!
+- **🗺️ VIEW THE MAP.** Lost in your own data? `kolay config show` acts as your compass, showing exactly where you're pointing and which settings are in control!
 
-We're here to help you get the most out of your HR data. Don't hesitate to reach out if you encounter any bugs!
+**You aren't alone.** Every error we throw is a guide, not a dead end. If you hit a wall, [report it](https://github.com/ezapmar/kolay-cli/issues) and we'll tear it down together!
 
 ---
 
@@ -455,6 +455,15 @@ The server runs on [FastMCP 3.x](https://gofastmcp.com) and is hardened for prod
 | `PingMiddleware` | 30-second keep-alive for long SSE sessions |
 | `PromptToolMiddleware` | Exposes all 10 prompts as callable tools (for clients that only support tools) |
 | `ResourceToolMiddleware` | Exposes all resources as callable tools |
+
+**Verifiable Smart Proxy & Discovery**
+
+The server includes a **<u>Verifiable Smart Proxy</u>** layer to protect your LLM context window and your API quotas:
+
+- **In-Memory TTL Caching.** API responses are cached for 5 minutes (configurable via `MCP_CACHE_TTL_SECONDS`). Rapid-fire LLM reasoning steps will **not** spam the Kolay API—they'll hit the high-speed local cache instead.
+- **Server-Side Projection.** Tools like `search_employees` strip away the 50+ unneeded columns from the raw Kolay API, sending only the fields the LLM actually needs.
+- **Hard-Limit Truncation.** Large results are capped at 50 records. If data is truncated, the server appends a `_meta.warning` hint to the LLM, encouraging it to narrow its search rather than hallucinating over partial data.
+- **Verifiable API Manifest.** Independent agents can cryptographically verify our identity using the JWS-signed `mcp-manifest.json`. See `scripts/generate_manifest.py` for verification logic.
 
 **Tool annotations (machine-readable hints to LLM clients):**
 
@@ -784,6 +793,14 @@ The server exposes 53 tools to AI clients.
 | `calendar_create` | write | Create a calendar event |
 | `calendar_update` | write | Update a calendar event |
 | `calendar_delete` | destructive | Delete a calendar event |
+
+**Verifiable Smart Proxy Tools (Context Protection)**
+
+| Tool | Tags | Description |
+|---|---|---|
+| `search_employees` | read, smart_proxy | Filtered, projected employee search (hard-capped at 50) |
+| `get_employee_statistics` | read, smart_proxy, analytics | Server-side aggregations (headcount, age, tenure) |
+| `get_cache_status` | read, smart_proxy, diagnostic | Check TTL cache health (age, expiry, entry count) |
 
 **HR Analytics & Wellbeing Engine**
 
