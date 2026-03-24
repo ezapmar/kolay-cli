@@ -71,13 +71,13 @@ class TestBurnoutStatus:
         assert _burnout_status(score) == expected
 
     def test_healthy_emoji(self):
-        assert "🟢" in _burnout_emoji("healthy")
+        assert "[GREEN]" in _burnout_emoji("healthy")
 
     def test_red_zone_emoji(self):
-        assert "🔴" in _burnout_emoji("red_zone")
+        assert "[RED]" in _burnout_emoji("red_zone")
 
     def test_unknown_status_returns_fallback(self):
-        assert _burnout_emoji("unknown") == "⚪"
+        assert _burnout_emoji("unknown") == "[EMPTY]"
 
 
 # ── Unit: _gap_signal ─────────────────────────────────────────────────────────

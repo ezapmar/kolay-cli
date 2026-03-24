@@ -28,7 +28,7 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
       - Identify bridge-day opportunities in the next 90 days
       - Generate a concrete wellbeing recommendation
 
-    Returns: burnout_status (🔴 red_zone / 🟠 orange / 🟡 yellow / 🟢 healthy),
+    Returns: burnout_status (red_zone [RED] / orange [ORANGE] / yellow [YELLOW] / healthy [GREEN]),
     burnout_score, signals[], bridge_day_opportunities[], and a recommendation string.
 
     person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved)."""

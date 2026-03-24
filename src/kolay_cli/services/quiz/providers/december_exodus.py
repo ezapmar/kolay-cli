@@ -80,7 +80,7 @@ class LeaveTimeMachineQuestion(BaseQuestion):
     def prompt_text(self) -> str:
         month_name = MONTH_NAMES_EN.get(self._month, str(self._month))
         return (
-            f"🌅 In {month_name} {self._year}, how many person-days of annual leave\n"
+            f"[QUIZ] In {month_name} {self._year}, how many person-days of annual leave\n"
             "   or remote work were recorded? (Guess the absentee tally!)"
         )
 

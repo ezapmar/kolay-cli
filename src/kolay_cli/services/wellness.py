@@ -68,7 +68,7 @@ def _burnout_status(score: int) -> str:
 
 
 def _burnout_emoji(status: str) -> str:
-    return {"red_zone": "🔴", "orange_zone": "🟠", "yellow_zone": "🟡", "healthy": "🟢"}.get(status, "⚪")
+    return {"red_zone": "[RED]", "orange_zone": "[ORANGE]", "yellow_zone": "[YELLOW]", "healthy": "[GREEN]"}.get(status, "[EMPTY]")
 
 
 def _gap_signal(days: int | None) -> tuple[str, int]:

@@ -71,7 +71,7 @@ def view(
     console.print(f" [bold]Average time:  [/bold] {data['avg_duration_ms']}ms per command")
     console.print(f" [bold]Error rate:    [/bold] [red]{data['error_rate_pct']}%[/red] ({data['error_count']} failed)")
     console.print(f" [bold]Busiest day:   [/bold] {data['busiest_weekday']}")
-    console.print(f" [bold]Current streak:[/bold] [orange1]{data['current_streak']} days[/orange1] 🔥\n")
+    console.print(f" [bold]Current streak:[/bold] [orange1]{data['current_streak']} days[/orange1] [STREAK]\n")
 
     # Top commands table
     tbl = Table(box=None, show_edge=False, header_style=f"bold {PRIMARY}")

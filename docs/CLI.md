@@ -219,71 +219,17 @@ This CLI is built with a **People First** philosophy:
 
 ## Data Security (CLI)
 
-### Token Storage
+The Kolay CLI uses industry-standard encryption and secure storage to protect your credentials and HR data locally.
 
-The CLI uses a **layered token resolution** strategy. Tokens are checked in this order:
+For full details on token storage, keychain integration, and config encryption at rest, please see the:
 
-| Priority | Source | Description |
-|---|---|---|
-| 1 | Environment variable | `KOLAY_API_TOKEN` |
-| 2 | OS Keychain | macOS Keychain, GNOME Keyring, Windows Credential Vault |
-| 3 | Legacy config file | `~/.config/kolay/config.yaml` (auto-migrated to keychain) |
+### [Security, Privacy, and Encryption Guide](SECURITY.md)
 
-**Keychain integration:**
-
-- On macOS: tokens are stored in the macOS Keychain via the `keyring` library.
-- On Linux: native GNOME/KDE keyring is preferred. If unavailable, `keyrings.alt` (PlaintextKeyring) is automatically activated as a fallback on headless servers.
-- On Windows: Windows Credential Vault is used.
-
-When a token is saved to the keychain, any plaintext copy in config files is **automatically removed** to prevent credential sprawl.
-
-```bash
-# store a token securely
-kolay auth login
-
-# verify where your token lives
-kolay auth status
-
-# remove the token
-kolay auth logout
-```
-
-### Config Encryption at Rest
-
-The config file (`~/.config/kolay/config.yaml` or `.json`) can be **encrypted at rest** using **Fernet (AES-128-CBC + HMAC-SHA256)**.
-
-| Property | Detail |
-|---|---|
-| Algorithm | Fernet: AES-128-CBC encryption + HMAC-SHA256 authentication |
-| Key derivation | PBKDF2-HMAC-SHA256 with 600,000 iterations |
-| Key source | Machine identity: `hostname + OS username` |
-| Key storage | Derived on-the-fly, **never stored on disk** |
-| Backward compatible | Yes. Plaintext configs continue to work |
-| Activation | `KOLAY_ENCRYPT_CONFIG=true` |
-
-```bash
-# enable config encryption
-export KOLAY_ENCRYPT_CONFIG=true
-
-# next write to config will encrypt it automatically
-kolay auth login
-```
-
-**How it works:**
-
-1. A 32-byte key is derived from `platform.node():getpass.getuser()` using PBKDF2 (600k rounds).
-2. The config content is serialized to JSON/YAML, then encrypted with Fernet.
-3. The ciphertext is written with `0o600` permissions (owner read/write only).
-4. On read, if the file starts with `gAAAAA` (Fernet prefix), it is decrypted transparently.
-5. If you move to a different machine, the derived key changes. The CLI warns you and asks to re-authenticate.
-
-**File permissions:** All config files are created with `0o600` (Unix) permissions -- readable and writable only by the file owner. This prevents other users on the same system from reading your credentials.
-
-### Network Security
-
-- All API communication uses **HTTPS** (TLS 1.2+) to the Kolay IK API at `api.kolayik.com`.
-- The `--debug` flag writes HTTP traces to a local log file; **response bodies are never logged** in production mode.
-- No telemetry or tracking data is sent anywhere.
+**Key features include:**
+- **OS Keychain Integration:** Securely store tokens in macOS Keychain, Windows Vault, or GNOME Keyring.
+- **Config Encryption:** Encrypt your local configuration file with Fernet (AES-128-CBC) using machine-derived keys.
+- **Strict File Permissions:** All local data is written with `0o600` permissions (owner-only access).
+- **No Data Leaks:** HTTP tracing never logs response bodies in production mode.
 
 ---
 
