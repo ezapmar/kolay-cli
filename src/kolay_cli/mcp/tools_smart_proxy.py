@@ -27,6 +27,46 @@ def _project(items: list[dict[str, Any]], fields: list[str]) -> list[dict[str, A
 
 
 # ---------------------------------------------------------------------------
+# K-Anonymity guardrail
+# ---------------------------------------------------------------------------
+
+# Minimum cohort size required before any statistical calculation is performed.
+# A cohort of 1 (or 2) can be reverse-engineered to reveal an individual's data
+# through simple inference ("the only female engineer on the mobile team is...").
+# HTTP 451: Unavailable For Legal Reasons — closest standard code for a privacy block.
+MIN_COHORT_SIZE: int = 3
+
+
+def _k_anonymity_error(cohort_size: int, filters: dict[str, Any]) -> dict[str, Any]:
+    """Return a deterministic privacy-block error. Never raises."""
+    return {
+        "error": "HTTP 451: K-Anonymity policy violation. "
+                 f"The resulting cohort ({cohort_size} employee{'s' if cohort_size != 1 else ''}) "
+                 f"is too small to provide statistical data while protecting individual privacy. "
+                 "Please broaden your search criteria.",
+        "cohort_size": cohort_size,
+        "min_cohort_size": MIN_COHORT_SIZE,
+        "filters_applied": filters,
+        "privacy_policy": "k-anonymity",
+    }
+
+
+def _check_k_anonymity(
+    pool: list[dict[str, Any]],
+    filters: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return an error dict if pool is too small for safe aggregation, else None.
+
+    Fast path: called immediately after filtering, before any O(N) aggregation.
+    A cohort of 0 is handled separately by the caller (no matching employees).
+    """
+    n = len(pool)
+    if 0 < n < MIN_COHORT_SIZE:
+        return _k_anonymity_error(n, filters)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Tool 1: search_employees
 # ---------------------------------------------------------------------------
 
@@ -136,6 +176,14 @@ def get_employee_statistics(
         pool = [e for e in all_employees if dept_lower in (e.get("department") or "").lower()]
     else:
         pool = list(all_employees)
+
+    # ── K-Anonymity guardrail ─────────────────────────────────────────────
+    # Must run BEFORE any metric calculation to prevent inference attacks.
+    # e.g. "average salary of female engineers aged 34" with 1 match = exact reveal.
+    active_filters = {"department": department}
+    k_error = _check_k_anonymity(pool, active_filters)
+    if k_error is not None:
+        return k_error
 
     if not pool:
         return {
