@@ -27,3 +27,25 @@ config.json
 .AppleDouble
 .DS_Store
 .cursor/
+
+# Personal planning & brainstorm docs (not project artifacts)
+.brainstorm*
+.research
+.review*
+.roadmap*
+.text
+.myteam/
+
+# Generated manifest artifacts — reproducible via scripts/generate_manifest.py
+manifest-public-key.pem
+mcp-manifest.json
+mcp-manifest.jws
+
+# Scratch / one-off scripts
+run_test.py
+kolay-logo.txt
+
+# Coverage & test cache
+.coverage
+htmlcov/
+.pytest_cache/

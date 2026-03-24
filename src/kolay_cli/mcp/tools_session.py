@@ -10,8 +10,8 @@ session ends. No PII is written to disk.
 from __future__ import annotations
 
 from typing import Any
-from fastmcp.server.context import Context
-from fastmcp.tools import Tool
+from .adapter import Context
+from .adapter import Tool
 
 
 async def session_remember(key: str, value: str, ctx: Context) -> dict[str, Any]:

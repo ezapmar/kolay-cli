@@ -8,12 +8,12 @@ from typing import Any
 os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
 os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
-from fastmcp import FastMCP
-from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
-from fastmcp.server.middleware.rate_limiting import SlidingWindowRateLimitingMiddleware
-from fastmcp.server.middleware.timing import TimingMiddleware
-from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
-from fastmcp.server.middleware import PingMiddleware
+from kolay_cli.mcp.adapter import FastMCP
+from kolay_cli.mcp.adapter import ErrorHandlingMiddleware
+from kolay_cli.mcp.adapter import SlidingWindowRateLimitingMiddleware
+from kolay_cli.mcp.adapter import TimingMiddleware
+from kolay_cli.mcp.adapter import ResponseLimitingMiddleware
+from kolay_cli.mcp.adapter import PingMiddleware
 
 from .security import require_auth
 from .services import person as person_svc

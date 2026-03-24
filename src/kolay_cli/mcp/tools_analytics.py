@@ -1,7 +1,7 @@
-from fastmcp.tools import Tool
+from .adapter import Tool
 from typing import Any
-from fastmcp.server.context import Context
-from fastmcp.dependencies import CurrentContext
+from .adapter import Context
+from .adapter import CurrentContext
 from ..security import require_auth
 from ..services import person as person_svc
 from ..services import leave as leave_svc

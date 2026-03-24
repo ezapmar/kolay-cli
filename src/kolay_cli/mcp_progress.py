@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Callable
-from fastmcp.server.context import Context
+from kolay_cli.mcp.adapter import Context
 
 
 def sync_progress_bridge(ctx: Context) -> Callable[[int, int, str], None]:

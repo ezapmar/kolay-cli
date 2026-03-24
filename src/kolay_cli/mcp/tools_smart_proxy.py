@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from fastmcp.tools import Tool
+from .adapter import Tool
 
 from ..security import require_auth
 from ..ttl_cache import fetch_all_employees, cache_status
