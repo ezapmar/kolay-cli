@@ -38,7 +38,7 @@ def generate_manifest() -> dict:
         "server": {
             "name": "kolay-ik",
             "display_name": "Kolay IK MCP Server",
-            "version": "0.13.0a2",
+            "version": "0.13.0a3",
             "vendor": "Kolay IK (https://kolayik.com)",
             "description": "HR platform tools for employee, leave, payroll, and analytics management.",
         },
