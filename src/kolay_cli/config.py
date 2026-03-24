@@ -95,6 +95,10 @@ class Config:
             value: The value to set.
         """
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            CONFIG_DIR.chmod(0o700)
+        except OSError:
+            pass
 
         if key == "api_token":
             # Prefer keyring; fall back to file only when keyring unavailable

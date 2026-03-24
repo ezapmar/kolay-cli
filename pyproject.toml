@@ -60,7 +60,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0", "pytest-mock>=3.10", "pytest-cov>=4.0"]
+test = ["pytest>=7.0", "pytest-mock>=3.10", "pytest-cov>=4.0", "pytest-asyncio"]
 linux = ["keyrings.alt>=5.0"]  # file-backed fallback for headless Linux / CI
 
 dev = [
@@ -73,6 +73,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

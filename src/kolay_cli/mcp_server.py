@@ -109,6 +109,12 @@ if _rl_enabled:
         get_client_id=_get_client_id,
     ))
 
+# 2.5. RBAC Tool Provisioning (opt-in, env-configurable)
+_rbac_enabled = os.environ.get("MCP_RBAC_ENABLED", "").lower() in ("1", "true", "yes")
+if _rbac_enabled:
+    from .proxy.rbac import RBACToolFilterMiddleware
+    mcp.add_middleware(RBACToolFilterMiddleware())
+
 # 3. Request timing (logs duration per MCP operation)
 mcp.add_middleware(TimingMiddleware())
 
@@ -212,6 +218,15 @@ class APIKeyMiddleware:
         token_reset = KOLAY_TOKEN_CTX.set(ctx_token)
 
         try:
+            # 0. Handle webhooks (independent of MCP API Key or Kolay Token)
+            webhook_secret = os.environ.get("WEBHOOK_SECRET")
+            if scope["type"] == "http":
+                path = scope.get("path", "")
+                if path == "/webhooks/cache-invalidate" and webhook_secret:
+                    from .proxy.webhook import webhook_endpoint
+                    await webhook_endpoint(scope, receive, send)
+                    return
+
             # Only gate HTTP requests (not lifespan events) with the master API Key if set
             if scope["type"] in ("http", "websocket") and self.api_key:
                 headers = dict(scope.get("headers", []))

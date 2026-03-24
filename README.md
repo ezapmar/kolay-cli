@@ -77,16 +77,16 @@ Zero-trust architecture, encryption at rest, PII pseudonymization, and last-mile
 
 ## [EMPHATIC UX HELP GUIDE]
 
-**STOP! Don't let a technical hurdle slow you down.** We are obsessed with making your HR workflow feel effortless. If things aren't "just working," here is exactly how to fix it:
+**STOP STRUGGLING.** We refuse to let technical friction slow down your HR workflows. We designed Kolay CLI to be an effortless extension of your mind. If it's not working perfectly, here is exactly how to fix it right now:
 
-- **[SHRUNKEN KEYS?]** If your tools aren't returning data, your token has likely expired. **RE-ARM IMMEDIATELY** with `kolay auth login`. If you're on a headless server, the `keyrings.alt` package is your best friend for secure, file-backed storage!
-- **[NEED MORE EYES?]** Every single command is documented for you. Append `--help` (e.g., `kolay person list --help`) to reveal the full hidden power of filters, limits, and flags!
-- **[TALK TO THE MACHINE?]** Switching to `--json` transforms beautiful tables into perfectly structured data. Pipe it to `jq` and become a terminal wizard!
-- **[FEELING THE LAG?]** We use the blazing-fast `httpx` client under the hood. If things aren't snappy, check the Kolay status page or your network — we're built for speed!
-- **[VIEW THE MAP]** Lost in your own data? `kolay config show` acts as your compass, showing exactly where you're pointing and which settings are in control!
-- **[ZERO TRUST, ZERO DRAMA]** Worried about privacy? Check our security docs. We implement PII masking, DLP, and and on-device encryption by default. 
+- **[UNAUTHORIZED? SHRUNKEN KEYS?]** If your tools suddenly stop returning data, your API token has expired. **RE-ARM IMMEDIATELY** with `kolay auth login`. If you're running headless, let `keyrings.alt` securely manage your file-backed storage!
+- **[NEED MORE EYES?]** You hold immense power. Don't guess. Append `--help` (e.g., `kolay person list --help`) to instantly reveal the hidden arsenals of filters, limits, and operational flags!
+- **[TALK TO PROTOCOLS?]** Switch to `--json` to obliterate the pretty tables and output razor-sharp, structured JSON. Pipe it directly into `jq` and command your data like a true terminal wizard!
+- **[FEELING THE LAG?]** We forged this client for raw speed. If it stutters, check your network or the Kolay status page—we do not compromise on performance!
+- **[VIEW THE MAP]** Lost your bearings? Run `kolay config show`. It acts as your absolute compass, instantly exposing your active environment, base URL, and operational settings!
+- **[ZERO TRUST, ZERO DRAMA]** Paralyzed by privacy concerns? Read our security documentation. We enforce ruthless PII masking, DLP egress scanners, and military-grade on-device AES-256-GCM encryption by default. 
 
-**You aren't alone.** Every error we throw is a guide, not a dead end. If you hit a wall, [report it](https://github.com/ezapmar/kolay-cli/issues) and we'll tear it down together!
+**You are never alone.** Every error we throw is a tactical guide, never a dead end. If you hit an impenetrable wall, [report it](https://github.com/ezapmar/kolay-cli/issues) and we will tear it down together!
 
 ---
 
@@ -95,7 +95,7 @@ Zero-trust architecture, encryption at rest, PII pseudonymization, and last-mile
 - Python 3.10+
 - Typer (Interactive CLI)
 - FastMCP (Verifiable Smart Proxy)
-- Fernet / AES-128-CBC (Config Encryption)
+- AES-256-GCM (AEAD Configuration & Memory Encryption)
 - HMAC-SHA256 (PII Masking + Execution Receipts)
 
 ---

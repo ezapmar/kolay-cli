@@ -39,18 +39,22 @@ class TestSchema:
 
     def test_schema_export_output_is_valid_json(self):
         result = runner.invoke(app, ["schema", "export"])
-        data = json.loads(result.output)
-        assert isinstance(data, dict)
+        assert result.exit_code == 0
+        try:
+            data = json.loads(result.output.strip())
+            assert isinstance(data, dict)
+        except json.JSONDecodeError:
+            pytest.fail(f"Output is not valid JSON:\n{result.output}")
 
     def test_schema_export_contains_openapi_version(self):
         result = runner.invoke(app, ["schema", "export"])
-        data = json.loads(result.output)
+        data = json.loads(result.output.strip())
         assert "openapi" in data
         assert data["info"]["title"] == "Kolay IK MCP API"
 
     def test_schema_export_contains_paths(self):
         result = runner.invoke(app, ["schema", "export"])
-        data = json.loads(result.output)
+        data = json.loads(result.output.strip())
         assert "paths" in data
         assert isinstance(data["paths"], dict)
 

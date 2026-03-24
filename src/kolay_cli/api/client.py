@@ -9,6 +9,15 @@ from requests.adapters import HTTPAdapter
 from .. import config
 from .errors import APIError, HTTP_ERRORS
 
+import os
+import platform
+import sys
+try:
+    from importlib.metadata import version, PackageNotFoundError
+    __version__ = version("kolay-cli")
+except (ImportError, PackageNotFoundError):
+    __version__ = "unknown"
+
 # IDs are 32-char hex. Accept hex + basic alphanum.
 _SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 _log = logging.getLogger("kolay.api")
@@ -83,11 +92,13 @@ class KolayClient:
         )
         self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
+        user_agent = f"kolay-cli/{__version__} (Python/{sys.version.split()[0]}; {platform.system()})"
         self.session.headers.update({
             "Authorization": f"Bearer {self._token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "Accept-Language": "en",
+            "User-Agent": user_agent,
         })
 
     def __repr__(self) -> str:
@@ -117,11 +128,16 @@ class KolayClient:
 
     def _log_audit_trail(self, method: str, endpoint: str, status: int) -> None:
         """Append write operations to local audit.log."""
-        import json, datetime
+        import json, datetime, os
         from pathlib import Path
         try:
             home = Path("~").expanduser() / ".config" / "kolay"
             home.mkdir(parents=True, exist_ok=True)
+            try:
+                home.chmod(0o700)
+            except OSError:
+                pass
+            
             audit_file = home / "audit.log"
             entry = {
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()[:19] + "Z",
@@ -129,8 +145,21 @@ class KolayClient:
                 "endpoint": endpoint,
                 "status": status,
             }
-            with open(audit_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+            log_line = json.dumps(entry) + "\n"
+            
+            from ..config_crypto import is_encryption_enabled, encrypt_bytes
+            encrypt = is_encryption_enabled()
+            
+            # O_APPEND guarantees atomic append at the end of the file
+            fd = os.open(str(audit_file), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            mode = "ab" if encrypt else "a"
+            encoding = None if encrypt else "utf-8"
+            
+            with os.fdopen(fd, mode, encoding=encoding) as f:
+                if encrypt:
+                    f.write(encrypt_bytes(log_line.encode("utf-8")) + b"\n")
+                else:
+                    f.write(log_line)
         except Exception:
             pass
 

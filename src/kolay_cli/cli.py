@@ -120,7 +120,7 @@ def main(
         if is_json_mode():
             json_output({"version": __version__})
         else:
-            console.print(f"Kolay CLI version [bold {_PRIMARY}]{__version__}[/bold {_PRIMARY}]")
+            console.print(f"Kolay CLI version [bold {_PRIMARY}]{__version__}[/bold {_PRIMARY}] (ALPHA RELEASE)")
         raise typer.Exit()
 
     if changelog:

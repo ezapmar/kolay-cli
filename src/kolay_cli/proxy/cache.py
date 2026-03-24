@@ -4,7 +4,7 @@ Security layers applied (in order):
   1. Drop-at-the-door field sanitization   (field_sanitizer.sanitize_employees)
      PII is stripped from raw API payloads BEFORE data reaches the cache.
   2. Encrypted volatile cache              (secure_cache.SecureVolatileCache)
-     Only Fernet ciphertext lives in RAM. Plaintext is never stored.
+     Only AES-256-GCM ciphertext lives in RAM. Plaintext is never stored.
   3. Per-tenant HMAC cache keys            (secure_cache.generate_tenant_cache_key)
      Each tenant's cache entry has a unique, irreversible key.
      IDOR between tenants is mathematically impossible.
@@ -105,7 +105,7 @@ class TTLCache:
 
 _cache_ttl = int(os.environ.get("MCP_CACHE_TTL_SECONDS", "300"))
 
-# SecureVolatileCache: stores only Fernet ciphertext — plaintext never at rest
+# SecureVolatileCache: stores only AES-256-GCM ciphertext — plaintext never at rest
 employee_cache = SecureVolatileCache(default_ttl=_cache_ttl)
 
 _RESOURCE_NAME = "employees"
@@ -247,6 +247,16 @@ def invalidate_cache() -> dict[str, str]:
     cache_key = _get_cache_key()
     employee_cache.invalidate(cache_key)
     return {"status": "invalidated", "message": "Employee cache cleared. Next request will re-fetch."}
+
+
+def invalidate_tenant(tenant_id: str) -> bool:
+    """Purge cached data for a specific tenant ID.
+    
+    Used by webhook handlers to invalidate cache without a request context.
+    tenant_id should be the SHA-256 hash of the API token (result of token_key()).
+    """
+    cache_key = generate_tenant_cache_key(tenant_id, _RESOURCE_NAME)
+    return employee_cache.invalidate(cache_key)
 
 
 

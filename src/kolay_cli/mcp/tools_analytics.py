@@ -16,10 +16,12 @@ from ..services import payroll as payroll_svc
 from ..services import wellness as wellness_svc
 from ..ui.search import filter_items_silent
 from ..mcp_progress import sync_progress_bridge
+from ..proxy.semantic_cache import semantic_cached
 import json
 
 
 @require_auth
+@semantic_cached(ttl=900)
 def team_availability_analysis(
     unit_name: str,
     start_date: str,
@@ -39,6 +41,7 @@ def team_availability_analysis(
 
 
 @require_auth
+@semantic_cached(ttl=900)
 def turnover_risk_scan(
     search: str | None = None,
     limit: int = 50,
@@ -57,6 +60,7 @@ def turnover_risk_scan(
 
 
 @require_auth
+@semantic_cached(ttl=900)
 def payroll_anomaly_detect(months_back: int = 3) -> dict[str, Any]:
     """[READ] Detect anomalies in recent payroll and transaction data.
     Runs two checks:

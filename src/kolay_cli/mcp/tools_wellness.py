@@ -16,10 +16,12 @@ from ..services import payroll as payroll_svc
 from ..services import wellness as wellness_svc
 from ..ui.search import filter_items_silent
 from ..mcp_progress import sync_progress_bridge
+from ..proxy.semantic_cache import semantic_cached
 import json
 
 
 @require_auth
+@semantic_cached(ttl=900)
 def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
     """[READ] Unified burnout + smart leave analysis for a single employee.
 
@@ -36,6 +38,7 @@ def analyze_employee_wellbeing(person_id: str) -> dict[str, Any]:
 
 
 @require_auth
+@semantic_cached(ttl=900)
 def get_smart_rest_plan(
     person_id: str,
     horizon_days: int = 90,

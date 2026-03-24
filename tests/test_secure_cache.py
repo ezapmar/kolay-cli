@@ -1,6 +1,6 @@
 """Tests for:
   - Req 1: Drop-at-the-door PII field sanitization (field_sanitizer)
-  - Req 2: Ephemeral in-memory encryption (SecureVolatileCache)
+  - Req 2: Ephemeral in-memory encryption (SecureVolatileCache) — AES-256-GCM
   - Req 3: Cryptographic tenant isolation (generate_tenant_cache_key)
 """
 from __future__ import annotations
@@ -12,6 +12,7 @@ import pytest
 
 from kolay_cli.field_sanitizer import ALLOWED_FIELDS, sanitize_employees
 from kolay_cli.secure_cache import SecureVolatileCache, generate_tenant_cache_key
+from kolay_cli.proxy.aes256gcm import CryptoError, generate_ephemeral_key
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +113,7 @@ class TestSanitizeEmployees:
 
 
 # ---------------------------------------------------------------------------
-# Req 2: SecureVolatileCache
+# Req 2: SecureVolatileCache (AES-256-GCM)
 # ---------------------------------------------------------------------------
 
 class TestSecureVolatileCache:
@@ -126,13 +127,15 @@ class TestSecureVolatileCache:
         result = self.cache.get_secure("k1")
         assert result == data
 
-    def test_internal_store_holds_only_bytes(self) -> None:
-        """The raw _store must hold ciphertext (bytes), never plaintext dicts."""
+    def test_internal_store_holds_only_strings(self) -> None:
+        """The raw _store must hold ciphertext tokens (str), never plaintext dicts."""
         self.cache.set_secure("k2", [{"secret": "should_be_encrypted"}])
-        _, ciphertext = self.cache._store["k2"]
-        assert isinstance(ciphertext, bytes), "Cache stored non-bytes value"
-        # Ciphertext must not contain the plaintext in any readable form
-        assert b"should_be_encrypted" not in ciphertext
+        _, token = self.cache._store["k2"]
+        assert isinstance(token, str), "Cache stored non-string value"
+        # The base64 token must not contain the plaintext in any readable form
+        import base64 as _b64
+        raw = _b64.urlsafe_b64decode(token)
+        assert b"should_be_encrypted" not in raw
 
     def test_cache_miss_returns_none(self) -> None:
         assert self.cache.get_secure("nonexistent") is None
@@ -164,6 +167,7 @@ class TestSecureVolatileCache:
         st = self.cache.status("s1")
         assert st["cached"] is True
         assert st["encrypted"] is True
+        assert st["cipher"] == "AES-256-GCM"
         assert "ciphertext_bytes" in st
         assert st["ciphertext_bytes"] > 0
 
@@ -174,36 +178,31 @@ class TestSecureVolatileCache:
 
     def test_crypto_shredding_simulation(self) -> None:
         """
-        Simulates a server restart: a NEW SecureVolatileCache instance generates
-        a fresh ephemeral key.  Data stored by one instance is unreadable by
-        another instance holding a different key.
+        Simulates a server restart: a new SecureVolatileCache with a different
+        ephemeral key cannot decrypt entries written by a previous instance.
 
-        In production: when the process dies, the key object is garbage-collected
-        and the OS reclaims the memory.  All ciphertext in the old process is
-        permanently unrecoverable — crypto-shredding by design.
+        AES-256-GCM will raise CryptoError (auth tag mismatch) when the key
+        does not match — no partial plaintext is ever returned.
         """
-        import base64
-        from cryptography.fernet import InvalidToken  # type: ignore[import-untyped]
-
-        # Two independent "server instances" with distinct ephemeral keys
-        key_a = base64.urlsafe_b64encode(os.urandom(32))
-        key_b = base64.urlsafe_b64encode(os.urandom(32))
+        key_a = generate_ephemeral_key()  # raw 32-byte key
+        key_b = generate_ephemeral_key()  # raw 32-byte key
         assert key_a != key_b, "Test precondition: keys must differ"
 
-        cache_a = SecureVolatileCache(default_ttl=60, _fernet_key=key_a)
-        cache_b = SecureVolatileCache(default_ttl=60, _fernet_key=key_b)
+        cache_a = SecureVolatileCache(default_ttl=60, _key=key_a)
+        cache_b = SecureVolatileCache(default_ttl=60, _key=key_b)
 
         cache_a.set_secure("shared_key", {"sensitive": "data"})
-        _, ciphertext = cache_a._store["shared_key"]
+        _, token = cache_a._store["shared_key"]
 
-        # Inject ciphertext from cache_a into cache_b (simulating taking a memory dump
-        # and replanting it after a restart with a new key)
-        cache_b._store["shared_key"] = (time.monotonic() + 60, ciphertext)
+        # Inject cache_a's ciphertext token into cache_b
+        cache_b._store["shared_key"] = (time.monotonic() + 60, token)
 
-        # cache_b (different ephemeral key) cannot decrypt cache_a's ciphertext
-        with pytest.raises(InvalidToken):
-            cache_b.get_secure("shared_key")
-
+        # cache_b (different ephemeral key) cannot authenticate cache_a's ciphertext.
+        # get_secure() catches CryptoError and returns None (logged as warning).
+        result = cache_b.get_secure("shared_key")
+        assert result is None, (
+            "Cross-key decryption succeeded — AES-256-GCM auth tag not enforced"
+        )
 
     def test_complex_data_types_roundtrip(self) -> None:
         data = {
@@ -213,6 +212,15 @@ class TestSecureVolatileCache:
         }
         self.cache.set_secure("complex", data)
         assert self.cache.get_secure("complex") == data
+
+    def test_each_set_produces_unique_ciphertext(self) -> None:
+        """Fresh nonce per call — same payload produces different token each time."""
+        data = {"key": "value"}
+        self.cache.set_secure("t1", data)
+        _, token1 = self.cache._store["t1"]
+        self.cache.set_secure("t1", data)
+        _, token2 = self.cache._store["t1"]
+        assert token1 != token2, "Same ciphertext on repeated set — nonce reuse"
 
 
 # ---------------------------------------------------------------------------
