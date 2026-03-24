@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kolay-cli"
-version = "0.13.0a5"
+version = "0.13.0a6"
 
 
 
