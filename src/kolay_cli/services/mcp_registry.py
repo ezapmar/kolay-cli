@@ -210,6 +210,63 @@ class ZedStrategy(MCPClientStrategy):
         }
 
 
+class ChatGPTStrategy(MCPClientStrategy):
+    """ChatGPT (OpenAI) -- remote MCP connector via browser UI.
+
+    ChatGPT has no local config file.  The 'install' prints instructions
+    and optionally opens the settings page in the default browser.
+    """
+
+    @property
+    def name(self) -> str:
+        return "ChatGPT (OpenAI)"
+
+    @property
+    def description(self) -> str:
+        return "Remote MCP connector (opens browser instructions)"
+
+    def get_config_path(self) -> Path | None:
+        # No local config file -- return a sentinel so inject_server runs.
+        return Path.home() / ".chatgpt-mcp-marker"
+
+    def inject_server(self, server_name: str, command: str, args: list[str]) -> tuple[bool, str]:
+        """Print connection instructions and offer to open the browser."""
+        import webbrowser
+
+        lines = [
+            "",
+            "  ChatGPT MCP Setup (manual -- no local config file)",
+            "",
+            "  1. Open chatgpt.com -> profile icon -> Settings",
+            "  2. Go to Connectors (under Apps) -> click Add (+)",
+            "  3. In the New App dialog, fill in:",
+            f"     Name:           {server_name}",
+            "     Description:    HR management -- employees, leaves, timelogs, trainings, payroll",
+            "     MCP Server URL: https://kolay.up.railway.app/mcp?token=YOUR_KOLAY_API_TOKEN",
+            '     Authentication: select "No Auth"',
+            '  4. Check "I understand and want to continue"',
+            "  5. Click Create",
+            "",
+        ]
+
+        try:
+            from rich.console import Console
+            from ..ui.constants import PRIMARY
+            c = Console(highlight=False)
+            for line in lines:
+                c.print(f"[grey85]{line}[/grey85]")
+        except Exception:
+            for line in lines:
+                print(line)
+
+        try:
+            webbrowser.open("https://chatgpt.com/settings")
+        except Exception:
+            pass
+
+        return True, "Instructions printed (browser opened)"
+
+
 # ── Registry ───────────────────────────────────────────────────────────────────
 
 
@@ -222,6 +279,7 @@ def get_strategies() -> list[MCPClientStrategy]:
         GeminiCLIStrategy(),
         VSCodeStrategy(),
         ZedStrategy(),
+        ChatGPTStrategy(),
     ]
 
 

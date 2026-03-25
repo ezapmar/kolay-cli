@@ -13,7 +13,7 @@ Covers:
   - _read_config: nonexistent file empty dict (creates fresh)
   - install_mcp_server: selected filter passes only chosen clients
   - install_mcp_server: selected=None installs all
-  - get_strategies: returns 7 strategies with unique names
+  - get_strategies: returns 8 strategies with unique names
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from kolay_cli.services.mcp_registry import (
+    ChatGPTStrategy,
     ClaudeDesktopStrategy,
     CursorGlobalStrategy,
     GeminiCLIStrategy,
@@ -38,9 +39,9 @@ from kolay_cli.services.mcp_registry import (
 # ── get_strategies registry ────────────────────────────────────────────────────
 
 class TestGetStrategies:
-    def test_returns_seven_strategies(self):
+    def test_returns_eight_strategies(self):
         strats = get_strategies()
-        assert len(strats) == 7
+        assert len(strats) == 8
 
     def test_all_names_are_unique(self):
         strats = get_strategies()

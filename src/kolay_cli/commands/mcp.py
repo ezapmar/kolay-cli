@@ -173,13 +173,14 @@ def install(
 
     \b
     Supported clients:
-      • Claude Desktop      (macOS, Windows)
-      • Cursor (global)     (~/.cursor/mcp.json)
-      • Cursor (project)    (.cursor/mcp.json in cwd)
-      • Windsurf            (~/.codeium/windsurf/mcp_config.json)
-      • Gemini CLI          (~/.gemini/settings.json)
-      • VS Code (Copilot)   (user-level mcp.json)
-      • Zed                 (~/.config/zed/settings.json)
+      - Claude Desktop      (macOS, Windows)
+      - Cursor (global)     (~/.cursor/mcp.json)
+      - Cursor (project)    (.cursor/mcp.json in cwd)
+      - Windsurf            (~/.codeium/windsurf/mcp_config.json)
+      - Gemini CLI          (~/.gemini/settings.json)
+      - VS Code (Copilot)   (user-level mcp.json)
+      - Zed                 (~/.config/zed/settings.json)
+      - ChatGPT (OpenAI)    (remote -- opens browser with instructions)
     """
     import sys
     import json
