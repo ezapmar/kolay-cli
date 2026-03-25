@@ -46,6 +46,21 @@ kolay doctor
 
 ---
 
+## [OPENAI CHATGPT CONNECTION]
+
+**ChatGPT MCP Beta lacks custom header support.** We built a tactical bridge. To connect your Kolay MCP server to ChatGPT today, do the following:
+
+1. **Navigate.** In ChatGPT, open **Settings -> Apps & Connectors**.
+2. **Create.** Click **Create**.
+3. **Bypass.** Select **No Auth** for Authentication. 
+4. **Arm the URL.** Inject your Kolay API token directly into the connection string:
+   `https://[YOUR_SERVER_URL]/mcp?token=[YOUR_KOLAY_API_TOKEN]`
+   *(If you use a gatekeeper, append `&api_key=[YOUR_MCP_API_KEY]`)*
+
+Your AI is now an HR operator.
+
+---
+
 ## [THE GATEWAYS]
 
 Detailed documentation is now split for your convenience. Choose your journey:
