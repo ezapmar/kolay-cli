@@ -45,6 +45,18 @@ class KolayProxyMiddleware:
             # Always allow discovery paths (Mistral/Google probe these)
             if not path.startswith("/.well-known"):
                 x_api_key = headers.get(b"x-api-key", b"").decode().strip()
+                
+                # Fallback: query string for clients without custom header support (ChatGPT)
+                if not x_api_key:
+                    query_string = scope.get("query_string", b"").decode()
+                    if query_string:
+                        from urllib.parse import parse_qs
+                        qs = parse_qs(query_string)
+                        if "api_key" in qs:
+                            x_api_key = qs["api_key"][0]
+                        elif "apikey" in qs:
+                            x_api_key = qs["apikey"][0]
+
                 if x_api_key and x_api_key == self.api_key:
                     pass  # success internally log if wanted
                 elif x_api_key:
@@ -57,12 +69,12 @@ class KolayProxyMiddleware:
                     else:
                         await send({"type": "websocket.close", "code": 4001})
                     return
-                # If no X-API-Key header at all, let it through —
+                # If no X-API-Key header at all, let it through --
                 # the gatekeeper is a bonus layer, not a hard requirement.
                 # Tool-level @require_auth is the real security.
 
         # ── Token Injection (Kolay API Token) ──
-        kolay_token = self._extract_token(headers)
+        kolay_token = self._extract_token(headers, scope)
         
         # Setup specific ContextVar for Kolay
         from .auth import KOLAY_TOKEN_CTX
@@ -74,11 +86,12 @@ class KolayProxyMiddleware:
             KOLAY_TOKEN_CTX.reset(token_reset)
 
     @staticmethod
-    def _extract_token(headers: dict[bytes, bytes]) -> str | None:
-        """Extract the Kolay IK API token from headers.
+    def _extract_token(headers: dict[bytes, bytes], scope: dict[str, Any] | None = None) -> str | None:
+        """Extract the Kolay IK API token from headers or query string.
 
         1. X-Kolay-Token: <token> (explicit, preferred)
         2. Authorization: Bearer <token> (Mistral/OpenAI standard)
+        3. ?token=<token> query string (ChatGPT MCP Beta -- no custom header support)
         """
         kolay = headers.get(b"x-kolay-token", b"").decode().strip()
         if kolay:
@@ -87,6 +100,15 @@ class KolayProxyMiddleware:
         auth = headers.get(b"authorization", b"").decode().strip()
         if auth.lower().startswith("bearer "):
             return auth[7:].strip()
+
+        # Fallback: query string for clients that cannot send custom headers (ChatGPT)
+        if scope:
+            query_string = scope.get("query_string", b"").decode()
+            if query_string:
+                from urllib.parse import parse_qs
+                qs = parse_qs(query_string)
+                if "token" in qs:
+                    return qs["token"][0]
 
         return None
 
