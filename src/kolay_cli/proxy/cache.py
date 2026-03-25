@@ -221,7 +221,7 @@ def fetch_all_employees() -> list[dict[str, Any]]:
     if use_mock:
         raw_data: list[dict[str, Any]] = _generate_mock_employees(3000)
     else:
-        from .services import person as person_svc
+        from ..services import person as person_svc
         result = person_svc.list_people(limit=500, status="active")
         raw_data = result.get("items", [])
 
