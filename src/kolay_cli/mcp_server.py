@@ -210,6 +210,16 @@ class APIKeyMiddleware:
                 auth_hdr = headers.get(b"authorization", b"").decode()
                 if auth_hdr.lower().startswith("bearer "):
                     kolay_hdr = auth_hdr[7:].strip()
+            
+            # Fallback to query string for clients without custom header support (like ChatGPT MCP beta)
+            if not kolay_hdr:
+                query_string = scope.get("query_string", b"").decode()
+                if query_string:
+                    from urllib.parse import parse_qs
+                    qs = parse_qs(query_string)
+                    if "token" in qs:
+                        kolay_hdr = qs["token"][0]
+
             if kolay_hdr:
                 ctx_token = kolay_hdr
 
@@ -231,6 +241,16 @@ class APIKeyMiddleware:
             if scope["type"] in ("http", "websocket") and self.api_key:
                 headers = dict(scope.get("headers", []))
                 provided = headers.get(b"x-api-key", b"").decode()
+                
+                if not provided and scope["type"] == "http":
+                    query_string = scope.get("query_string", b"").decode()
+                    if query_string:
+                        from urllib.parse import parse_qs
+                        qs = parse_qs(query_string)
+                        if "api_key" in qs:
+                            provided = qs["api_key"][0]
+                        elif "apikey" in qs:
+                            provided = qs["apikey"][0]
 
                 if provided != self.api_key:
                     if scope["type"] == "http":
