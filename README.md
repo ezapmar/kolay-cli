@@ -48,16 +48,22 @@ kolay doctor
 
 ## [OPENAI CHATGPT CONNECTION]
 
-**ChatGPT MCP Beta lacks custom header support.** We built a tactical bridge. To connect your Kolay MCP server to ChatGPT today, do the following:
+ChatGPT speaks MCP now. But its Beta connector has no custom header support. We solved it. Your token rides in the URL.
 
-1. **Navigate.** In ChatGPT, open **Settings -> Apps & Connectors**.
-2. **Create.** Click **Create**.
-3. **Bypass.** Select **No Auth** for Authentication. 
-4. **Arm the URL.** Inject your Kolay API token directly into the connection string:
-   `https://[YOUR_SERVER_URL]/mcp?token=[YOUR_KOLAY_API_TOKEN]`
-   *(If you use a gatekeeper, append `&api_key=[YOUR_MCP_API_KEY]`)*
+1. Open **chatgpt.com**. Click your profile icon. Go to **Settings**.
+2. Find **Connectors** (under Apps). Click **Add** (the "+" button).
+3. The **New App** dialog opens. Fill in:
+   - **Name:** `Kolay IK`
+   - **Description:** `HR management -- employees, leaves, timelogs, trainings, payroll`
+   - **MCP Server URL:** `https://kolay.up.railway.app/mcp?token=YOUR_KOLAY_API_TOKEN`
+   - **Authentication:** Select **No Auth** from the dropdown.
+4. Check **"I understand and want to continue"**.
+5. Click **Create**.
 
-Your AI is now an HR operator.
+That is all. Your AI is now an HR operator.
+
+> If your server also uses a gatekeeper key (`MCP_API_KEY`), append it:
+> `https://kolay.up.railway.app/mcp?token=YOUR_TOKEN&api_key=YOUR_MCP_API_KEY`
 
 ---
 
