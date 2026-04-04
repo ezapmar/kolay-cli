@@ -23,8 +23,8 @@ import json
 def validate_connection() -> dict[str, Any]:
     """[READ] Check if the current Kolay IK token is valid and the API is reachable.
     Returns account info on success, or an error message on failure."""
-    from .api.client import KolayClient
-    from .api.errors import APIError
+    from ..api.client import KolayClient
+    from ..api.errors import APIError
     try:
         data = KolayClient().get("v2/person/list", params={"limit": 1})
         return {"connected": True, "message": "Connection successful.", "sample": data}
@@ -42,7 +42,7 @@ def quiz_challenge(
     Returns a list of questions with their choices, correct answers, and media.
     You, the AI, should act as the game host: present the questions one by one, wait for the user's answer, and then reveal if they were right.
     Do NOT reveal the correct answers immediately."""
-    from .services.quiz import get_factory, KolayAPIProvider
+    from ..services.quiz import get_factory, KolayAPIProvider
     factory = get_factory()
     try:
         provider = factory.get_provider(mode, KolayAPIProvider())
