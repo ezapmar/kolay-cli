@@ -93,19 +93,79 @@ class APIError(Exception):
             self.hint = hint
 
     @property
+    def error_code(self) -> str:
+        """Machine-readable error classification.
+
+        Returns a stable string that callers (LLMs, scripts, UI) can
+        switch on without parsing human-readable messages.
+        """
+        msg = str(self.message).lower()
+        raw = str(self.raw_response or "").lower()
+        combined = msg + raw
+
+        # ---- Account / entitlement state ----
+        if "deneme süreniz" in combined or "trial" in combined:
+            return "account_expired"
+        if "hesabınız" in combined and ("engellenmiş" in combined or "askıya" in combined):
+            return "account_suspended"
+
+        # ---- Credential errors ----
+        if self.status_code == 401:
+            return "invalid_credentials"
+        if self.status_code == 400 and "api anahtar" in combined:
+            return "invalid_credentials"
+        if self.status_code == 400 and "geçersiz" in combined and "api" in combined:
+            return "invalid_credentials"
+        if "token" in combined and ("expired" in combined or "geçersiz" in combined):
+            return "invalid_credentials"
+        if "yetkisiz" in combined or "oturum" in combined:
+            return "invalid_credentials"
+
+        # ---- Permission / scope ----
+        if self.status_code == 403:
+            return "insufficient_scope"
+
+        # ---- Client errors ----
+        if self.status_code == 404:
+            return "not_found"
+        if self.status_code == 409:
+            return "conflict"
+        if self.status_code == 429:
+            return "rate_limited"
+        if self.status_code in (400, 422):
+            return "validation_error"
+
+        # ---- Upstream / transient ----
+        if self.status_code and self.status_code >= 500:
+            return "upstream_error"
+        if "timeout" in combined or "timed out" in combined:
+            return "upstream_timeout"
+        if "connect" in combined and "could not" in combined:
+            return "upstream_unreachable"
+
+        return "unknown_error"
+
+    @property
+    def retryable(self) -> bool:
+        """Whether the caller should retry this request."""
+        return self.error_code in (
+            "rate_limited", "upstream_error", "upstream_timeout", "upstream_unreachable",
+        )
+
+    @property
     def exit_code(self) -> int:
         """Semantic exit code from HTTP status."""
         if self.status_code is None:
             return 1
-        
+
         # Override for misleading 400 auth errors from Kolay API
-        if self.status_code == 400 and "API anahtarını kontrol edin" in str(self.message):
+        if self.error_code == "invalid_credentials":
             return 4  # Auth error
-            
+
         return self.EXIT_CODES.get(self.status_code, 1)
 
     def to_dict(self) -> dict:
-        """JSON error output."""
+        """JSON error output for CLI."""
         from kolay_cli.ui.output import strip_markup
         d: dict = {"error": True, "message": self.message}
         if self.status_code is not None:
@@ -114,4 +174,23 @@ class APIError(Exception):
             d["hint"] = strip_markup(self.hint)
         d["exit_code"] = self.exit_code
         return d
+
+    def to_mcp_dict(self) -> dict:
+        """Structured error for MCP tool responses.
+
+        Never masked by FastMCP because it is a normal return value,
+        not a raised exception.
+        """
+        from kolay_cli.ui.output import strip_markup
+        result: dict = {
+            "error": True,
+            "error_code": self.error_code,
+            "message": self.message,
+            "retryable": self.retryable,
+        }
+        if self.status_code is not None:
+            result["http_status"] = self.status_code
+        if self.hint:
+            result["hint"] = strip_markup(self.hint)
+        return result
 

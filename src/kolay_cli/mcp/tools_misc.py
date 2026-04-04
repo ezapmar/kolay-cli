@@ -21,15 +21,74 @@ import json
 
 @require_auth
 def validate_connection() -> dict[str, Any]:
-    """[READ] Check if the current Kolay IK token is valid and the API is reachable.
-    Returns account info on success, or an error message on failure."""
+    """[READ] Comprehensive health check for the Kolay IK API connection.
+
+    Probes the API with a lightweight request and returns structured
+    diagnostic information:
+      - connected: bool
+      - account_status: active | trial_expired | suspended | unknown
+      - error_code: machine-readable error classification (if failed)
+      - latency_ms: round-trip time to the API
+      - api_version: detected API version
+      - hint: remediation guidance (if failed)
+
+    Use this FIRST when any other tool returns an error to diagnose
+    whether it is a credentials, account, or connectivity issue."""
+    import time
     from ..api.client import KolayClient
     from ..api.errors import APIError
+
+    t0 = time.monotonic()
     try:
-        data = KolayClient().get("v2/person/list", params={"limit": 1})
-        return {"connected": True, "message": "Connection successful.", "sample": data}
+        client = KolayClient()
+        data = client.get("v2/person/list", params={"limit": 1})
+        latency = round((time.monotonic() - t0) * 1000, 1)
+
+        return {
+            "connected": True,
+            "account_status": "active",
+            "latency_ms": latency,
+            "api_version": "v2",
+            "message": "Connection successful. API is reachable and token is valid.",
+            "sample_record_count": len(data) if isinstance(data, list) else 1,
+        }
+
     except APIError as e:
-        return {"connected": False, "message": str(e)}
+        latency = round((time.monotonic() - t0) * 1000, 1)
+
+        # Map error_code to account_status
+        code = e.error_code
+        if code == "account_expired":
+            account_status = "trial_expired"
+        elif code == "account_suspended":
+            account_status = "suspended"
+        elif code in ("invalid_credentials",):
+            account_status = "credentials_invalid"
+        else:
+            account_status = "unknown"
+
+        return {
+            "connected": False,
+            "account_status": account_status,
+            "error_code": code,
+            "http_status": e.status_code,
+            "message": str(e),
+            "hint": e.hint or "Check your API token and account status.",
+            "retryable": e.retryable,
+            "latency_ms": latency,
+        }
+
+    except Exception as e:
+        latency = round((time.monotonic() - t0) * 1000, 1)
+        return {
+            "connected": False,
+            "account_status": "unknown",
+            "error_code": "connector_error",
+            "message": str(e),
+            "hint": "An unexpected error occurred in the connector layer. Check server logs.",
+            "retryable": False,
+            "latency_ms": latency,
+        }
 
 
 @require_auth

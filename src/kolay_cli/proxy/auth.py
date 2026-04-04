@@ -434,11 +434,11 @@ def require_auth(fn: F) -> F:
             receipt = generate_receipt(key, fn.__name__, "error")
             log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc), receipt=receipt)
             from ..api.errors import APIError
-            if isinstance(exc, APIError) and exc.status_code in (400, 401, 403):
-                return _auth_error(
-                    f"API rejected the request: {exc}",
-                    hint="Please verify your API token is valid and not expired.",
-                )
+            if isinstance(exc, APIError):
+                # Return structured error as a normal dict (not raised).
+                # This bypasses FastMCP's mask_error_details and gives
+                # the LLM/user the real error code, message, and hint.
+                return exc.to_mcp_dict()
             raise
 
     return wrapper  # type: ignore[return-value]
@@ -503,11 +503,8 @@ def requires_permission(*permissions: str) -> Callable[[F], F]:
                 receipt = generate_receipt(key, fn.__name__, "error")
                 log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc), receipt=receipt)
                 from ..api.errors import APIError
-                if isinstance(exc, APIError) and exc.status_code in (400, 401, 403):
-                    return _auth_error(
-                        f"API rejected the request: {exc}",
-                        hint="Please verify your API token is valid and not expired.",
-                    )
+                if isinstance(exc, APIError):
+                    return exc.to_mcp_dict()
                 raise
 
         return wrapper  # type: ignore[return-value]
