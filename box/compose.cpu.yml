@@ -1,0 +1,14 @@
+# Kolay AI Box — CPU-Only Override (Local Development)
+# Usage: make dev
+#   (or: docker compose -f compose.yml -f compose.cpu.yml up -d)
+#
+# Use with OLLAMA_MODEL=gemma4:e4b in .env for fastest results.
+# Tool calling works. Inference is slower. No GPU required.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    # Completely redefine the service without any GPU/deploy config.
+    # Mac Docker Desktop does not support NVIDIA device passthrough.
+    environment:
+      OLLAMA_NUM_GPU: "0"

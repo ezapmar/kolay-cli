@@ -1,0 +1,6 @@
+# Secrets — never commit these
+.env
+
+# Docker build cache
+**/__pycache__/
+*.pyc

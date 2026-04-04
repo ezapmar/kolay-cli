@@ -1,0 +1,112 @@
+# Kolay AI Box
+# LLM:   Ollama → Gemma 4 (local, no cloud)
+# UI:    Open WebUI
+# Tools: mcpo → kolay-mcp → Kolay IK API
+#
+# GPU:  docker compose -f compose.yml -f compose.gpu.yml up -d  (make up)
+# CPU:  docker compose up -d                                     (make dev)
+
+services:
+
+  # ── LLM Engine ────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kolay-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             echo '[kolay] Pulling model ${OLLAMA_MODEL:-llama3.2:3b}...' &&
+             ollama pull ${OLLAMA_MODEL:-llama3.2:3b} ||
+             echo '[kolay] Pull failed. Run: docker compose exec ollama ollama pull ${OLLAMA_MODEL:-llama3.2:3b}' &&
+             wait"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Chat Interface ────────────────────────────────────────────────
+  # Talks ONLY to Ollama. No OpenAI. No cloud.
+  # Kolay tools registered via the setup container on first boot.
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: kolay-webui
+    ports:
+      - "${WEBUI_PORT:-3000}:8080"
+    depends_on:
+      proxy:
+        condition: service_healthy
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env}
+      # Disable OpenAI completely — local Ollama only
+      ENABLE_OPENAI_API: "false"
+      # System prompt — tells the model it has tools and how to use them.
+      # Full version with visualization templates lives in prompts/assistant.md.
+      DEFAULT_SYSTEM_PROMPT: >-
+        You are a Kolay IK HR Assistant. You help HR managers and executives
+        with employee data, leave management, payroll queries, and workforce
+        analytics. ALWAYS use the available tools to fetch HR data. NEVER
+        guess or make up employee information. If a tool returns an error,
+        explain what went wrong and suggest a fix. Respond in the same
+        language the user writes in. Default to Turkish. When displaying
+        employee lists, use clean markdown tables. Never reveal API tokens
+        or internal IDs. For charts, generate self-contained HTML artifacts
+        using Chart.js via CDN. For diagrams (org charts, flows), use
+        Mermaid.js syntax in code blocks. ALWAYS populate charts with real
+        data from tool results. Color palette: #1a73e8 #4285f4 #34a853
+        #fbbc04 #ea4335 #9aa0a6.
+    volumes:
+      - webui_data:/app/backend/data
+    restart: unless-stopped
+
+  # ── Kolay IK Tool Server ──────────────────────────────────────────
+  # mcpo bridges Open WebUI → kolay-mcp stdio → Kolay IK REST API.
+  # OWUI calls this as a Tool Server (not OpenAI — native tool calling).
+  proxy:
+    build:
+      context: .
+      dockerfile: src/proxy.Dockerfile
+    container_name: kolay-proxy
+    ports:
+      - "8000:8000"
+    environment:
+      KOLAY_API_TOKEN: ${KOLAY_API_TOKEN:-}
+      KOLAY_SECURITY_PROFILE: ${KOLAY_SECURITY_PROFILE:-standard}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/kolay-ik/openapi.json', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    restart: unless-stopped
+
+  # ── First-boot Setup (one-shot, exits after completion) ──────────
+  # 1. Registers the Kolay proxy as a Tool Server in Open WebUI
+  # 2. Cleans up any leftover workspace models
+  setup:
+    image: python:3.12-slim
+    container_name: kolay-setup
+    volumes:
+      - ./bin/setup-owui.sh:/setup.sh:ro
+    environment:
+      OWUI_URL: http://open-webui:8080
+      PROXY_URL: http://proxy:8000
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@kolay.box}
+      ADMIN_PASS: ${ADMIN_PASS:?Set ADMIN_PASS in .env}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+    depends_on:
+      - open-webui
+      - proxy
+    command: bash /setup.sh
+    restart: "on-failure:3"
+
+volumes:
+  ollama_data:
+    driver: local
+  webui_data:
+    driver: local

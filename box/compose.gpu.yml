@@ -1,0 +1,13 @@
+# Kolay AI Box — GPU Overlay (NVIDIA required)
+# Usage: make up
+#   (or: docker compose -f compose.yml -f compose.gpu.yml up -d)
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

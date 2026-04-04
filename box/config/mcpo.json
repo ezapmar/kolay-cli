@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "command": "kolay-mcp",
+      "env": {
+        "KOLAY_SECURITY_PROFILE": "standard"
+      }
+    }
+  }
+}
