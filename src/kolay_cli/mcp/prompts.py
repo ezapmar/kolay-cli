@@ -1,21 +1,4 @@
 from typing import Any
-from .adapter import Context
-from .adapter import CurrentContext
-from ..security import require_auth
-from ..services import person as person_svc
-from ..services import leave as leave_svc
-from ..services import timelog as timelog_svc
-from ..services import training as training_svc
-from ..services import transaction as transaction_svc
-from ..services import calendar as calendar_svc
-from ..services import unit as unit_svc
-from ..services import approval as approval_svc
-from ..services import hr_analytics as hr_analytics_svc
-from ..services import payroll as payroll_svc
-from ..services import wellness as wellness_svc
-from ..ui.search import filter_items_silent
-from ..mcp_progress import sync_progress_bridge
-import json
 
 
 def employee_snapshot(person_query: str) -> str:
@@ -99,7 +82,7 @@ def hr_capabilities() -> str:
     return """Act as a helpful HR Assistant. 
 List the top things you can do for the user regarding their Kolay IK data. 
 Categorize the capabilities (e.g., Time Off & Leaves, Work Hours & Timelogs, Team Directory, Training, Expenses).
-Keep it very brief, punchy, and use emojis. Offer to help them with one of these right now."""
+Keep it very brief and punchy. Use plain text labels and clear formatting. Offer to help them with one of these right now."""
 
 
 def team_risk_brief(unit_name: str, start_date: str, end_date: str) -> str:

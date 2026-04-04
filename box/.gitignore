@@ -1,5 +1,8 @@
 # Secrets — never commit these
 .env
+.env.local
+.env.*.local
+*.bak
 
 # Docker build cache
 **/__pycache__/

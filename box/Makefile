@@ -29,7 +29,7 @@ up: _ensure-env ## Start the stack with GPU (requires NVIDIA)
 
 .PHONY: dev
 dev: _ensure-env ## Start in CPU mode (no GPU required, works on Mac)
-	docker compose -f compose.yml up -d
+	docker compose -f compose.yml -f compose.cpu.yml up -d
 	@echo ""
 	@echo "  Kolay AI Box (CPU mode) is starting."
 	@echo "  Tip: Set OLLAMA_MODEL=gemma4:e4b in .env for fastest CPU inference."
@@ -39,7 +39,8 @@ dev: _ensure-env ## Start in CPU mode (no GPU required, works on Mac)
 
 .PHONY: down
 down: ## Stop all containers
-	docker compose -f compose.yml down
+	@docker compose -f compose.yml -f compose.gpu.yml down 2>/dev/null || \
+		docker compose -f compose.yml down
 	@echo "  Stopped. Data is preserved in Docker volumes."
 
 .PHONY: logs
@@ -79,9 +80,14 @@ _ensure-env:
 		echo ""; \
 		echo "  .env not found. Creating from template..."; \
 		cp .env.example .env; \
-		echo "  Created .env — edit it now:"; \
-		echo "    1. Set WEBUI_SECRET_KEY to a random string"; \
-		echo "    2. Optionally set KOLAY_API_TOKEN"; \
+		SECRET_KEY=$$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))"); \
+		ADMIN_PW=$$(openssl rand -base64 18 2>/dev/null || python3 -c "import secrets; print(secrets.token_urlsafe(18))"); \
+		sed -i.bak "s/change-me-to-a-long-random-string/$$SECRET_KEY/" .env; \
+		sed -i.bak "s/change-me-min-8-chars/$$ADMIN_PW/" .env; \
+		rm -f .env.bak; \
+		echo "  Created .env with generated secrets."; \
+		echo "    1. Optionally set KOLAY_API_TOKEN for global mode"; \
+		echo "    2. Note your admin password: $$ADMIN_PW"; \
 		echo ""; \
 		echo "  Then run this command again."; \
 		exit 1; \

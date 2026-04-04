@@ -4,7 +4,7 @@
 # Tools: mcpo → kolay-mcp → Kolay IK API
 #
 # GPU:  docker compose -f compose.yml -f compose.gpu.yml up -d  (make up)
-# CPU:  docker compose up -d                                     (make dev)
+# CPU:  docker compose -f compose.yml -f compose.cpu.yml up -d    (make dev)
 
 services:
 
@@ -12,14 +12,15 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: kolay-ollama
+    networks: [internal]
     volumes:
       - ollama_data:/root/.ollama
     entrypoint: >
       sh -c "ollama serve &
              sleep 5 &&
-             echo '[kolay] Pulling model ${OLLAMA_MODEL:-llama3.2:3b}...' &&
-             ollama pull ${OLLAMA_MODEL:-llama3.2:3b} ||
-             echo '[kolay] Pull failed. Run: docker compose exec ollama ollama pull ${OLLAMA_MODEL:-llama3.2:3b}' &&
+             echo '[kolay] Pulling model ${OLLAMA_MODEL:-gemma4:26b}...' &&
+             (ollama pull ${OLLAMA_MODEL:-gemma4:26b} ||
+              echo '[kolay] Pull failed. Run: docker compose exec ollama ollama pull ${OLLAMA_MODEL:-gemma4:26b}') &&
              wait"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags"]
@@ -27,6 +28,10 @@ services:
       timeout: 10s
       start_period: 30s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 24G
     restart: unless-stopped
 
   # ── Chat Interface ────────────────────────────────────────────────
@@ -35,9 +40,12 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: kolay-webui
+    networks: [internal, external]
     ports:
       - "${WEBUI_PORT:-3000}:8080"
     depends_on:
+      ollama:
+        condition: service_healthy
       proxy:
         condition: service_healthy
     environment:
@@ -60,6 +68,16 @@ services:
         Mermaid.js syntax in code blocks. ALWAYS populate charts with real
         data from tool results. Color palette: #1a73e8 #4285f4 #34a853
         #fbbc04 #ea4335 #9aa0a6.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 8
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     volumes:
       - webui_data:/app/backend/data
     restart: unless-stopped
@@ -72,8 +90,11 @@ services:
       context: .
       dockerfile: src/proxy.Dockerfile
     container_name: kolay-proxy
-    ports:
-      - "8000:8000"
+    networks: [internal, external]
+    # Internal only — Open WebUI talks to this over the Docker network.
+    # Not exposed to host to prevent unauthenticated tool access.
+    expose:
+      - "8000"
     environment:
       KOLAY_API_TOKEN: ${KOLAY_API_TOKEN:-}
       KOLAY_SECURITY_PROFILE: ${KOLAY_SECURITY_PROFILE:-standard}
@@ -83,6 +104,10 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     restart: unless-stopped
 
   # ── First-boot Setup (one-shot, exits after completion) ──────────
@@ -91,6 +116,7 @@ services:
   setup:
     image: python:3.12-slim
     container_name: kolay-setup
+    networks: [internal]
     volumes:
       - ./bin/setup-owui.sh:/setup.sh:ro
     environment:
@@ -100,10 +126,20 @@ services:
       ADMIN_PASS: ${ADMIN_PASS:?Set ADMIN_PASS in .env}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
     depends_on:
-      - open-webui
-      - proxy
+      open-webui:
+        condition: service_healthy
+      proxy:
+        condition: service_healthy
     command: bash /setup.sh
     restart: "on-failure:3"
+
+# ── Networks ──────────────────────────────────────────────────────────
+# internal: no internet access — Ollama stays air-gapped.
+# external: internet-facing — proxy needs api.kolayik.com, OWUI serves users.
+networks:
+  internal:
+    internal: true
+  external:
 
 volumes:
   ollama_data:

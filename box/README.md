@@ -1,6 +1,6 @@
 # Kolay AI Box
 
-Self-hosted AI HR assistant. Powered by Gemma 3.
+Self-hosted AI HR assistant. Powered by Gemma 4.
 Zero cloud. Total privacy. Your data stays on your machine.
 
 ## Quick Start
@@ -61,7 +61,7 @@ The AI builds HTML. Chart.js and ECharts do the heavy lifting. All local.
 ## Architecture
 
 The browser hits Open WebUI.
-Open WebUI talks to Ollama. Gemma 3 thinks.
+Open WebUI talks to Ollama. Gemma 4 thinks.
 To get facts, Open WebUI asks the proxy.
 The proxy fetches from Kolay IK. Returns pure JSON.
 The AI paints the picture.

@@ -30,7 +30,7 @@ VOLUME_ID=$(doctl compute volume list --format ID,Name --no-header | grep "$VOLU
 
 # ── Step 1: Stop containers ─────────────────────────────────────
 echo "[1/3] Stopping containers on $DROPLET_IP..."
-ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@"$DROPLET_IP" \
+ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new root@"$DROPLET_IP" \
   "cd kolay-cli/box && docker compose down 2>/dev/null" 2>/dev/null || \
   echo "       Could not SSH. Proceeding with destroy anyway."
 

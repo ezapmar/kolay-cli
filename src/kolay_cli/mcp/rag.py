@@ -116,7 +116,7 @@ def _rag_search_corporate_memory_tool(query: str, limit: int = 3) -> dict[str, A
 
     Returns: top matching excerpts with relevance scores and source documents.
     """
-    from ..proxy.auth import require_auth, get_tenant_id
+    from ..proxy.auth import get_tenant_id
     from ..security import KOLAY_TOKEN_CTX
 
     token = KOLAY_TOKEN_CTX.get()
@@ -127,18 +127,16 @@ def _rag_search_corporate_memory_tool(query: str, limit: int = 3) -> dict[str, A
     if not chunks:
         return {
             "query": query,
-            "tenant_id": tenant_id,
             "results": [],
             "message": (
                 "No relevant documents found. "
                 "Ask your admin to ingest company documents with: "
-                "kolay rag ingest <tenant_id> <document.pdf>"
+                "kolay rag ingest <document.pdf>"
             ),
         }
 
     return {
         "query": query,
-        "tenant_id": tenant_id,
         "results": [
             {
                 "document": c.get("document", "unknown"),

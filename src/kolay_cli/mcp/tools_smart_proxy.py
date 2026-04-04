@@ -284,8 +284,9 @@ def get_employee_statistics(
 # Tool 3: get_cache_status (no auth required — operational diagnostic)
 # ---------------------------------------------------------------------------
 
+@require_auth
 def get_cache_status() -> dict[str, Any]:
-    """[READ] Check the status of the employee data cache. No authentication required.
+    """[READ] Check the status of the employee data cache.
 
     Returns whether data is cached, entry count, age, TTL, and time until expiry.
     Use this to understand if data is fresh or stale before making queries.

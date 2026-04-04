@@ -208,7 +208,11 @@ class TestPayrollService:
 
 class TestPayrollMCPEdgeCases:
     def _svc(self, name: str) -> str:
-        return f"kolay_cli.mcp_server.{name}"
+        svc_map = {
+            "payroll_svc": "kolay_cli.services.payroll",
+        }
+        module_alias, _, func = name.partition(".")
+        return f"{svc_map[module_alias]}.{func}"
 
     def test_payroll_filter_non_dict_passthrough(self):
         """If service returns a non-dict, filter is skipped gracefully."""

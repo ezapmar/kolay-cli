@@ -19,10 +19,26 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-# ── Helper: patch all service modules ────────────────────────────────────────
+# ── Helper: patch service modules at their canonical location ────────────────
+
+_SVC_MAP = {
+    "person_svc": "kolay_cli.services.person",
+    "leave_svc": "kolay_cli.services.leave",
+    "timelog_svc": "kolay_cli.services.timelog",
+    "training_svc": "kolay_cli.services.training",
+    "transaction_svc": "kolay_cli.services.transaction",
+    "calendar_svc": "kolay_cli.services.calendar",
+    "unit_svc": "kolay_cli.services.unit",
+    "approval_svc": "kolay_cli.services.approval",
+    "hr_analytics_svc": "kolay_cli.services.hr_analytics",
+    "payroll_svc": "kolay_cli.services.payroll",
+    "wellness_svc": "kolay_cli.services.wellness",
+}
 
 def _svc(name: str) -> str:
-    return f"kolay_cli.mcp_server.{name}"
+    """Resolve e.g. 'person_svc.list_people' -> 'kolay_cli.services.person.list_people'."""
+    module_alias, _, func = name.partition(".")
+    return f"{_SVC_MAP[module_alias]}.{func}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

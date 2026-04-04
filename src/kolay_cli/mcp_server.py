@@ -1,6 +1,7 @@
 """Kolay IK FastMCP server."""
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
@@ -9,20 +10,6 @@ os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
 os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
 from kolay_cli.mcp.adapter import FastMCP
-
-from .security import require_auth
-from .services import person as person_svc
-from .services import leave as leave_svc
-from .services import timelog as timelog_svc
-from .services import training as training_svc
-from .services import transaction as transaction_svc
-from .services import calendar as calendar_svc
-from .services import unit as unit_svc
-from .services import approval as approval_svc
-from .services import hr_analytics as hr_analytics_svc
-from .services import payroll as payroll_svc
-from .services import wellness as wellness_svc
-from .ui.search import filter_items_silent
 
 
 
@@ -111,25 +98,69 @@ mcp.add_middleware(ResourceToolMiddleware())
 @mcp.resource("kolay://reason-codes")
 def reason_codes() -> str:
     """List of valid reason codes for employee termination."""
-    import json
     return json.dumps({
-        "03": "Voluntary resignation",
+        "01": "Probation period",
+        "03": "Voluntary resignation (istifa)",
+        "04": "Termination without notice",
+        "10": "End of contract",
         "11": "Retirement",
-        "30": "Other"
+        "22": "Employer termination",
+        "23": "Death",
+        "30": "Other",
     })
+
+
+# Fixed secular holidays (apply every year)
+_FIXED_HOLIDAYS = {
+    "01-01": "New Year's Day",
+    "04-23": "National Sovereignty and Children's Day",
+    "05-01": "Labour and Solidarity Day",
+    "05-19": "Commemoration of Ataturk, Youth and Sports Day",
+    "07-15": "Democracy and National Unity Day",
+    "08-30": "Victory Day",
+    "10-29": "Republic Day",
+}
+
+# Religious holidays (dates shift annually; maintained per-year)
+_RELIGIOUS_HOLIDAYS: dict[str, dict[str, str]] = {
+    "2025": {
+        "2025-03-30": "Ramazan Bayrami (1st day)",
+        "2025-03-31": "Ramazan Bayrami (2nd day)",
+        "2025-04-01": "Ramazan Bayrami (3rd day)",
+        "2025-06-06": "Kurban Bayrami (1st day)",
+        "2025-06-07": "Kurban Bayrami (2nd day)",
+        "2025-06-08": "Kurban Bayrami (3rd day)",
+        "2025-06-09": "Kurban Bayrami (4th day)",
+    },
+    "2026": {
+        "2026-03-20": "Ramazan Bayrami (1st day)",
+        "2026-03-21": "Ramazan Bayrami (2nd day)",
+        "2026-03-22": "Ramazan Bayrami (3rd day)",
+        "2026-05-27": "Kurban Bayrami (1st day)",
+        "2026-05-28": "Kurban Bayrami (2nd day)",
+        "2026-05-29": "Kurban Bayrami (3rd day)",
+        "2026-05-30": "Kurban Bayrami (4th day)",
+    },
+    "2027": {
+        "2027-03-10": "Ramazan Bayrami (1st day)",
+        "2027-03-11": "Ramazan Bayrami (2nd day)",
+        "2027-03-12": "Ramazan Bayrami (3rd day)",
+        "2027-05-16": "Kurban Bayrami (1st day)",
+        "2027-05-17": "Kurban Bayrami (2nd day)",
+        "2027-05-18": "Kurban Bayrami (3rd day)",
+        "2027-05-19": "Kurban Bayrami (4th day)",
+    },
+}
+
 
 @mcp.resource("kolay://turkish-holidays/{year}")
 def turkish_holidays(year: str) -> str:
-    """List of known fixed and religious holidays in Turkey for a given year."""
-    import json
-    data = {
-        f"{year}-04-23": "National Sovereignty Day",
-        f"{year}-10-29": "Republic Day",
-    }
-    if year == "2026":
-        data["2026-03-20"] = "Ramazan Bayrami 2026 starts"
-    if year == "2025":
-        data["2025-01-01"] = "New Year"
+    """List of official Turkish public holidays for a given year.
+    Includes all fixed secular holidays and known religious holidays."""
+    data = {f"{year}-{md}": name for md, name in _FIXED_HOLIDAYS.items()}
+    data.update(_RELIGIOUS_HOLIDAYS.get(year, {}))
+    # Sort by date for readability
+    data = dict(sorted(data.items()))
     return json.dumps(data)
 
 @mcp.resource("kolay://org-chart")
@@ -137,7 +168,6 @@ def org_chart() -> str:
     """Full organisational unit tree (departments, teams, and their members).
     Returns the nested JSON tree structure from the Kolay IK Unit API.
     Requires a valid API token."""
-    import json
     from .services.unit import unit_tree
     tree = unit_tree()
     return json.dumps(tree, ensure_ascii=False, indent=2)
@@ -261,7 +291,7 @@ if __name__ == "__main__":
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
     parser.add_argument("--host", default="0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
     parser.add_argument("--port", type=int, default=default_port)
-    args = parser.parse_all_unknown() if hasattr(parser, 'parse_all_unknown') else parser.parse_args()
+    args = parser.parse_args()
 
     if args.transport == "http":
         print(f"\nKolay IK MCP server  http://{args.host}:{args.port}/mcp\n")

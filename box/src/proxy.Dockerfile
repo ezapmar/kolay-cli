@@ -1,6 +1,6 @@
 # Kolay AI Box — MCP Proxy
 # Installs kolay-cli (from PyPI) + mcpo into a minimal image.
-# mcpo bridges MCP stdio → OpenAPI HTTP so Open WebUI can connect.
+# mcpo bridges MCP stdio -> OpenAPI HTTP so Open WebUI can connect.
 
 FROM python:3.12-slim AS builder
 
@@ -10,15 +10,18 @@ RUN uv pip install --system --no-cache kolay-cli mcpo
 # ── Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin/kolay-mcp /usr/local/bin/
-COPY --from=builder /usr/local/bin/mcpo /usr/local/bin/
+# Copy everything pip/uv installed: packages, binaries, and shared libs.
+# Cherry-picking site-packages + individual bins breaks when native
+# extensions (pydantic-core, cryptography) link to system .so files.
+COPY --from=builder /usr/local /usr/local
 
-COPY config/mcpo.json /app/mcpo.json
+COPY bin/proxy-entrypoint.sh /app/proxy-entrypoint.sh
+RUN chmod +x /app/proxy-entrypoint.sh
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD curl -sf http://localhost:8000/docs || exit 1
+# No HEALTHCHECK here — compose.yml defines it using python3 (curl is
+# not installed in python:3.12-slim and would always fail, blocking
+# the entire startup chain via depends_on: condition: service_healthy).
 
-CMD ["mcpo", "--config", "/app/mcpo.json", "--port", "8000"]
+CMD ["/app/proxy-entrypoint.sh"]

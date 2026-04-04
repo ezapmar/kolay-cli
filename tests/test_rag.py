@@ -45,10 +45,13 @@ def test_pipeline_import_safe():
         process_file_to_qdrant("tenant_123", "dummy.txt")
 
 def test_rag_tool_missing_deps():
-    from kolay_cli.mcp.tools_rag import rag_search_corporate_memory
-    
-    with patch("kolay_cli.mcp.tools_rag.get_tenant_id", return_value="tenant_ok"):
-        with patch.dict("sys.modules", {"kolay_cli.rag.pipeline": None}):
-            resp = rag_search_corporate_memory(query="hello")
-            assert "error" in resp
-            assert "RAG dependencies" in resp["error"]
+    from kolay_cli.mcp.rag import _rag_search_corporate_memory_tool
+
+    with patch("kolay_cli.proxy.auth.get_tenant_id", return_value="tenant_ok"):
+        with patch("kolay_cli.proxy.auth.KOLAY_TOKEN_CTX") as mock_ctx:
+            mock_ctx.get.return_value = "fake_token"
+            with patch("kolay_cli.mcp.rag.retrieve_context", return_value=[]):
+                resp = _rag_search_corporate_memory_tool(query="hello")
+                assert resp["results"] == []
+                assert "No relevant documents" in resp["message"]
+

@@ -83,15 +83,15 @@ check "Proxy container present" \
 
 # ── Services ─────────────────────────────────────────────────────
 check "Ollama API responding" \
-  "curl -sf http://localhost:11434/api/tags" \
+  "docker compose exec -T ollama ollama list" \
   "Ollama may still be starting. Wait 30s, or check: docker compose logs ollama"
 
 check "Model loaded (gemma4)" \
-  "curl -sf http://localhost:11434/api/tags | grep -q gemma" \
+  "docker compose exec -T ollama ollama list 2>/dev/null | grep -q gemma" \
   "Model still pulling. Check progress: docker compose logs ollama --tail 20"
 
 check "Proxy/mcpo API responding" \
-  "curl -sf http://localhost:8000/docs" \
+  "docker compose exec -T proxy python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/kolay-ik/openapi.json', timeout=3)\"" \
   "Check logs: docker compose logs proxy"
 
 check "Open WebUI responding" \

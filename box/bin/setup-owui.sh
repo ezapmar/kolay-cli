@@ -8,19 +8,16 @@
 
 set -uo pipefail
 
-OWUI_URL="${OWUI_URL:-http://open-webui:8080}"
-PROXY_URL="${PROXY_URL:-http://proxy:8000}"
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@kolay.box}"
-ADMIN_PASS="${ADMIN_PASS}"
-ADMIN_NAME="${ADMIN_NAME:-Admin}"
+# All URLs and credentials are read inside Python via os.environ —
+# never interpolated into inline code (prevents shell injection).
 
 # ── Wait for Open WebUI ─────────────────────────────────────────────
 echo "[setup] Waiting for Open WebUI (up to 6 minutes on first boot)..."
 for i in $(seq 1 120); do
   code=$(python3 -c "
-import urllib.request
+import os, urllib.request
 try:
-    r = urllib.request.urlopen('${OWUI_URL}/health', timeout=3)
+    r = urllib.request.urlopen(os.environ['OWUI_URL'] + '/health', timeout=3)
     print(r.getcode())
 except: print(0)
 " 2>/dev/null)
@@ -34,9 +31,9 @@ echo "[setup] Open WebUI is up."
 echo "[setup] Waiting for Kolay proxy..."
 for i in $(seq 1 30); do
   ok=$(python3 -c "
-import urllib.request
+import os, urllib.request
 try:
-    r = urllib.request.urlopen('${PROXY_URL}/kolay-ik/openapi.json', timeout=3)
+    r = urllib.request.urlopen(os.environ['PROXY_URL'] + '/kolay-ik/openapi.json', timeout=3)
     print('ok' if r.getcode() == 200 else 'no')
 except: print('no')
 " 2>/dev/null)
@@ -46,7 +43,7 @@ done
 echo "[setup] Proxy is ready."
 
 # ── Authenticate ────────────────────────────────────────────────────
-export TOKEN=$(python3 - <<PYEOF
+export TOKEN=$(python3 - <<'PYEOF'
 import urllib.request, json, sys, os
 
 base = os.environ['OWUI_URL']
@@ -90,7 +87,7 @@ fi
 echo "[setup] Authenticated."
 
 # ── Register Tool Server (always POST to force reload) ──────────────
-RESULT=$(python3 - <<PYEOF
+RESULT=$(python3 - <<'PYEOF'
 import urllib.request, json, os, sys
 
 base = os.environ['OWUI_URL']
@@ -150,7 +147,7 @@ fi
 # ── Cleanup: delete any leftover workspace model ────────────────────
 # Previous versions created a "kolay-hr" workspace model. Remove it
 # so users only see the raw Gemma model in the selector.
-python3 - <<PYEOF
+python3 - <<'PYEOF'
 import urllib.request, json, os
 base = os.environ['OWUI_URL']
 token = os.environ['TOKEN']
@@ -170,4 +167,3 @@ echo ""
 echo "[setup] Done. Open http://localhost:${WEBUI_PORT:-3000} to start."
 echo "[setup] System prompt is set via DEFAULT_SYSTEM_PROMPT in compose.yml."
 echo ""
-

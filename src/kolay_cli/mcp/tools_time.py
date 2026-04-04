@@ -1,22 +1,8 @@
 from .adapter import Tool
 from typing import Any
-from .adapter import Context
-from .adapter import CurrentContext
 from ..security import require_auth
-from ..services import person as person_svc
-from ..services import leave as leave_svc
 from ..services import timelog as timelog_svc
-from ..services import training as training_svc
-from ..services import transaction as transaction_svc
-from ..services import calendar as calendar_svc
-from ..services import unit as unit_svc
-from ..services import approval as approval_svc
-from ..services import hr_analytics as hr_analytics_svc
-from ..services import payroll as payroll_svc
-from ..services import wellness as wellness_svc
 from ..ui.search import filter_items_silent
-from ..mcp_progress import sync_progress_bridge
-import json
 
 
 @require_auth
