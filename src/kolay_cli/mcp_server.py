@@ -9,11 +9,6 @@ os.environ.setdefault("FASTMCP_LOG_LEVEL", "WARNING")
 os.environ.setdefault("FASTMCP_SHOW_SERVER_BANNER", "False")
 
 from kolay_cli.mcp.adapter import FastMCP
-from kolay_cli.mcp.adapter import ErrorHandlingMiddleware
-from kolay_cli.mcp.adapter import SlidingWindowRateLimitingMiddleware
-from kolay_cli.mcp.adapter import TimingMiddleware
-from kolay_cli.mcp.adapter import ResponseLimitingMiddleware
-from kolay_cli.mcp.adapter import PingMiddleware
 
 from .security import require_auth
 from .services import person as person_svc
@@ -28,6 +23,7 @@ from .services import hr_analytics as hr_analytics_svc
 from .services import payroll as payroll_svc
 from .services import wellness as wellness_svc
 from .ui.search import filter_items_silent
+
 
 
 
@@ -70,6 +66,8 @@ from .mcp import (
     tools_org, tools_analytics, tools_wellness, tools_misc, tools_session,
     tools_smart_proxy, prompts,
 )
+from .mcp import rag as mcp_rag          # Layer 2: RAG + context injection (§7.3)
+from .mcp import gateway as mcp_gateway  # Layer 1: rate limiting, metering, billing (§7.3)
 
 tools_people.register(mcp)
 tools_leaves.register(mcp)
@@ -82,59 +80,14 @@ tools_wellness.register(mcp)
 tools_misc.register(mcp)
 tools_session.register(mcp)
 tools_smart_proxy.register(mcp)
+mcp_rag.register(mcp)                    # registers rag_search_corporate_memory tool
 prompts.register(mcp)
 
-# ── FastMCP Middleware Stack ─────────────────────────────────────────────────
-#
-# Order: outermost (first-added) wraps all inner layers.
-# ────────────────────────────────────────────────────────────────────────────
-
-# 1. Error handler — catch exceptions before they leak internals
-mcp.add_middleware(ErrorHandlingMiddleware(include_traceback=False, transform_errors=True))
-
-# 2. Per-token rate limiter (opt-in, env-configurable)
-_rl_enabled = os.environ.get("MCP_RATE_LIMIT_ENABLED", "").lower() in ("1", "true", "yes")
-if _rl_enabled:
-    from .rate_limiter import token_key as _token_key
-    from .security import KOLAY_TOKEN_CTX as _TOKEN_CTX
-
-    def _get_client_id(ctx) -> str:  # noqa: ANN001
-        token = _TOKEN_CTX.get()
-        return _token_key(token) if token else "tok_…anonymous"
-
-    _per_min = int(os.environ.get("MCP_RATE_LIMIT_PER_MINUTE", "30"))
-    mcp.add_middleware(SlidingWindowRateLimitingMiddleware(
-        max_requests=_per_min,
-        window_minutes=1,
-        get_client_id=_get_client_id,
-    ))
-
-# 2.5. RBAC Tool Provisioning (opt-in, env-configurable)
-_rbac_enabled = os.environ.get("MCP_RBAC_ENABLED", "").lower() in ("1", "true", "yes")
-if _rbac_enabled:
-    from .proxy.rbac import RBACToolFilterMiddleware
-    mcp.add_middleware(RBACToolFilterMiddleware())
-
-# 3. Request timing (logs duration per MCP operation)
-mcp.add_middleware(TimingMiddleware())
-
-# 4. Response size guard — truncate runaway tool responses at 500 KB
-mcp.add_middleware(ResponseLimitingMiddleware(max_size=500_000))
-
-# 4.5. PII Masking / Pseudonymization (opt-in, env-configurable)
-_pii_enabled = os.environ.get("MCP_PII_MASKING_ENABLED", "").lower() in ("1", "true", "yes")
-if _pii_enabled:
-    from .pii_masker import PIIMaskingMiddleware
-    mcp.add_middleware(PIIMaskingMiddleware())
-
-# 4.6. Payload Padding (opt-in, defeats traffic analysis)
-_pad_enabled = os.environ.get("MCP_PAYLOAD_PADDING", "").lower() in ("1", "true", "yes")
-if _pad_enabled:
-    from .payload_padder import PayloadPaddingMiddleware
-    mcp.add_middleware(PayloadPaddingMiddleware())
-
-# 5. SSE keep-alive ping (prevents proxy timeouts on long HTTP sessions)
-mcp.add_middleware(PingMiddleware(interval_ms=30_000))
+# ── Layer 1 Gateway Middleware Stack ─────────────────────────────────────────
+# Delegated to mcp/gateway.py per platform.md §7.3
+# (rate limiting, billing metering, PII masking, keep-alive)
+# ─────────────────────────────────────────────────────────────────────────────
+mcp_gateway.register_gateway_middleware(mcp)
 
 # 6. Expose prompts as tools for clients that don't support the prompts protocol
 from fastmcp.server.middleware.tool_injection import PromptToolMiddleware, ResourceToolMiddleware

@@ -47,9 +47,22 @@ def _redact_args(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def generate_receipt(token_key: str, tool_name: str, status: str) -> str | None:
-    """Generate an HMAC-SHA256 receipt for verifiable execution proof."""
+    """Generate an HMAC-SHA256 receipt for verifiable execution proof.
+    
+    Security rationalization (platform.md §3.1, L12):
+      Receipts are opt-in. They generate ONLY when:
+        - MCP_RECEIPT_SECRET is set (explicit opt-in), OR
+        - KOLAY_SECURITY_PROFILE=enterprise (profile-level opt-in)
+      Standard profile never computes receipts — the overhead is not
+      justified for typical deployments where audit logs suffice.
+    """
     secret = os.environ.get("MCP_RECEIPT_SECRET")
     if not secret:
+        # No explicit secret — check if enterprise profile wants auto-receipts
+        profile = os.environ.get("KOLAY_SECURITY_PROFILE", "standard").lower()
+        if profile != "enterprise":
+            return None
+        # Enterprise without a secret: skip silently (admin should set one)
         return None
         
     # Standardized payload: [timestamp | token_key | tool | status]

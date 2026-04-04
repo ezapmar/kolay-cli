@@ -1,7 +1,7 @@
 """Tests for:
-  - Req 1: Drop-at-the-door PII field sanitization (field_sanitizer)
+  - Req 1: UI-parity field sanitizer (denylist — system metadata only)
   - Req 2: Ephemeral in-memory encryption (SecureVolatileCache) — AES-256-GCM
-  - Req 3: Cryptographic tenant isolation (generate_tenant_cache_key)
+  - Req 3: Tenant cache key isolation (simple prefix keys)
 """
 from __future__ import annotations
 
@@ -10,95 +10,81 @@ import time
 
 import pytest
 
-from kolay_cli.field_sanitizer import ALLOWED_FIELDS, sanitize_employees
+from kolay_cli.field_sanitizer import ALLOWED_FIELDS, DENIED_FIELDS, sanitize_employees
 from kolay_cli.secure_cache import SecureVolatileCache, generate_tenant_cache_key
 from kolay_cli.proxy.aes256gcm import CryptoError, generate_ephemeral_key
 
 
 # ---------------------------------------------------------------------------
-# Req 1: Field sanitizer
+# Req 1: Field sanitizer (denylist — UI parity)
 # ---------------------------------------------------------------------------
 
 class TestSanitizeEmployees:
-    """Bloated JSON in -> sanitized JSON out."""
+    """System metadata stripped, all HR fields preserved."""
 
-    BLOATED = [
-        {
-            "id": "abc123",
-            "firstName": "Ayse",
-            "lastName": "Yilmaz",
-            "department": "Engineering",
-            "status": "active",
-            "workEmail": "ayse@company.com",
-            "birthDate": "1990-04-15",
-            "employmentStartDate": "2020-01-01",
-            "title": "Engineer",
-            # --- PII fields that MUST be stripped ---
-            "salary": 95000,
-            "salaryHistory": [80000, 85000, 90000, 95000],
-            "iban": "TR12 0006 2000 1190 0006 2920 77",
-            "ssn": "123-45-6789",
-            "nationalId": "12345678901",
-            "mobilePhone": "555-1234",
-            "homeAddress": "123 Main St, Istanbul",
-            "city": "Istanbul",
-            "bankAccount": "TR000001",
-            "emergencyContact": "Ali Yilmaz: 555-9999",
-            "taxId": "9876543210",
-            "passportNumber": "A1234567",
-        }
-    ]
+    RECORD = {
+        "id": "abc123",
+        "firstName": "Ayse",
+        "lastName": "Yilmaz",
+        "department": "Engineering",
+        "status": "active",
+        "workEmail": "ayse@company.com",
+        "birthDate": "1990-04-15",
+        "employmentStartDate": "2020-01-01",
+        "title": "Engineer",
+        # HR fields that are now ALLOWED per UI parity
+        "salary": 95000,
+        "salaryHistory": [80000, 85000, 90000, 95000],
+        "iban": "TR12 0006 2000 1190 0006 2920 77",
+        "mobilePhone": "555-1234",
+        "city": "Istanbul",
+        # System metadata that MUST be stripped
+        "_id": "internal_mongo_id",
+        "passwordHash": "bcrypt:$2b$...",
+        "schemaVersion": 3,
+        "createdAt": "2020-01-01T00:00:00Z",
+        "updatedAt": "2024-12-15T10:30:00Z",
+        "refreshToken": "eyJhbGci...",
+    }
 
-    def test_banned_fields_are_removed(self) -> None:
-        clean = sanitize_employees(self.BLOATED)
-        assert len(clean) == 1
+    def test_system_metadata_is_stripped(self) -> None:
+        clean = sanitize_employees([self.RECORD])
         rec = clean[0]
-        banned = [
-            "salary", "salaryHistory", "iban", "ssn", "nationalId",
-            "mobilePhone", "homeAddress", "city", "bankAccount",
-            "emergencyContact", "taxId", "passportNumber",
-        ]
-        for field in banned:
-            assert field not in rec, f"Banned field '{field}' survived sanitization"
+        system_fields = ["_id", "passwordHash", "schemaVersion",
+                         "createdAt", "updatedAt", "refreshToken"]
+        for field in system_fields:
+            assert field not in rec, f"System field '{field}' survived sanitization"
 
-    def test_allowed_fields_are_preserved(self) -> None:
-        clean = sanitize_employees(self.BLOATED)
+    def test_hr_fields_are_preserved(self) -> None:
+        """Fields visible in Kolay IK web UI must pass through."""
+        clean = sanitize_employees([self.RECORD])
         rec = clean[0]
         assert rec["id"] == "abc123"
         assert rec["firstName"] == "Ayse"
-        assert rec["lastName"] == "Yilmaz"
-        assert rec["department"] == "Engineering"
-        assert rec["status"] == "active"
-        assert rec["workEmail"] == "ayse@company.com"
-        assert rec["birthDate"] == "1990-04-15"
-        assert rec["employmentStartDate"] == "2020-01-01"
-        assert rec["title"] == "Engineer"
+        assert rec["salary"] == 95000
+        assert rec["iban"] == "TR12 0006 2000 1190 0006 2920 77"
+        assert rec["mobilePhone"] == "555-1234"
+        assert rec["city"] == "Istanbul"
 
-    def test_only_allowed_keys_remain(self) -> None:
-        clean = sanitize_employees(self.BLOATED)
-        remaining_keys = set(clean[0].keys())
-        assert remaining_keys.issubset(ALLOWED_FIELDS), (
-            f"Unexpected keys in output: {remaining_keys - ALLOWED_FIELDS}"
-        )
+    def test_all_denied_keys_are_stripped(self) -> None:
+        """Build a record with every denied field and verify all are removed."""
+        bloated = {field: "test_value" for field in DENIED_FIELDS}
+        bloated["id"] = "keep_me"
+        clean = sanitize_employees([bloated])
+        remaining = set(clean[0].keys())
+        assert remaining == {"id"}
 
     def test_empty_list_returns_empty_list(self) -> None:
         assert sanitize_employees([]) == []
 
-    def test_record_with_no_allowed_fields_returns_empty_dict(self) -> None:
-        all_banned = [{"salary": 50000, "iban": "TR00", "city": "Ankara"}]
-        clean = sanitize_employees(all_banned)
+    def test_record_with_only_denied_fields_returns_empty_dict(self) -> None:
+        all_denied = [{"_id": "x", "passwordHash": "y", "salt": "z"}]
+        clean = sanitize_employees(all_denied)
         assert clean == [{}]
 
-    def test_missing_allowed_field_is_not_added(self) -> None:
-        """sanitize must not inject keys that don't exist in the source."""
-        minimal = [{"id": "x", "salary": 999}]
-        clean = sanitize_employees(minimal)
-        assert "birthDate" not in clean[0]  # not in source, should not appear
-        assert "salary" not in clean[0]
-
     def test_large_array_performance(self) -> None:
-        """50,000 records must complete in under 2 seconds (O(N) guarantee)."""
-        large = [dict(self.BLOATED[0], id=str(i)) for i in range(50_000)]
+        """50,000 records must complete in under 2 seconds."""
+        large = [dict(self.RECORD, id=str(i)) for i in range(50_000)]
         t0 = time.monotonic()
         clean = sanitize_employees(large)
         elapsed = time.monotonic() - t0
@@ -106,10 +92,9 @@ class TestSanitizeEmployees:
         assert elapsed < 2.0, f"sanitize_employees took {elapsed:.2f}s for 50k records"
 
     def test_original_list_is_not_mutated(self) -> None:
-        """sanitize must return new dicts, not modify in-place."""
-        original = [dict(self.BLOATED[0])]
+        original = [dict(self.RECORD)]
         _ = sanitize_employees(original)
-        assert "salary" in original[0], "Original record was mutated"
+        assert "_id" in original[0], "Original record was mutated"
 
 
 # ---------------------------------------------------------------------------
@@ -244,22 +229,9 @@ class TestGenerateTenantCacheKey:
         k_cal = generate_tenant_cache_key("tenant_a", "calendar")
         assert k_emp != k_cal
 
-    def test_output_is_64_char_hex(self) -> None:
-        key = generate_tenant_cache_key("t1", "employees")
-        assert len(key) == 64
-        assert all(c in "0123456789abcdef" for c in key)
-
-    def test_pepper_changes_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SERVER_CACHE_PEPPER", "pepper_v1")
-        k1 = generate_tenant_cache_key("t1", "employees")
-        monkeypatch.setenv("SERVER_CACHE_PEPPER", "pepper_v2")
-        k2 = generate_tenant_cache_key("t1", "employees")
-        assert k1 != k2
-
-    def test_no_pepper_still_produces_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SERVER_CACHE_PEPPER", raising=False)
-        key = generate_tenant_cache_key("t1", "employees")
-        assert len(key) == 64
+    def test_output_format(self) -> None:
+        key = generate_tenant_cache_key("tenant123", "employees")
+        assert key == "tenant123:employees"
 
     def test_all_tenants_get_disjoint_keys(self) -> None:
         """10 different tenants accessing the same resource get 10 different keys."""

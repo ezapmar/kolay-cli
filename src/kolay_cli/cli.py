@@ -13,6 +13,7 @@ from .commands import (
 )
 from .commands import config as config_cmd
 from .commands import mcp as mcp_cmd
+from .commands import rag as rag_cmd
 
 from .ui.constants import KOLAY_LOGO, KOLAY_LOGO_COMPACT, PRIMARY
 _LOGO = KOLAY_LOGO
@@ -45,6 +46,7 @@ app.add_typer(analytics.app,    name="analytics",   rich_help_panel="Productivit
 app.add_typer(quiz.app,         name="quiz",        rich_help_panel="Fun")
 app.add_typer(mcp_cmd.app,      name="mcp",         rich_help_panel="Agent / Dev")
 app.add_typer(schema.app,       name="schema",      rich_help_panel="Agent / Dev")
+app.add_typer(rag_cmd.app,      name="rag",         rich_help_panel="Agent / Dev")
 
 @app.command(rich_help_panel="Getting Started")
 def status() -> None:

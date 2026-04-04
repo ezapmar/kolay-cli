@@ -199,37 +199,15 @@ class SecureVolatileCache:
 # ---------------------------------------------------------------------------
 
 def generate_tenant_cache_key(tenant_id: str, resource_name: str) -> str:
-    """Return an HMAC-SHA256 hex digest scoped to a specific tenant+resource.
+    """Return a cache key scoped to a specific tenant+resource.
 
-    The digest is:
-        HMAC-SHA256(key=SERVER_CACHE_PEPPER, msg="{tenant_id}:{resource_name}")
-
-    Properties:
-        - Unique per (tenant_id, resource_name) pair
-        - Irreversible: cannot recover tenant_id from the output
-        - Peppered: SERVER_CACHE_PEPPER makes offline brute-force infeasible
-        - Deterministic: same inputs always produce the same 64-char hex key
-
-    IDOR protection:
-        company_a_key = HMAC(pepper, "sha256(token_a):employees")  -> "a3f9..."
-        company_b_key = HMAC(pepper, "sha256(token_b):employees")  -> "7c12..."
-        These are mathematically unrelated even though the resource name is the
-        same.  Company A cannot enumerate or guess Company B's cache key.
+    Format: {tenant_id}:{resource_name}
 
     Args:
-        tenant_id:     Stable tenant identifier.  Use rate_limiter.token_key()
-                       (SHA-256 of the raw API token) as the tenant_id so that
-                       the raw token never appears as a dict key.
+        tenant_id:     Stable tenant identifier.
         resource_name: Logical resource name, e.g. "employees".
 
     Returns:
-        64-character lowercase hex string (256 bits of entropy).
+        String cache key with tenant prefix
     """
-    pepper = os.environ.get("SERVER_CACHE_PEPPER", "")
-    if not pepper:
-        _log.warning(
-            "SERVER_CACHE_PEPPER is not set.  Tenant cache keys are derived "
-            "from tenant_id alone.  Set this env var in production."
-        )
-    msg = f"{tenant_id}:{resource_name}".encode("utf-8")
-    return hmac.new(pepper.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+    return f"{tenant_id}:{resource_name}"

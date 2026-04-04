@@ -1,21 +1,20 @@
-"""In-memory TTL cache for expensive API responses.
+"""In-memory TTL cache for employee API responses.
 
-Security layers applied (in order):
-  1. Drop-at-the-door field sanitization   (field_sanitizer.sanitize_employees)
-     PII is stripped from raw API payloads BEFORE data reaches the cache.
-  2. Encrypted volatile cache              (secure_cache.SecureVolatileCache)
-     Only AES-256-GCM ciphertext lives in RAM. Plaintext is never stored.
-  3. Per-tenant HMAC cache keys            (secure_cache.generate_tenant_cache_key)
-     Each tenant's cache entry has a unique, irreversible key.
-     IDOR between tenants is mathematically impossible.
+Security rationalization (platform.md §3.1):
+  L6:  Standard profile uses plaintext TTLCache. Encrypting RAM is security
+       theater — if an attacker reads process memory, they also read the
+       in-process decryption key.  Enterprise profile retains AES-256-GCM
+       for compliance checkbox requirements.
+  L13: Cache keys are plain "{tenant_id}:{resource}" strings. HMAC hashing
+       added no real isolation since tenants are already separated by token
+       at the auth layer.
+  L4:  Field sanitizer now uses a denylist (system metadata only), preserving
+       all HR fields visible in the Kolay IK web UI.
 
 Configuration (env vars):
-  MCP_CACHE_TTL_SECONDS  – cache lifetime in seconds (default: 300)
-  MCP_MOCK_DATA          – "true" to use synthetic 3000-employee data
-  SERVER_CACHE_PEPPER    – HMAC pepper for tenant key derivation (required in prod)
-
-Usage:
-  from .ttl_cache import fetch_all_employees, cache_status, invalidate_cache
+  MCP_CACHE_TTL_SECONDS  - cache lifetime in seconds (default: 300)
+  MCP_MOCK_DATA          - "true" to use synthetic 3000-employee data
+  KOLAY_SECURITY_PROFILE - "enterprise" to enable AES-256-GCM cache encryption
 """
 from __future__ import annotations
 
@@ -23,22 +22,19 @@ import os
 import random
 import string
 import time
+import threading
 from datetime import date
 from typing import Any
 
 from .field_sanitizer import sanitize_employees
-from .encrypted_cache import SecureVolatileCache, generate_tenant_cache_key
 
 
 # ---------------------------------------------------------------------------
-# Generic plaintext TTL Cache (kept for non-sensitive data if needed)
+# Thread-safe plaintext TTL Cache (Standard profile default)
 # ---------------------------------------------------------------------------
-
-import threading
-
 
 class TTLCache:
-    """Thread-safe in-memory key/value store with per-entry TTL (plaintext)."""
+    """Thread-safe in-memory key/value store with per-entry TTL."""
 
     def __init__(self, default_ttl: int = 300) -> None:
         self._store: dict[str, tuple[float, Any]] = {}  # key -> (expires_at, value)
@@ -100,25 +96,29 @@ class TTLCache:
 
 
 # ---------------------------------------------------------------------------
-# Module-level ENCRYPTED employee cache instance
+# Module-level cache instance
 # ---------------------------------------------------------------------------
 
 _cache_ttl = int(os.environ.get("MCP_CACHE_TTL_SECONDS", "300"))
+_profile = os.environ.get("KOLAY_SECURITY_PROFILE", "standard").lower()
+_is_enterprise = (_profile == "enterprise")
 
-# SecureVolatileCache: stores only AES-256-GCM ciphertext — plaintext never at rest
-employee_cache = SecureVolatileCache(default_ttl=_cache_ttl)
+if _is_enterprise:
+    from .encrypted_cache import SecureVolatileCache
+    employee_cache = SecureVolatileCache(default_ttl=_cache_ttl)
+else:
+    employee_cache = TTLCache(default_ttl=_cache_ttl)
 
 _RESOURCE_NAME = "employees"
 
 
+def _cache_key(tenant_id: str, resource: str = _RESOURCE_NAME) -> str:
+    """Simple tenant-prefixed cache key (L13 rationalized)."""
+    return f"{tenant_id}:{resource}"
+
+
 def _get_cache_key() -> str:
-    """Derive a per-tenant HMAC cache key from the current request context.
-
-    The tenant_id is the SHA-256 hash of the raw API token (rate_limiter.token_key
-    already computes this).  The raw token is never used as a dict key.
-
-    Falls back to a constant key in single-tenant / non-HTTP mode.
-    """
+    """Derive a per-tenant cache key from the current request context."""
     from .auth import KOLAY_TOKEN_CTX
     from .rate_limiter import token_key
 
@@ -126,10 +126,9 @@ def _get_cache_key() -> str:
     if raw_token:
         tenant_id = token_key(raw_token)
     else:
-        # Single-tenant mode (stdio, local dev): use a fixed but still peppered key
         tenant_id = "single_tenant"
 
-    return generate_tenant_cache_key(tenant_id, _RESOURCE_NAME)
+    return _cache_key(tenant_id)
 
 
 # ---------------------------------------------------------------------------
@@ -156,12 +155,8 @@ _LAST_NAMES = [
 
 
 def _generate_mock_employees(count: int = 3000) -> list[dict[str, Any]]:
-    """Generate synthetic employee records that already include banned fields.
-
-    This mirrors a realistic HR API response.  sanitize_employees() is applied
-    downstream, so fields like 'salary' and 'mobilePhone' never survive to RAM.
-    """
-    rng = random.Random(42)  # Deterministic seed for reproducibility
+    """Generate synthetic employee records."""
+    rng = random.Random(42)
     employees: list[dict[str, Any]] = []
     for i in range(count):
         first = rng.choice(_FIRST_NAMES)
@@ -180,7 +175,6 @@ def _generate_mock_employees(count: int = 3000) -> list[dict[str, Any]]:
         emp_id = "".join(rng.choices(string.hexdigits[:16], k=32))
 
         employees.append({
-            # -- Allowed fields --
             "id": emp_id,
             "firstName": first,
             "lastName": last,
@@ -190,7 +184,6 @@ def _generate_mock_employees(count: int = 3000) -> list[dict[str, Any]]:
             "employmentStartDate": start_date.isoformat(),
             "status": "active",
             "title": rng.choice(["Engineer", "Manager", "Analyst", "Specialist", "Lead", "Director", "Intern"]),
-            # -- Banned fields (dropped by sanitize_employees before caching) --
             "salary": round(rng.uniform(8000, 120000), 2),
             "mobilePhone": f"+90 5{rng.randint(30, 59)} {rng.randint(100, 999)} {rng.randint(1000, 9999)}",
             "city": rng.choice(["Istanbul", "Ankara", "Izmir", "Bursa", "Antalya"]),
@@ -203,17 +196,14 @@ def _generate_mock_employees(count: int = 3000) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 def fetch_all_employees() -> list[dict[str, Any]]:
-    """Return sanitized employees for the current tenant, hitting cache first.
-
-    Security pipeline:
-        raw API / mock  ->  sanitize_employees()  ->  encrypt  ->  SecureVolatileCache
-        SecureVolatileCache  ->  decrypt  ->  sanitized list[dict]  ->  caller
-
-    If MCP_MOCK_DATA is set, returns 3000 synthetic records.
-    Otherwise calls the real person_list API with a high limit.
-    """
+    """Return sanitized employees for the current tenant, hitting cache first."""
     cache_key = _get_cache_key()
-    cached = employee_cache.get_secure(cache_key)
+
+    if _is_enterprise:
+        cached = employee_cache.get_secure(cache_key)
+    else:
+        cached = employee_cache.get(cache_key)
+
     if cached is not None:
         return cached
 
@@ -225,19 +215,19 @@ def fetch_all_employees() -> list[dict[str, Any]]:
         result = person_svc.list_people(limit=500, status="active")
         raw_data = result.get("items", [])
 
-    # --- Req 1: Drop-at-the-door ---
-    # PII fields are stripped HERE, before any caching or further processing.
+    # L4: Strip system-internal metadata (denylist). HR fields pass through.
     clean_data = sanitize_employees(raw_data)
 
-    # --- Req 2: Encrypted cache write ---
-    # Only ciphertext is stored in RAM.
-    employee_cache.set_secure(cache_key, clean_data)
+    if _is_enterprise:
+        employee_cache.set_secure(cache_key, clean_data)
+    else:
+        employee_cache.set(cache_key, clean_data)
 
     return clean_data
 
 
 def cache_status() -> dict[str, Any]:
-    """Return diagnostic info about the employee cache (no plaintext exposed)."""
+    """Return diagnostic info about the employee cache."""
     cache_key = _get_cache_key()
     return employee_cache.status(cache_key)
 
@@ -250,13 +240,10 @@ def invalidate_cache() -> dict[str, str]:
 
 
 def invalidate_tenant(tenant_id: str) -> bool:
-    """Purge cached data for a specific tenant ID.
-    
-    Used by webhook handlers to invalidate cache without a request context.
-    tenant_id should be the SHA-256 hash of the API token (result of token_key()).
-    """
-    cache_key = generate_tenant_cache_key(tenant_id, _RESOURCE_NAME)
+    """Purge cached data for a specific tenant ID."""
+    cache_key = _cache_key(tenant_id)
     return employee_cache.invalidate(cache_key)
+
 
 
 

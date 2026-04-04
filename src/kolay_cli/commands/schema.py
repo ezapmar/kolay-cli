@@ -23,6 +23,9 @@ def export(
         raise typer.Exit(1)
 
     import asyncio
+    import logging
+    logging.getLogger().setLevel(logging.ERROR)
+    
     try:
         from ..mcp_server import mcp
     except ImportError:
@@ -103,3 +106,61 @@ def export(
 
     # Use standard print to allow piping to file without rich formatting
     print(json.dumps(spec, indent=2))
+
+
+_PLATFORM_HELP = "Platform to generate manifest for: openai, anthropic, openapi (default: all)"
+
+@app.command(name="marketplace")
+def marketplace(
+    platform: str = typer.Option(
+        "all",
+        "--platform", "-p",
+        help=_PLATFORM_HELP,
+    ),
+    server_url: str = typer.Option(
+        "https://mcp.kolayik.com",
+        "--server-url",
+        help="Public base URL of the deployed Kolay MCP gateway.",
+    ),
+    output_dir: str = typer.Option(
+        ".",
+        "--output-dir", "-o",
+        help="Directory to write manifest files to.",
+    ),
+) -> None:
+    """Generate marketplace manifests for AI platform listings (OpenAI, Anthropic, OpenAPI).
+
+    Outputs one JSON file per platform in the target directory.
+
+    Examples:
+
+        kolay schema marketplace --platform anthropic --server-url https://mcp.kolayik.com
+
+        kolay schema marketplace --all --output-dir ./manifests/
+    """
+    from ..mcp.marketplace import PLATFORMS, generate_manifest
+    import pathlib
+
+    out = pathlib.Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    targets = list(PLATFORMS.keys()) if platform.lower() == "all" else [platform.lower()]
+
+    for p in targets:
+        try:
+            manifest = generate_manifest(p, server_url)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(2)
+
+        dest = out / f"manifest-{p}.json"
+        dest.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+        console.print(f"[green]Written:[/green] {dest}  ([bold]{p}[/bold])")
+
+    console.print(f"\n[bold]Done.[/bold] {len(targets)} manifest(s) generated in {out}/")
+    console.print(
+        "\n[dim]Next steps:[/dim]\n"
+        "  Anthropic: https://docs.anthropic.com/en/docs/claude-integrations\n"
+        "  OpenAI:    https://platform.openai.com/docs/mcp\n"
+    )
+

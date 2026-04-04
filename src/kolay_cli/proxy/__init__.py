@@ -47,10 +47,11 @@ from .egress_dlp import (
     scan_string,
 )
 
-# Field sanitizer (drop-at-the-door PII stripping)
+# Field sanitizer (UI-parity denylist)
 from .field_sanitizer import (
     sanitize_employees,
     ALLOWED_FIELDS,
+    DENIED_FIELDS,
 )
 
 # Employee cache (TTL + encrypted)
@@ -73,7 +74,7 @@ __all__ = [
     # dlp
     "scan_and_redact", "dlp_scan", "scan_string",
     # field sanitizer
-    "sanitize_employees", "ALLOWED_FIELDS",
+    "sanitize_employees", "ALLOWED_FIELDS", "DENIED_FIELDS",
     # cache
     "fetch_all_employees", "cache_status", "invalidate_cache", "TTLCache",
 ]

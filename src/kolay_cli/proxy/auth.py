@@ -354,6 +354,29 @@ def validate_token(token: str) -> TokenStatus:
     return TokenStatus(True, "JWT is valid.", claims)
 
 
+def get_tenant_id(token: str | None) -> str:
+    """Extract tenant identifier from token.
+    
+    If the token is a JWT, attempts to extract standard tenant claims
+    like 'tenant_id', 'company_id', 'org_id'.
+    If opaque or missing claims, falls back to a derived hash for isolation.
+    """
+    if not token or not token.strip():
+        return "tenant_anonymous"
+        
+    claims = _decode_jwt_claims(token)
+    if claims:
+        for key in ("tenant_id", "company_id", "org_id", "workspace_id"):
+            val = claims.get(key)
+            if val is not None:
+                return f"tenant_{val}"
+                
+    # Fallback for opaque tokens
+    from .rate_limiter import token_key
+    suffix = token_key(token)
+    return f"tenant_opaque_{suffix}"
+
+
 
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -396,7 +419,7 @@ def require_auth(fn: F) -> F:
                 hint="Please run 'kolay auth login' to refresh your connection.",
             )
 
-        key = rl_token_key(token)
+        key = get_tenant_id(token)
 
         # ── Execute tool with timing + activity logging ──
         t0 = _time.monotonic()
@@ -465,7 +488,7 @@ def requires_permission(*permissions: str) -> Callable[[F], F]:
                         "hint": "Contact your administrator to grant this permission."
                     }
 
-            key = rl_token_key(token)
+            key = get_tenant_id(token)
 
             # ── Execute tool with timing + activity logging ──
             t0 = _time.monotonic()

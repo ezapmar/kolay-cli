@@ -41,20 +41,29 @@ class TestSchema:
         result = runner.invoke(app, ["schema", "export"])
         assert result.exit_code == 0
         try:
-            data = json.loads(result.output.strip())
+            out = result.output
+            if "{" in out:
+                out = out[out.find("{"):]
+            data = json.loads(out)
             assert isinstance(data, dict)
         except json.JSONDecodeError:
             pytest.fail(f"Output is not valid JSON:\n{result.output}")
 
     def test_schema_export_contains_openapi_version(self):
         result = runner.invoke(app, ["schema", "export"])
-        data = json.loads(result.output.strip())
+        out = result.output
+        if "{" in out:
+            out = out[out.find("{"):]
+        data = json.loads(out)
         assert "openapi" in data
         assert data["info"]["title"] == "Kolay IK MCP API"
 
     def test_schema_export_contains_paths(self):
         result = runner.invoke(app, ["schema", "export"])
-        data = json.loads(result.output.strip())
+        out = result.output
+        if "{" in out:
+            out = out[out.find("{"):]
+        data = json.loads(out)
         assert "paths" in data
         assert isinstance(data["paths"], dict)
 

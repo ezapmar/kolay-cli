@@ -204,7 +204,8 @@ class TestScanString:
 
 class TestScanAndRedact:
 
-    def test_dict_with_pii_is_redacted(self) -> None:
+    def test_dict_with_pii_is_redacted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("KOLAY_SECURITY_PROFILE", "enterprise")
         data = {"national_id": "12345678901", "name": "Ayse"}
         result = scan_and_redact(data)
         assert isinstance(result, dict)
@@ -217,7 +218,8 @@ class TestScanAndRedact:
         # No PII: same semantic content, fast path
         assert result == data
 
-    def test_nested_pii_in_list_is_redacted(self) -> None:
+    def test_nested_pii_in_list_is_redacted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("KOLAY_SECURITY_PROFILE", "enterprise")
         data = [{"id": "1", "iban": "TR330006100519786457841326"}]
         result = scan_and_redact(data)
         assert isinstance(result, list)
@@ -254,8 +256,9 @@ class TestScanAndRedact:
         assert len(result) == 3000
         assert elapsed_ms < 100, f"DLP scan took {elapsed_ms:.1f} ms (> 100 ms budget)"
 
-    def test_pii_in_error_payload_is_redacted(self) -> None:
+    def test_pii_in_error_payload_is_redacted(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """DLP must also scan error payloads — PII can leak in error messages."""
+        monkeypatch.setenv("KOLAY_SECURITY_PROFILE", "enterprise")
         data = {
             "error": True,
             "message": "Employee 12345678901 not found",

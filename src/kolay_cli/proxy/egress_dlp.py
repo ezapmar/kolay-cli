@@ -85,8 +85,11 @@ _ENABLED_DEFAULT = True
 
 def _is_enabled() -> bool:
     import os
-    val = os.environ.get("MCP_DLP_ENABLED", "true").lower()
-    return val not in ("0", "false", "no", "off")
+    val = os.environ.get("MCP_DLP_ENABLED")
+    if val is not None:
+        return val.lower() not in ("0", "false", "no", "off")
+    profile = os.environ.get("KOLAY_SECURITY_PROFILE", "standard").lower()
+    return profile == "enterprise"
 
 
 # ---------------------------------------------------------------------------

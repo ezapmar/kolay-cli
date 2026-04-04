@@ -96,21 +96,19 @@ semantic_cache = SemanticCache(default_ttl=900)
 
 
 def _make_cache_key(tenant_id: str, tool_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
-    """Generate a deterministic 64-char hex key.
+    """Generate a deterministic cache key with a tenant prefix.
     
-    HMAC-SHA256(pepper, f"{tenant_id}:{tool_name}:{sorted_json_params}")
+    Format: {tenant_id}:{tool_name}:{sorted_json_params}
     """
-    pepper = os.environ.get("SERVER_CACHE_PEPPER", "default_semantic_pepper")
-    
-    # Normalize arguments to a sorted JSON string for deterministic hashing
+    # Normalize arguments to a sorted JSON string for deterministic keys
     params = {
         "args": list(args),
         "kwargs": kwargs
     }
     params_json = json.dumps(params, sort_keys=True, default=str)
     
-    msg = f"{tenant_id}:{tool_name}:{params_json}".encode("utf-8")
-    return hmac.new(pepper.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+    # Simple tenant-prefixed string is sufficient for in-process memory cache isolation
+    return f"{tenant_id}:{tool_name}:{params_json}"
 
 
 def semantic_cached(ttl: int | None = 900) -> Callable[[F], F]:
