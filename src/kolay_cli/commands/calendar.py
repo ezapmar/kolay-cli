@@ -145,6 +145,10 @@ def view_event(event_id: str | None = typer.Argument(None, help="ID or row numbe
     with api_call("Fetching event details..."):
         data = svc.view_event(event_id)
 
+    if is_json_mode():
+        json_output(data)
+        return
+
     title = data.get("title", "—")
     ev_start, ev_end = data.get("start", ""), data.get("end", "")
 
@@ -169,18 +173,25 @@ def create_event(
     comment: str | None = typer.Option(None, "--comment", "-c", help="Optional description"),
 ) -> None:
     """Create a new calendar event. Prompts for missing fields."""
-    console.print(f"\n[bold {PRIMARY}]Create Calendar Event[/bold {PRIMARY}]\n")
+    if not is_json_mode():
+        console.print(f"\n[bold {PRIMARY}]Create Calendar Event[/bold {PRIMARY}]\n")
 
     if not title:
+        if is_json_mode():
+            require_arg(None, "title")
         title = typer.prompt(" Title")
     if start:
         start = validate_date(start, "%Y-%m-%d %H:%M:%S")
     else:
+        if is_json_mode():
+            require_arg(None, "start")
         start = prompt_date("Start", default=datetime.now().replace(minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S"), is_datetime=True)
         
     if end:
         end = validate_date(end, "%Y-%m-%d %H:%M:%S")
     else:
+        if is_json_mode():
+            require_arg(None, "end")
         try:
             default_end = (datetime.strptime(start[:19], "%Y-%m-%d %H:%M:%S") + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
         except ValueError:
@@ -189,6 +200,10 @@ def create_event(
 
     with api_call(f"Creating event '{title}'..."):
         resp = svc.create_event(title=title, start=start, end=end, comment=comment or "")
+
+    if is_json_mode():
+        json_output(resp)
+        return
 
     new_id = resp.get("id", "—")
     print_success(f"Event created!  [grey62]…{str(new_id)[-8:]}  {title}  {start[:10]}  {start[11:16]}  ({_duration(start, end)})[/grey62]")
@@ -213,6 +228,8 @@ def update_event(
         end = validate_date(end, "%Y-%m-%d %H:%M:%S")
 
     if not any([title, start, end, comment]):
+        if is_json_mode():
+            json_error("No fields to update provided.", exit_code=2)
         with api_call("Fetching current event..."):
             cur = svc.view_event(event_id)
         title = typer.prompt(" Title", default=cur.get("title", ""))
@@ -221,7 +238,11 @@ def update_event(
         comment = typer.prompt(" Comment", default=cur.get("comment") or "")
 
     with api_call("Saving changes..."):
-        svc.update_event(event_id, title=title, start=start, end=end, comment=comment)
+        result = svc.update_event(event_id, title=title, start=start, end=end, comment=comment)
+
+    if is_json_mode():
+        json_output(result)
+        return
 
     print_success("Event updated successfully.")
 
@@ -241,7 +262,11 @@ def delete_event(event_id: str | None = typer.Argument(None, help="ID of the eve
         typer.confirm(f" Delete '{title}'?", abort=True)
 
     with api_call("Deleting event..."):
-        svc.delete_event(event_id)
+        result = svc.delete_event(event_id)
+
+    if is_json_mode():
+        json_output(result)
+        return
 
     print_success("Event deleted successfully.")
     print_irreversible_warning()

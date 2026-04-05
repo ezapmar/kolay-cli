@@ -48,6 +48,7 @@ def _perform_login(token: str, _console: "Console | None" = None) -> None:  # ty
                 "status": "authenticated",
                 "name": name,
                 "token_storage": "keyring" if saved_to_keyring else "config_file",
+                "authenticated": True,
             })
             return
         _con.print(
@@ -137,7 +138,7 @@ def status() -> None:
         name = f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()
         email = data.get("workEmail") or data.get("email") or ""
         if is_json_mode():
-            json_output({"authenticated": True, "name": name, "email": email, "token_source": token_source})
+            json_output({"authenticated": True, "name": name, "email": email, "token_source": token_source, "redacted": True})
             return
         console.print(
             f"\n[{SUCCESS}]*[/{SUCCESS}] Logged in as [bold white]{name}[/bold white]  "

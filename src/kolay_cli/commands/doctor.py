@@ -18,10 +18,10 @@ from ..config import CONFIG_FILE_JSON, CONFIG_FILE_YAML
 app = typer.Typer(help="Check your Kolay CLI installation health.")
 console = Console(highlight=False)
 
-from ..ui.constants import PRIMARY as _PRIMARY
-_OK = "[bold #57CC99][/bold #57CC99]"
-_FAIL = "[bold #FF6B6B][/bold #FF6B6B]"
-_WARN = "[bold #FFD93D][/bold #FFD93D]"
+from ..ui.constants import PRIMARY as _PRIMARY, SUCCESS as _SUCCESS, ERROR as _ERROR, WARNING as _WARNING
+_OK = f"[bold {_SUCCESS}]✓[/bold {_SUCCESS}]"
+_FAIL = f"[bold {_ERROR}]✗[/bold {_ERROR}]"
+_WARN = f"[bold {_WARNING}]![/bold {_WARNING}]"
 
 
 def _check_path() -> tuple[str, str]:
@@ -235,9 +235,10 @@ def doctor(ctx: typer.Context) -> None:
     results: list[dict[str, str]] = []
     has_fail = False
 
-    from ..ui.constants import KOLAY_LOGO
-    console.print(KOLAY_LOGO)
-    console.print(f"[bold {_PRIMARY}]Kolay CLI Health Check[/bold {_PRIMARY}]\n")
+    if not is_json_mode():
+        from ..ui.constants import KOLAY_LOGO
+        console.print(KOLAY_LOGO)
+        console.print(f"[bold {_PRIMARY}]Kolay CLI Health Check[/bold {_PRIMARY}]\n")
 
     for name, fn in checks:
         icon, message = fn()
@@ -246,7 +247,8 @@ def doctor(ctx: typer.Context) -> None:
         results.append({"check": name, "status": status_str, "message": strip_markup(message)})
         if _FAIL in icon:
             has_fail = True
-        console.print(f" {icon}  {message}")
+        if not is_json_mode():
+            console.print(f" {icon}  {message}")
 
     console.print()
 

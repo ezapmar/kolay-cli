@@ -271,6 +271,7 @@ def delete_timelog(timelog_id: str | None = typer.Argument(None, help="ID of the
 
     if is_json_mode():
         json_output(result)
-    else:
-        print_success("Timelog deleted successfully.")
-        print_irreversible_warning()
+        return
+
+    print_success("Timelog deleted successfully.")
+    print_irreversible_warning()

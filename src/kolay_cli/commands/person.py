@@ -487,6 +487,10 @@ def view_summary(person_id: str | None = typer.Argument(None, help="ID of the pe
     with api_call("Fetching summary..."):
         data = svc.summary(person_id)
 
+    if is_json_mode():
+        json_output(data)
+        return
+
     fname = data.get("firstName", "")
     lname = data.get("lastName", "")
     
@@ -516,12 +520,20 @@ def create_person(
 ) -> None:
     """Create a new employee record. Prompts for missing required fields."""
     from ..api.errors import APIError
-    console.print(f"\n[bold {PRIMARY}]Create Employee[/bold {PRIMARY}]\n")
+    if not is_json_mode():
+        console.print(f"\n[bold {PRIMARY}]Create Employee[/bold {PRIMARY}]\n")
+
     if not first_name:
+        if is_json_mode():
+            require_arg(None, "first-name")
         first_name = typer.prompt(" First name")
     if not last_name:
+        if is_json_mode():
+            require_arg(None, "last-name")
         last_name = typer.prompt(" Last name")
     if not email:
+        if is_json_mode():
+            require_arg(None, "email")
         email = typer.prompt(" Work email")
     if employment_start:
         employment_start = validate_date(employment_start, "%Y-%m-%d")
@@ -535,6 +547,9 @@ def create_person(
                 email=email, employment_start=employment_start,
                 mobile_phone=mobile_phone,
             )
+            if is_json_mode():
+                json_output(data)
+                return
             new_id = data.get("id", "—")
             print_success(f"Employee created! ID: [cyan]{new_id}[/cyan]")
     except APIError as exc:
@@ -586,6 +601,10 @@ def bulk_view_people(
         data = response.get("data", [])
         items = data if isinstance(data, list) else data.get("items", [])
 
+        if is_json_mode():
+            json_output(items)
+            return
+
         if not items:
             print_empty("employees", hint="Check the IDs and try again.")
             return
@@ -611,6 +630,10 @@ def show_available_fields() -> None:
     """Show all dictionary fields/tokens available for person updates."""
     with api_call("Fetching available data fields..."):
         data = svc.available_fields()
+
+    if is_json_mode():
+        json_output(data)
+        return
 
     if not data:
         print_empty("data fields")
@@ -652,7 +675,10 @@ def rehire_person(
 
     try:
         with recoverable_api_call("Processing rehire..."):
-            svc.rehire_person(person_id, start_date=start_date)
+            result = svc.rehire_person(person_id, start_date=start_date)
+        if is_json_mode():
+            json_output(result)
+            return
         print_success("Employee rehired successfully.")
     except APIError as exc:
         msg = getattr(exc, "message", "").lower()
@@ -678,6 +704,10 @@ def list_person_files(person_id: str | None = typer.Argument(None, help="ID of t
 
     with api_call("Fetching employee files..."):
         data = svc.list_files(person_id)
+
+    if is_json_mode():
+        json_output(data)
+        return
 
     if not data:
         print_empty("files")
@@ -721,7 +751,10 @@ def delete_person_file(file_id: str | None = typer.Argument(None, help="ID of th
     )
 
     with api_call("Deleting file..."):
-        svc.delete_file(file_id)
+        result = svc.delete_file(file_id)
+    if is_json_mode():
+        json_output(result)
+        return
     print_success("File deleted.")
     print_irreversible_warning()
 
@@ -741,7 +774,10 @@ def delete_person_folder(folder_id: str | None = typer.Argument(None, help="ID o
     )
 
     with api_call("Deleting folder..."):
-        svc.delete_folder(folder_id)
+        result = svc.delete_folder(folder_id)
+    if is_json_mode():
+        json_output(result)
+        return
     print_success("Folder deleted.")
     print_irreversible_warning()
 
@@ -762,39 +798,44 @@ def upload_file(
 
     try:
         client = KolayClient()
-        url = f"{client.base_url}/v2/person/upload-file"
-        
         with open(file_path, "rb") as fh:
             files = {"file": (os.path.basename(file_path), fh)}
             form_data = {"personId": safe_id(person_id)}
             if folder_name:
                 form_data["folderName"] = folder_name
 
-            # Use session for auth but remove Content-Type for multipart
+            # Use the underlying session; pop Content-Type as requests adds the multipart boundary
             session = client.session
             headers = dict(session.headers)
             headers.pop("Content-Type", None)
 
-            print_fetching(f"Uploading {os.path.basename(file_path)}...")
-            resp = session.post(url, data=form_data, files=files, headers=headers, timeout=60)
+            if not is_json_mode():
+                print_fetching(f"Uploading {os.path.basename(file_path)}...")
+            
+            resp = session.post(f"{client.base_url}/v2/person/upload-file", data=form_data, files=files, headers=headers, timeout=60)
             resp.raise_for_status()
+            result = resp.json()
 
-        print_success(f"File '{os.path.basename(file_path)}' uploaded successfully.")
+        if is_json_mode():
+            json_output(result)
+        else:
+            print_success(f"File '{os.path.basename(file_path)}' uploaded successfully.")
 
     except Exception as e:
+        status = 500
+        msg = str(e)
         import requests
         if isinstance(e, requests.HTTPError):
-            status = e.response.status_code if e.response is not None else None
-            msg = f"Upload failed: HTTP {status}"
-            if is_json_mode():
-                json_error(msg, status=status, exit_code=1)
-            else:
-                print_error(msg)
-            raise typer.Exit(1)
+            status = e.response.status_code if e.response is not None else 500
+            try:
+                msg = e.response.json().get("message") or msg
+            except Exception:
+                pass
+
         if is_json_mode():
-            json_error(str(e), exit_code=1)
+            json_error(msg, status=status, exit_code=1)
         else:
-            print_error(str(e))
+            print_error(msg)
         raise typer.Exit(1)
 
 
@@ -808,6 +849,10 @@ def list_person_trainings(person_id: str | None = typer.Argument(None, help="ID 
 
     with api_call("Fetching training assignments..."):
         data = svc.list_trainings(person_id)
+
+    if is_json_mode():
+        json_output(data)
+        return
 
     if not data:
         print_empty("training assignments")

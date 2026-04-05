@@ -26,7 +26,7 @@ STATUS_STYLES: dict[str, str] = {
     "approved":  f"[{SUCCESS}]Approved[/{SUCCESS}]",
     "waiting":   f"[{WARNING}]Waiting[/{WARNING}]",
     "rejected":  f"[{ERROR}]Rejected[/{ERROR}]",
-    "cancelled": "[grey62]⊘ Cancelled[/grey62]",
+    "cancelled": "[grey62][-] Cancelled[/grey62]",
     "pending":   f"[{WARNING}]Pending[/{WARNING}]",
 }
 
