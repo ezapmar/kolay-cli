@@ -7,6 +7,7 @@ from __future__ import annotations
 import time
 import base64
 import json
+from typing import Any
 from unittest.mock import MagicMock, patch, call
 
 import pytest
@@ -191,8 +192,9 @@ class TestJWTValidation:
 class TestRequireAuth:
     """Tests for the require_auth decorator on MCP-style functions."""
 
-    def test_no_token_returns_error_dict(self, monkeypatch):
-        from kolay_cli.security import require_auth
+    def test_no_token_raises_mcp_auth_error(self, monkeypatch):
+        """With no token, require_auth must raise McpAuthError (is_error=True signal)."""
+        from kolay_cli.security import require_auth, McpAuthError
         monkeypatch.setenv("KOLAY_API_TOKEN", "")
         monkeypatch.delenv("KOLAY_API_TOKEN", raising=False)
 
@@ -201,24 +203,25 @@ class TestRequireAuth:
             return {"data": "ok"}
 
         with patch("kolay_cli.security.resolve_token", return_value=None):
-            result = my_tool()
+            with pytest.raises(McpAuthError) as exc_info:
+                my_tool()
 
-        assert result["error"] is True
-        assert result["code"] == 401
-        assert "token" in result["message"].lower()
+        assert "token" in str(exc_info.value).lower()
+        assert exc_info.value.code == 401
 
-    def test_expired_token_returns_error_dict(self):
-        from kolay_cli.security import require_auth
+    def test_expired_token_raises_mcp_auth_error(self):
+        """An expired JWT must raise McpAuthError, not return a dict."""
+        from kolay_cli.security import require_auth, McpAuthError
 
         @require_auth
         def my_tool() -> dict:
             return {"data": "ok"}
 
         with patch("kolay_cli.security.resolve_token", return_value=_make_expired_jwt()):
-            result = my_tool()
+            with pytest.raises(McpAuthError) as exc_info:
+                my_tool()
 
-        assert result["error"] is True
-        assert result["code"] == 401
+        assert exc_info.value.code == 401
 
     def test_valid_token_calls_function(self):
         from kolay_cli.security import require_auth
@@ -354,21 +357,22 @@ class TestRequiresPermission:
         assert result.get("data") == "ok"
 
     def test_requires_permission_denies_access(self, monkeypatch):
-        from kolay_cli.security import requires_permission
-        
+        """Missing permission raises McpAuthError with code 403."""
+        from kolay_cli.security import requires_permission, McpAuthError
+
         token = _make_signed_jwt("secret", permissions=["other_permission"])
         monkeypatch.setenv("MCP_JWT_SECRET", "secret")
-        
+
         @requires_permission("view_salary")
         def my_tool():
             return {"data": "ok"}
-            
+
         with patch("kolay_cli.security.resolve_token", return_value=token):
-            result = my_tool()
-        
-        assert result.get("error") is True
-        assert result.get("code") == 403
-        assert "view_salary" in result.get("message")
+            with pytest.raises(McpAuthError) as exc_info:
+                my_tool()
+
+        assert exc_info.value.code == 403
+        assert "view_salary" in str(exc_info.value)
 
     def test_requires_permission_opaque_token_grants_all(self, monkeypatch):
         from kolay_cli.security import requires_permission

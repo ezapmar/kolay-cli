@@ -6,6 +6,7 @@ from rich.console import Console
 
 app = typer.Typer(help="Manage the Kolay IK MCP server for AI/LLM integration.")
 console = Console(highlight=False)
+_err = Console(highlight=False, stderr=True)
 
 from ..ui.constants import PRIMARY as _PRIMARY
 _home = __import__("pathlib").Path.home()
@@ -104,7 +105,29 @@ def serve(
         app = create_secured_http_app()
         uvicorn.run(app, host=host, port=port)
     else:
-        # STDIO — no banner (would corrupt the JSON stream)
+        import sys
+        if sys.stdin.isatty():
+            # Human ran this in a terminal — explain what is happening.
+            # Print to stderr so it never corrupts the MCP JSON-RPC stream on stdout.
+            _err.print(
+                f"\n[bold {_PRIMARY}]Kolay IK MCP Server[/bold {_PRIMARY}]  "
+                "[grey62]STDIO mode[/grey62]\n"
+            )
+            _err.print(
+                " Waiting for MCP client messages on stdin...\n"
+                " This process is meant to be driven by an AI client\n"
+                " (Claude Desktop, Cursor, Gemini CLI, etc.), not run manually.\n"
+            )
+            _err.print(
+                " To test interactively, use HTTP mode instead:\n"
+                f"   [bold]kolay mcp serve --transport http[/bold]\n"
+                f"   Then open [bold]http://127.0.0.1:8000/mcp[/bold]\n"
+            )
+            _err.print(
+                " To connect to an AI client:\n"
+                f"   [bold]kolay mcp install[/bold]\n"
+            )
+        # STDIO — no banner on stdout (would corrupt the JSON stream)
         mcp.run()
 
 

@@ -1,6 +1,35 @@
 from __future__ import annotations
 
 
+# ── Turkish → English message normalization ───────────────────────────────────
+# The Kolay IK API returns error messages in Turkish. We map the most common
+# auth-related phrases to English so that LLMs always see consistent text.
+_TR_MSG_MAP: list[tuple[str, str]] = [
+    ("API oturumu geçersiz",        "The API session is invalid."),
+    ("geçersiz oturum",             "The API session is invalid."),
+    ("oturum süresi doldu",         "The API session has expired."),
+    ("geçersiz token",              "The API token is invalid."),
+    ("token geçersiz",              "The API token is invalid."),
+    ("token süresi doldu",          "The API token has expired."),
+    ("yetkisiz erişim",             "Unauthorized access."),
+    ("yetkisiz",                    "Unauthorized."),
+    ("API anahtarını kontrol edin", "Check your API key — it appears to be invalid."),
+    ("api anahtarı hatalı",         "The API key is incorrect."),
+    ("geçersiz api anahtarı",       "The API key is invalid."),
+    ("hesabınız engellenmiş",       "Your account has been suspended."),
+    ("hesabınız askıya alınmıştır", "Your account has been suspended."),
+]
+
+
+def _normalize_message(message: str) -> str:
+    """Replace known Turkish error strings with English equivalents."""
+    lower = message.lower()
+    for tr_fragment, en_replacement in _TR_MSG_MAP:
+        if tr_fragment.lower() in lower:
+            return en_replacement
+    return message
+
+
 
 HTTP_ERRORS: dict[int, tuple[str, str]] = {
     400: (
@@ -70,8 +99,10 @@ class APIError(Exception):
         hint: str | None = None,
         raw_response: str | None = None,
     ) -> None:
-        super().__init__(message)
-        self.message = message
+        # Normalize Turkish API error messages to English before storing
+        normalized = _normalize_message(message)
+        super().__init__(normalized)
+        self.message = normalized
         self.status_code = status_code
         self.raw_response = raw_response
 

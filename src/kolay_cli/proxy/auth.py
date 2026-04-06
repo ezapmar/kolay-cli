@@ -387,8 +387,36 @@ _AUTH_ERROR_TEMPLATE = {
 }
 
 
+class McpAuthError(Exception):
+    """Raised by require_auth/requires_permission when auth fails.
+
+    FastMCP converts raised exceptions into MCP tool results with
+    ``is_error=True``, which is the correct protocol signal for
+    tool failures. Clients (ChatGPT, Claude, etc.) then surface
+    this as a system-level error rather than data.
+    """
+
+    def __init__(self, message: str, hint: str | None = None, code: int = 401) -> None:
+        super().__init__(message)
+        self.message = message
+        self.hint = hint
+        self.code = code
+
+    def to_text(self) -> str:
+        """Human-readable error text sent back as tool content."""
+        parts = [f"Authentication error ({self.code}): {self.message}"]
+        if self.hint:
+            parts.append(f"Hint: {self.hint}")
+        return " ".join(parts)
+
+
 def _auth_error(message: str, hint: str | None = None) -> dict[str, Any]:
-    """Build a structured auth error response for MCP tool callers."""
+    """Build a structured auth error response dict.
+
+    Used by callers that inspect the return value (e.g. _inline_auth).
+    In most cases prefer raising McpAuthError directly so FastMCP
+    signals the failure as is_error=True.
+    """
     result: dict[str, Any] = {**_AUTH_ERROR_TEMPLATE, "message": message}
     if hint:
         result["hint"] = hint
@@ -397,7 +425,12 @@ def _auth_error(message: str, hint: str | None = None) -> dict[str, Any]:
 
 def require_auth(fn: F) -> F:
     """Decorator that guards an MCP tool function with token authentication
-    and activity logging. Rate limiting is handled by FastMCP middleware."""
+    and activity logging. Rate limiting is handled by FastMCP middleware.
+
+    On auth failure, raises McpAuthError so FastMCP signals the tool call
+    as is_error=True rather than returning a success response containing
+    an error dict.
+    """
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         import time as _time
@@ -407,16 +440,16 @@ def require_auth(fn: F) -> F:
         token = resolve_token()
 
         if not token:
-            return _auth_error(
-                "It seems we need a valid API token to proceed.",
-                hint="Please run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable to get started.",
+            raise McpAuthError(
+                "No API token found. Authentication is required to call this tool.",
+                hint="Run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable.",
             )
 
         status = validate_token(token)
         if not status:
-            return _auth_error(
-                f"We couldn't verify the current session: {status.reason}",
-                hint="Please run 'kolay auth login' to refresh your connection.",
+            raise McpAuthError(
+                f"The current session could not be verified: {status.reason}",
+                hint="Run 'kolay auth login' to refresh your connection.",
             )
 
         key = get_tenant_id(token)
@@ -430,22 +463,33 @@ def require_auth(fn: F) -> F:
             if receipt and isinstance(result, dict) and "_receipt" not in result:
                 result["_receipt"] = receipt
             return result
+        except McpAuthError:
+            raise  # already the right type, let FastMCP handle it
         except Exception as exc:
             receipt = generate_receipt(key, fn.__name__, "error")
             log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc), receipt=receipt)
             from ..api.errors import APIError
             if isinstance(exc, APIError):
-                # Return structured error as a normal dict (not raised).
-                # This bypasses FastMCP's mask_error_details and gives
-                # the LLM/user the real error code, message, and hint.
-                return exc.to_mcp_dict()
+                if exc.error_code == "invalid_credentials":
+                    raise McpAuthError(
+                        exc.message,
+                        hint=exc.hint,
+                        code=exc.status_code or 401,
+                    ) from exc
+                # For all other API errors, re-raise as-is so FastMCP
+                # masks or surfaces the detail according to its config.
+                raise
             raise
 
     return wrapper  # type: ignore[return-value]
 
 
 def requires_permission(*permissions: str) -> Callable[[F], F]:
-    """Decorator that guards an MCP tool function with cryptographic permission checking."""
+    """Decorator that guards an MCP tool function with cryptographic permission checking.
+
+    On auth/permission failure, raises McpAuthError so FastMCP signals
+    the call as is_error=True.
+    """
     def decorator(fn: F) -> F:
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -456,16 +500,16 @@ def requires_permission(*permissions: str) -> Callable[[F], F]:
             token = resolve_token()
 
             if not token:
-                return _auth_error(
-                    "It seems we need a valid API token to proceed.",
-                    hint="Please run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable to get started.",
+                raise McpAuthError(
+                    "No API token found. Authentication is required to call this tool.",
+                    hint="Run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable.",
                 )
 
             status = validate_token(token)
             if not status:
-                return _auth_error(
-                    f"We couldn't verify the current session: {status.reason}",
-                    hint="Please run 'kolay auth login' to refresh your connection.",
+                raise McpAuthError(
+                    f"The current session could not be verified: {status.reason}",
+                    hint="Run 'kolay auth login' to refresh your connection.",
                 )
 
             # Permission check
@@ -474,19 +518,18 @@ def requires_permission(*permissions: str) -> Callable[[F], F]:
                 perm_claim = status.claims.get("permissions", [])
                 if isinstance(perm_claim, list):
                     granted.update(perm_claim)
-                
+
                 scope_claim = status.claims.get("scope", "")
                 if isinstance(scope_claim, str):
                     granted.update(scope_claim.split())
 
                 missing = [p for p in permissions if p not in granted]
                 if missing:
-                    return {
-                        "error": True,
-                        "code": 403,
-                        "message": f"Cryptographic policy validation failed. Missing permission: {', '.join(missing)}",
-                        "hint": "Contact your administrator to grant this permission."
-                    }
+                    raise McpAuthError(
+                        f"Missing permission: {', '.join(missing)}",
+                        hint="Contact your administrator to grant this permission.",
+                        code=403,
+                    )
 
             key = get_tenant_id(token)
 
@@ -499,12 +542,20 @@ def requires_permission(*permissions: str) -> Callable[[F], F]:
                 if receipt and isinstance(result, dict) and "_receipt" not in result:
                     result["_receipt"] = receipt
                 return result
+            except McpAuthError:
+                raise
             except Exception as exc:
                 receipt = generate_receipt(key, fn.__name__, "error")
                 log_tool_call(key, fn.__name__, kwargs, _time.monotonic() - t0, success=False, error=str(exc), receipt=receipt)
                 from ..api.errors import APIError
                 if isinstance(exc, APIError):
-                    return exc.to_mcp_dict()
+                    if exc.error_code == "invalid_credentials":
+                        raise McpAuthError(
+                            exc.message,
+                            hint=exc.hint,
+                            code=exc.status_code or 401,
+                        ) from exc
+                    raise
                 raise
 
         return wrapper  # type: ignore[return-value]

@@ -1,6 +1,6 @@
 from .adapter import Tool, Context
 from typing import Any
-from ..security import require_auth
+from ..security import require_auth, McpAuthError
 from ..services import person as person_svc
 from ..services import leave as leave_svc
 from ..services import timelog as timelog_svc
@@ -30,29 +30,31 @@ def person_list(
 
 
 
-def _inline_auth():
-    """Shared auth check for async tools that bypass @require_auth."""
-    from ..security import resolve_token, validate_token, _auth_error
+def _inline_auth() -> str:
+    """Shared auth check for async tools that bypass @require_auth.
+
+    Raises McpAuthError on failure so FastMCP signals is_error=True.
+    Returns the valid token on success.
+    """
+    from ..security import resolve_token, validate_token
     token = resolve_token()
     if not token:
-        return None, _auth_error(
-            "It seems we need a valid API token to proceed.",
-            hint="Please run 'kolay auth login' to get started.",
+        raise McpAuthError(
+            "No API token found. Authentication is required to call this tool.",
+            hint="Run 'kolay auth login' or set the KOLAY_API_TOKEN environment variable.",
         )
     status = validate_token(token)
     if not status:
-        return None, _auth_error(
-            f"We couldn't verify the current session: {status.reason}",
-            hint="Please run 'kolay auth login' to refresh your connection.",
+        raise McpAuthError(
+            f"The current session could not be verified: {status.reason}",
+            hint="Run 'kolay auth login' to refresh your connection.",
         )
-    return token, None
+    return token
 
 
 async def person_view(person_id: str, ctx: Context) -> dict[str, Any]:
     """[READ] View full profile of an employee. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Automatically caches this person as 'last_person' in session state."""
-    token, err = _inline_auth()
-    if err:
-        return err
+    _inline_auth()  # raises McpAuthError on failure
 
     result = person_svc.view_person(person_id)
 
@@ -130,19 +132,11 @@ async def person_terminate(
     ctx: Context,
 ) -> dict[str, Any]:
     """[DESTRUCTIVE] Terminate employee. Cannot be undone. person_id: Employee ID (UUID from person_list, or a name that will be auto-resolved). Dates in YYYY-MM-DD. Reason codes: '01' probation, '03' voluntary resignation (istifa), '04' termination without notice, '10' end of contract, '11' retirement, '22' employer termination, '23' death, '30' other."""
-    from ..security import resolve_token, validate_token, _auth_error
     from ..rate_limiter import token_key as rl_token_key
     from ..activity_log import log_tool_call
     import time as _time
 
-    token = resolve_token()
-    if not token:
-        return _auth_error("It seems we need a valid API token to proceed.",
-                           hint="Please run 'kolay auth login' to get started.")
-    status = validate_token(token)
-    if not status:
-        return _auth_error(f"We couldn't verify the current session: {status.reason}",
-                           hint="Please run 'kolay auth login' to refresh your connection.")
+    token = _inline_auth()  # raises McpAuthError on failure
 
     # Look up the person so we can show their name in the confirmation prompt
     try:
@@ -179,9 +173,12 @@ async def person_terminate(
     except Exception as exc:
         log_tool_call(key, "person_terminate", {}, _time.monotonic() - t0, success=False, error=str(exc))
         from ..api.errors import APIError
-        if isinstance(exc, APIError) and exc.status_code == 401:
-            return _auth_error("It seems the API session has expired.",
-                               hint="Please run 'kolay auth login' to update your connection.")
+        if isinstance(exc, APIError) and exc.error_code == "invalid_credentials":
+            raise McpAuthError(
+                exc.message,
+                hint=exc.hint,
+                code=exc.status_code or 401,
+            ) from exc
         raise
 
 
