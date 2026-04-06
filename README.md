@@ -1,169 +1,182 @@
-# CLI and MCP Server for Kolay IK
+<!-- =========================================================================
+     README.md — Canonical project overview for kolay-cli
+     =========================================================================
+     MAINTENANCE POLICY
+     This file is the single source of truth for the project's public face.
+     Do NOT rewrite, restructure, or rephrase existing sections during routine
+     code changes. If a new feature is added, append a line to the relevant
+     section. If a section becomes factually wrong, correct the fact only.
+     Full rewrites require explicit human approval.
+     ========================================================================= -->
 
-```
-               ███████████████████████
-              ████               ████ 
-             ████               ████ 
-            ████               ████          ████                             ███ 
-           ███                ████           ████                             ███ 
-         ████                ███             ████                             ███ 
-        ████               ████              ████     █████    █████████      ███     █████████ ████  ████        ████ 
-       ████               ████               ████   █████    █████████████    ███    ███████████████   ████      ████ 
-      ████               ████                ████  ████     ████       ████   ███   ████       █████    ███     ████ 
-       ████             ██████               ████████      ████         ████  ███  ████         ████    ████    ███ 
-        ████           ████████              ████████      ████         ████  ███  ████         ████     ████  ████ 
-         ████         ███   ████             ████ █████    ████         ████  ███  ████         ████      ████████ 
-          ████      ████     ████            ████   ████    █████     █████   ███   █████     ██████       ██████ 
-           ████    ████        ███           ████     ████    ███████████     ███     ██████████████        █████ 
-             ███  ████          ████                             █████                   ████               ████ 
-              ███████            ████                                                                      ████ 
-               ███████████████████████                                                                  ██████ 
-                █████████████████████                                                                   ███ 
-```
+# Kolay CLI and MCP Server
 
-**Manage employees, leaves, and payroll from your terminal — or through any AI assistant that speaks MCP.**
+> **Disclaimer.** This is an independent, community-maintained project.
+> It is **not** an official product of Kolay Yazilim A.S. and carries no
+> endorsement, warranty, or support from the company. All write operations
+> target live HR data — there is no sandbox. You are solely responsible for
+> your API token and the actions performed through this software.
 
----
-
-## [QUICK START]
-
-### 1. Install
-```bash
-pipx install kolay-cli
-# or: pip install kolay-cli
-```
-
-### 2. Configure
-```bash
-kolay setup
-# follow the prompts to authenticate and enable autocompletion
-```
-
-### 3. Verify
-```bash
-kolay doctor
-```
+Command-line interface and AI integration server for [Kolay IK](https://kolayik.com).
+Manage employees, leaves, timelogs, trainings, payroll, and organizational
+structure from the terminal or through any AI assistant that speaks
+[Model Context Protocol](https://modelcontextprotocol.io).
 
 ---
 
-## [OPENAI CHATGPT CONNECTION]
+## Quick Start
 
-ChatGPT speaks MCP now. But its Beta connector has no custom header support. We solved it. Your token rides in the URL.
+```bash
+# 1. Install
+pipx install kolay-cli          # or: pip install kolay-cli
 
-1. Open **chatgpt.com**. Click your profile icon. Go to **Settings**.
-2. Find **Connectors** (under Apps). Click **Add** (the "+" button).
-3. The **New App** dialog opens. Fill in:
+# 2. Authenticate
+kolay setup                     # guided first-time setup
+
+# 3. Verify
+kolay doctor                    # health check
+```
+
+Requires Python 3.10 or later.
+
+---
+
+## What This Package Provides
+
+| Binary | Purpose |
+|--------|---------|
+| `kolay` | Interactive CLI for terminal use |
+| `kolay-mcp` | MCP server binary for AI clients |
+
+The same `pip install kolay-cli` command installs both.
+
+---
+
+## Documentation
+
+Detailed guides are maintained separately for each component:
+
+| Guide | Audience | Contents |
+|-------|----------|----------|
+| [docs/CLI.md](docs/CLI.md) | Terminal users, scripts, CI pipelines | Full command reference, output modes, shell completion, local security |
+| [docs/MCP.md](docs/MCP.md) | AI integrators, platform teams | Client setup (ChatGPT, Claude, Gemini, Cursor, etc.), tool catalogue, architecture |
+| [docs/BOX.md](docs/BOX.md) | Self-hosting teams, IT administrators | Docker Compose deployment, GPU/CPU modes, troubleshooting |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security reviewers, compliance officers | Encryption, PII masking, DLP, rate limiting, audit trail |
+
+---
+
+## Connecting AI Assistants
+
+### ChatGPT
+
+1. Open [chatgpt.com](https://chatgpt.com) → Settings → Apps & Connectors.
+2. Enable Developer Mode under Advanced settings.
+3. Click Create. Enter:
    - **Name:** `Kolay IK`
-   - **Description:** `HR management -- employees, leaves, timelogs, trainings, payroll`
-   - **MCP Server URL:** `https://kolay.up.railway.app/mcp?token=YOUR_KOLAY_API_TOKEN`
-   - **Authentication:** Select **No Auth** from the dropdown.
-4. Check **"I understand and want to continue"**.
-5. Click **Create**.
+   - **URL:** `https://kolay.up.railway.app/mcp`
+4. Add a custom header: `X-Kolay-Token` → your Kolay API token.
+5. Save. Open a new chat, attach the Kolay IK app, and ask.
 
-That is all. Your AI is now an HR operator.
+### Claude Desktop
 
-> If your server also uses a gatekeeper key (`MCP_API_KEY`), append it:
-> `https://kolay.up.railway.app/mcp?token=YOUR_TOKEN&api_key=YOUR_MCP_API_KEY`
-
----
-
-## [THE PLATFORM ARCHITECTURE]
-
-We outgrew the simple pipe. We built an AI-native HR operating system. It operates on three distinct layers. They scale independently. They separate concerns ruthlessly.
-
-### **Layer 1: The Gateway**
-Stateless. Relentless. It identifies tenants, throttles abusive loops, meters usage, and protects the core. This is your perimeter.
-
-### **Layer 2: Corporate Memory (Secure RAG)**
-Your LLM is generic. Layer 2 makes it specific. It injects your employee handbooks, policies, and knowledge bases directly into the context window. Strict cryptographic namespace isolation guarantees your data never crosses tenant boundaries. Retrieve only. Never train.
-
-### **Layer 3: The Engine (MCP)**
-53 high-performance HR tools. They read. They write. They orchestrate complex workflows like turnover risk scanning and anomaly detection. 
-
----
-
-## [PROPORTIONATE SECURITY]
-
-Security theater is a liability. We analyze actual threat models. We ship two distinct profiles. Set `KOLAY_SECURITY_PROFILE`. Choose your posture.
-
-- **`standard` (Default):** Lean and fast. TLS. Token auth. Rate limiting. Human-in-the-loop for destructive operations. The right choice for 95% of deployments. No unnecessary overhead.
-- **`enterprise`:** Absolute compliance. In-memory AES-256-GCM encryption. Egress DLP scanners redacting TC Kimlik and IBANs. Cryptographic HMAC execution receipts. Justified for regulated environments. Overkill for everyone else.
-
----
-
-## [FOR DEVELOPERS: THE KERNEL]
-
-We broke the monolith. 
-
-Build your own integrations without the CLI bloat. Import the pure kernel.
 ```bash
-pip install kolay-cli
-```
-```python
-from kolay_core import KolayClient, APIError
-from kolay_core import services
+kolay mcp install       # writes claude_desktop_config.json automatically
 ```
 
-Run the standalone server. Deploy to any network.
+Or manually add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "kolay-ik": {
+      "command": "kolay-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+### Other Clients
+
+Local (stdio): run `kolay-mcp` as a subprocess.
+Remote (HTTP): point to `https://kolay.up.railway.app/mcp` with an `X-Kolay-Token` header.
+
+See [docs/MCP.md](docs/MCP.md) for Gemini CLI, Cursor, VS Code, Windsurf, Zed, Mistral, and Perplexity instructions.
+
+---
+
+## Self-Hosted AI (Kolay AI Box)
+
+Run a fully private AI HR assistant on your own hardware. No cloud dependency.
+
 ```bash
-python -m kolay_mcp --transport http
+cd box
+make dev          # CPU mode (Mac, laptop)
+# or
+make up           # GPU mode (NVIDIA)
+```
+
+Open `http://localhost:3000`. See [docs/BOX.md](docs/BOX.md) for full setup instructions.
+
+---
+
+## Security Overview
+
+| Layer | What it protects |
+|-------|------------------|
+| OS keychain | API token at rest (macOS Keychain, GNOME Keyring, Windows Vault) |
+| AES-256-GCM | Local config file encryption (opt-in) |
+| TLS 1.2+ | All network traffic |
+| PII masking | Names and emails replaced with pseudonyms before reaching the LLM |
+| Egress DLP | Last-mile redaction of TC Kimlik and IBAN patterns |
+| Rate limiter | Per-token sliding window to prevent abuse |
+| Circuit breaker | Stops infinite AI tool-calling loops |
+| Audit log | Local append-only log of all write operations, with 5 MB rotation |
+
+Two profiles are available via `KOLAY_SECURITY_PROFILE`:
+
+- **`standard`** (default): TLS, token auth, rate limiting, human-in-the-loop for destructive ops.
+- **`enterprise`**: Adds AES-256-GCM encryption, DLP scanning, HMAC execution receipts.
+
+Full details: [docs/SECURITY.md](docs/SECURITY.md).
+
+---
+
+## Development
+
+```bash
+# install with test dependencies
+pip install -e ".[test,dev]"
+
+# run tests
+uv run --extra test pytest tests/ -v
 ```
 
 ---
 
-## [THE GATEWAYS]
-
-Detailed documentation is split for your convenience. Choose your journey:
-
-### [CLI Documentation](docs/CLI.md)
-**For the Terminal Wizards.** 
-Full command reference, output filters, interactive pickers, and local security. 
-> "Everything you need to master your HR data from the shell."
-
-### [MCP Documentation](docs/MCP.md)
-**For the AI Architects.** 
-Connect ChatGPT, Claude, Gemini, Mistral. Understand the architectural layers. 
-> "Turn your LLM into a fully-capable HR operations lead."
-
-### [Security and Privacy](docs/SECURITY.md)
-**For the Compliance Officers.** 
-Zero-trust architecture, proportioned security profiles, and data sovereignty.
-> "How we protect your most sensitive HR data."
-
----
-
-## [ALPHA DISCLAIMER]
-
-1. **UNOFFICIAL.** Independent lab application. Not a Kolay Yazilim A.S. product.
-2. **WRITE OPERATIONS ARE REAL.** This is not a sandbox. Actions modify live HR data.
-3. **TOKEN SECURITY.** You are responsible for your API token. Keep it private.
-
----
-
-## [EMPHATIC UX HELP GUIDE]
-
-**STOP STRUGGLING.** We refuse to let technical friction slow down your HR workflows. We designed Kolay CLI to be an effortless extension of your mind. If it is not working perfectly, fix it right now:
-
-- **[UNAUTHORIZED? SHRUNKEN KEYS?]** If your tools suddenly stop returning data, your API token expired. **RE-ARM IMMEDIATELY** with `kolay auth login`. If you're running headless, let `keyrings.alt` securely manage your file-backed storage.
-- **[NEED MORE EYES?]** You hold immense power. Do not guess. Append `--help` (e.g., `kolay person list --help`) to reveal the hidden arsenals of filters and limits.
-- **[TALK TO PROTOCOLS?]** Switch to `--json` to obliterate the pretty tables. Output razor-sharp JSON. Pipe it directly into `jq`. Command your data.
-- **[FEELING THE LAG?]** We forged this for raw speed. If it stutters, check your network.
-- **[ZERO TRUST, ZERO DRAMA]** Paralyzed by privacy concerns? Enable the `enterprise` profile. Rest easy.
-
-**You are never alone.** Every error we throw is a tactical guide, never a dead end. If you hit an impenetrable wall, [report it](https://github.com/ezapmar/kolay-cli/issues). We will tear it down together.
-
----
-
-## [THE STACK]
+## Stack
 
 - Python 3.10+
-- Typer (Interactive CLI)
-- FastMCP (Protocol Engine)
-- Qdrant & FastEmbed (Vector Memory)
-- AES-256-GCM + HMAC-SHA256 (Enterprise Crypto)
+- Typer + Rich (CLI)
+- FastMCP 3.x (MCP protocol engine)
+- AES-256-GCM + PBKDF2 (local encryption)
+- Qdrant + FastEmbed (RAG, optional)
 
 ---
 
-## [LICENSE]
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General / server error |
+| 2 | Bad input / validation |
+| 3 | Not found |
+| 4 | Auth / permission denied |
+| 5 | Conflict |
+
+---
+
+## License
 
 MIT

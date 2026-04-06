@@ -1,17 +1,20 @@
 from __future__ import annotations
+import json
 import logging
+import os
+import platform
 import re
-import requests
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+import requests
 from urllib3.util import Retry
 from requests.adapters import HTTPAdapter
 
 from .. import config
 from .errors import APIError, HTTP_ERRORS
-
-import os
-import platform
-import sys
 try:
     from importlib.metadata import version, PackageNotFoundError
     __version__ = version("kolay-cli")
@@ -23,7 +26,13 @@ _SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 _log = logging.getLogger("kolay.api")
 _BEARER_RE = re.compile(r"(Bearer\s+)\S+", re.IGNORECASE)
 
+# Audit log directory and timestamp helper — defined once at module level
+_AUDIT_DIR = Path("~").expanduser() / ".config" / "kolay"
 
+
+def _now_utc_iso() -> str:
+    """Return a compact UTC ISO-8601 timestamp for audit entries."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -101,6 +110,10 @@ class KolayClient:
             "User-Agent": user_agent,
         })
 
+        # Cache encryption preference once at init, not on every write
+        from ..config_crypto import is_encryption_enabled
+        self._encrypt_audit = is_encryption_enabled()
+
     def __repr__(self) -> str:
         """Safe repr — never exposes the bearer token."""
         return f"KolayClient(base_url={self.base_url!r})"
@@ -126,42 +139,72 @@ class KolayClient:
 
 
 
+    # Maximum audit log size before rotation (5 MB)
+    _AUDIT_MAX_BYTES = 5 * 1024 * 1024
+    _AUDIT_BACKUP_COUNT = 3
+
     def _log_audit_trail(self, method: str, endpoint: str, status: int) -> None:
-        """Append write operations to local audit.log."""
-        import json, datetime, os
-        from pathlib import Path
+        """Append mutating operations to local audit.log.
+
+        Logs both successful and failed write requests so the trail captures
+        rejected deletes, permission denials, and validation failures.
+        Rotates at 5 MB to prevent unbounded disk growth.
+        """
         try:
-            home = Path("~").expanduser() / ".config" / "kolay"
-            home.mkdir(parents=True, exist_ok=True)
+            audit_dir = _AUDIT_DIR
+            audit_dir.mkdir(parents=True, exist_ok=True)
+            # Secure the directory on first creation; ignore if already set
             try:
-                home.chmod(0o700)
+                audit_dir.chmod(0o700)
             except OSError:
                 pass
-            
-            audit_file = home / "audit.log"
+
+            audit_file = audit_dir / "audit.log"
+
+            # ── Log rotation ─────────────────────────────────────────────
+            try:
+                if audit_file.exists() and audit_file.stat().st_size > self._AUDIT_MAX_BYTES:
+                    self._rotate_audit_log(audit_file)
+            except OSError:
+                pass  # stat/rename failure should not block the current write
+
             entry = {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()[:19] + "Z",
+                "timestamp": _now_utc_iso(),
                 "method": method,
                 "endpoint": endpoint,
                 "status": status,
+                "success": 200 <= status < 400,
             }
-            log_line = json.dumps(entry) + "\n"
-            
-            from ..config_crypto import is_encryption_enabled, encrypt_bytes
-            encrypt = is_encryption_enabled()
-            
-            # O_APPEND guarantees atomic append at the end of the file
+            log_line = json.dumps(entry, separators=(",", ":")) + "\n"
+
+            # O_APPEND guarantees atomic append on POSIX
             fd = os.open(str(audit_file), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-            mode = "ab" if encrypt else "a"
-            encoding = None if encrypt else "utf-8"
-            
-            with os.fdopen(fd, mode, encoding=encoding) as f:
-                if encrypt:
+            if self._encrypt_audit:
+                from ..config_crypto import encrypt_bytes
+                with os.fdopen(fd, "ab") as f:
                     f.write(encrypt_bytes(log_line.encode("utf-8")) + b"\n")
-                else:
+            else:
+                with os.fdopen(fd, "a", encoding="utf-8") as f:
                     f.write(log_line)
         except Exception:
-            pass
+            _log.debug("Audit log write failed", exc_info=True)
+
+    @staticmethod
+    def _rotate_audit_log(audit_file: Path) -> None:
+        """Rotate audit.log -> audit.log.1 -> audit.log.2 -> audit.log.3."""
+        for i in range(KolayClient._AUDIT_BACKUP_COUNT, 0, -1):
+            dst = audit_file.with_suffix(f".log.{i}")
+            src = audit_file.with_suffix(f".log.{i - 1}") if i > 1 else audit_file
+            if i == KolayClient._AUDIT_BACKUP_COUNT:
+                try:
+                    dst.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            try:
+                if src.exists():
+                    src.rename(dst)
+            except OSError:
+                pass
 
     def _request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
         """Execute an API request with error handling and optional debug logging."""
@@ -171,10 +214,11 @@ class KolayClient:
         url = f"{self.base_url}/{endpoint}"
 
         if method.upper() == "POST":
-            import hashlib, time
+            import hashlib
+            import time
             window = int(time.time() // 120)  # 2-minute deduplication window
             payload = str(kwargs.get("json", {})) + str(kwargs.get("data", {}))
-            idx = hashlib.md5(f"{endpoint}:{payload}:{window}".encode()).hexdigest()
+            idx = hashlib.md5(f"{endpoint}:{payload}:{window}".encode()).hexdigest()  # noqa: S324
             headers = kwargs.setdefault("headers", {})
             if "Idempotency-Key" not in headers:
                 headers["Idempotency-Key"] = f"kolay-cli-{idx}"
